@@ -91,7 +91,7 @@ class Endpoint(object):
         _client_id = self.client_authentication(srv_info, req, auth, **kwargs)
         if isinstance(_client_id, ErrorResponse):
             return _client_id
-        else:
+        elif _client_id:
             req['client_id'] = _client_id
 
         try:

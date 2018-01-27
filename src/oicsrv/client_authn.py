@@ -134,7 +134,11 @@ class JWSAuthnMethod(ClientAuthnMethod):
             logger.info("%s" % sanitize(err))
             raise AuthnFailure("Could not verify client_assertion.")
 
-        logger.debug("authntoken: %s" % sanitize(ca_jwt.to_dict()))
+        try:
+            logger.debug("authntoken: %s" % sanitize(ca_jwt.to_dict()))
+        except AttributeError:
+            logger.debug("authntoken: %s" % sanitize(ca_jwt))
+
         request['parsed_client_assertion'] = ca_jwt
 
         try:
@@ -200,7 +204,7 @@ def verify_client(srv_info, request, http_args):
 
     try:
         authorization_info = http_args['Authorization']
-    except KeyError:
+    except (KeyError, TypeError):
         if 'client_id' in request and 'client_secret' in request:
             auth_method = 'client_secret_post'
             auth_info = ClientSecretPost(srv_info).verify(request)

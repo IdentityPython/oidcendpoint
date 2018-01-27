@@ -10,6 +10,19 @@ from oicsrv.exception import FailedAuthentication
 logger = logging.getLogger(__name__)
 
 
+def id_token_claims(session):
+    """
+    Pick the IdToken claims from the request
+
+    :param session: Session information
+    :return: The IdToken claims
+    """
+    itc = {}
+    itc = update_claims(session, "authzreq", "id_token", itc)
+    itc = update_claims(session, "oidreq", "id_token", itc)
+    return itc
+
+
 def update_claims(session, where, about, old_claims=None):
     """
 
@@ -97,19 +110,6 @@ def scope2claims(scopes):
         except KeyError:
             continue
     return res
-
-
-def id_token_claims(session):
-    """
-    Pick the IdToken claims from the request
-
-    :param session: Session information
-    :return: The IdToken claims
-    """
-    itc = {}
-    itc = update_claims(session, "authzreq", "id_token", itc)
-    itc = update_claims(session, "oidreq", "id_token", itc)
-    return itc
 
 
 def by_schema(cls, **kwa):

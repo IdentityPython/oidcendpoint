@@ -1,4 +1,6 @@
 import json
+
+import os
 import pytest
 import time
 from requests import request
@@ -55,7 +57,13 @@ TOKEN_REQ = AccessTokenRequest(client_id='client_1',
 
 TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
 
-USERINFO = UserInfo(json.loads(open('users.json').read()))
+BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+
+def full_path(local_file):
+    return os.path.join(BASEDIR, local_file)
+
+USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
 
 
 def setup_session(srv_info, areq):

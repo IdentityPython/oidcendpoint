@@ -1,12 +1,13 @@
 import json
+
+import os
+import pytest
+from requests import request
 from urllib.parse import parse_qs, urlparse
 
-import pytest
+from oicmsg.key_jar import build_keyjar
 from oicmsg.oauth2 import ErrorResponse
 from oicmsg.oic import AuthorizationRequest
-from requests import request
-
-from oicmsg.key_jar import build_keyjar
 
 from oicsrv.oic.authorization import Authorization
 from oicsrv.srv_info import SrvInfo
@@ -49,7 +50,14 @@ AUTH_REQ = AuthorizationRequest(client_id='client_1',
 
 AUTH_REQ_DICT = AUTH_REQ.to_dict()
 
-USERINFO = UserInfo(json.loads(open('users.json').read()))
+BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+
+def full_path(local_file):
+    return os.path.join(BASEDIR, local_file)
+
+USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
+
 
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)

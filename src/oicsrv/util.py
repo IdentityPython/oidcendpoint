@@ -2,8 +2,6 @@ import logging
 from http.cookies import SimpleCookie
 
 from cryptojwt.exception import UnknownAlgorithm
-from cryptojwt.jwe import JWE
-from oicmsg.jwt import JWT
 
 logger = logging.getLogger(__name__)
 
@@ -46,43 +44,11 @@ def make_headers(srv_info, user, **kwargs):
     return headers
 
 
-# def encrypt(srv_info, payload, client_info, cid, payload_type="id_token"):
-#     """
-#     Handles the encryption of a payload.
-#     Shouldn't get here unless there are encrypt parameters in client info
-#
-#     :param payload_type: The payload message type (id_token, userinfo, ...)
-#     :param payload: The information to be encrypted
-#     :param client_info: Client information
-#     :param cid: Client id
-#     :return: The encrypted information as a JWT
-#     """
-#
-#     try:
-#         alg = client_info["%s_encrypted_response_alg" % payload_type]
-#     except KeyError:
-#         logger.warning('{} NOT defined, means no encryption').format(
-#             payload_type)
-#         return payload
-#     else:
-#         try:
-#             enc = client_info["%s_encrypted_response_enc" % payload_type]
-#         except KeyError as err:  # if not defined-> A128CBC-HS256 (default)
-#             logger.warning("undefined parameter: %s" % err)
-#             logger.info("using default")
-#             enc = 'A128CBC-HS256'
-#
-#     logger.debug(
-#         "Encrypting info with alg={}, enc={}, payload_type={}".format(
-#             alg, enc, payload_type))
-#
-#     _jwe = JWT(srv_info.keyjar, sign=False, encrypt=True,
-#                enc_enc=enc, enc_alg=alg)
-#
-#     # use the clients public key for encryption
-#     return _jwe.pack(payload)
-
-# "signing_alg", "encryption_alg", "encryption_enc"
+DEF_SIGN_ALG = {"id_token": "RS256",
+                "userinfo": "RS256",
+                "request_object": "RS256",
+                "client_secret_jwt": "HS256",
+                "private_key_jwt": "RS256"}
 
 
 def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
@@ -96,8 +62,7 @@ def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
             try:
                 args['sign_alg'] = srv_info.jwx_def["signing_alg"][payload_type]
             except KeyError:
-                raise UnknownAlgorithm(
-                    "Don't know which signing algorithm to use")
+                args['sign_alg'] = DEF_SIGN_ALG[payload_type]
 
     if encrypt:
         try:

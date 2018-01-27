@@ -41,8 +41,7 @@ class AccessToken(Endpoint):
         if "openid" in _info["scope"]:
             userinfo = userinfo_in_id_token_claims(srv_info, _info)
             try:
-                _idtoken = sign_encrypt_id_token(srv_info,
-                                                 _info, client_info, request,
+                _idtoken = sign_encrypt_id_token(srv_info, _info, client_info,
                                                  user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
@@ -115,7 +114,7 @@ class AccessToken(Endpoint):
             client_info = srv_info.cdb[str(req["client_id"])]
             try:
                 _idtoken = sign_encrypt_id_token(srv_info,
-                    _info, client_info, req, user_info=userinfo)
+                    _info, client_info, sign=True, user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 return self.error_cls(error="invalid_request",

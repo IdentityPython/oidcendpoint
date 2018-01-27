@@ -257,9 +257,9 @@ def create_authn_response(srv_info, areq, sid):
             # or 'code id_token'
             try:
                 id_token = sign_encrypt_id_token(srv_info,
-                                                 _sinfo, client_info, areq,
+                                                 _sinfo, client_info,
                                                  user_info=user_info,
-                                                 **hargs)
+                                                 sign=True, **hargs)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 return AuthorizationErrorResponse(
