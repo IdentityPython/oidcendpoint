@@ -1,9 +1,74 @@
-from oicsrv.id_token import id_token_payload
+import json
+import os
+
+import time
+
+from cryptojwt import jws
+from oicmsg.jwt import JWT
+from oicmsg.key_jar import build_keyjar, KeyJar
+from oicmsg.oic import RegistrationResponse, JsonWebToken
+from oicsrv.client_authn import verify_client
+from oicsrv.id_token import id_token_payload, sign_encrypt_id_token
+from oicsrv.srv_info import SrvInfo
+from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+
+from oicsrv.user_info import UserInfo
+from requests import request
+
+KEYDEFS = [
+    {"type": "RSA", "key": '', "use": ["sig"]},
+    {"type": "EC", "crv": "P-256", "use": ["sig"]}
+]
+
+KEYJAR = build_keyjar(KEYDEFS)[1]
+
+BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+
+def full_path(local_file):
+    return os.path.join(BASEDIR, local_file)
+
+
+USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
+
+conf = {
+    "base_url": "https://example.com",
+    "issuer": "https://example.com/",
+    "password": "mycket hemligt",
+    "token_expires_in": 600,
+    "grant_expires_in": 300,
+    "refresh_token_expires_in": 86400,
+    "verify_ssl": False,
+    "jwks_uri": 'https://example.com/jwks.json',
+    "endpoint": {
+        'registration': 'registration',
+        'authorization': 'authz',
+        'token': 'token',
+        'userinfo': 'userinfo'
+    },
+    # 'authz' : {'name': 'Implicit'},
+    'authentication': [
+        {
+            'acr': INTERNETPROTOCOLPASSWORD,
+            'name': 'NoAuthn',
+            'args': {'user': 'diana'}
+        }
+    ],
+    'userinfo': USERINFO,
+    'client_authn': verify_client
+}
+
+srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
+srv_info.cdb['client_1'] = {
+    "client_secret": 'hemligt',
+    "redirect_uris": [("https://example.com/cb", None)],
+    "client_salt": "salted",
+    'token_endpoint_auth_method': 'client_secret_post',
+    'response_types': ['code', 'token', 'code id_token', 'id_token']
+}
 
 
 def test_id_token_payload_0():
-    #session, loa="2", alg="RS256", code=None, access_token=None,
-    # user_info=None, auth_time=0, lifetime=300, extra_claims=None
     session_info = {'sub': '1234567890'}
 
     info = id_token_payload(session_info)
@@ -41,8 +106,6 @@ def test_id_token_payload_with_access_token():
 
 
 def test_id_token_payload_with_code_and_access_token():
-    #session, loa="2", alg="RS256", code=None, access_token=None,
-    # user_info=None, auth_time=0, lifetime=300, extra_claims=None
     session_info = {'nonce': 'nonce', 'sub': '1234567890'}
 
     info = id_token_payload(session_info, access_token='012ABCDEFGHIJKLMNOP',
@@ -55,31 +118,53 @@ def test_id_token_payload_with_code_and_access_token():
 
 
 def test_id_token_payload_with_userinfo():
-    #session, loa="2", alg="RS256", code=None, access_token=None,
-    # user_info=None, auth_time=0, lifetime=300, extra_claims=None
     session_info = {'nonce': 'nonce', 'sub': '1234567890'}
 
-    info = id_token_payload(session_info, user_info={'given_name':'Diana'})
+    info = id_token_payload(session_info, user_info={'given_name': 'Diana'})
     assert info['payload'] == {'acr': '2', 'nonce': 'nonce',
-                               'given_name':'Diana', 'sub': '1234567890'}
+                               'given_name': 'Diana', 'sub': '1234567890'}
     assert info['lifetime'] == 300
 
 
 def test_id_token_payload_many_0():
-    #session, loa="2", alg="RS256", code=None, access_token=None,
+    # session, loa="2", alg="RS256", code=None, access_token=None,
     # user_info=None, auth_time=0, lifetime=300, extra_claims=None
     session_info = {'nonce': 'nonce', 'sub': '1234567890'}
 
-    info = id_token_payload(session_info, user_info={'given_name':'Diana'},
+    info = id_token_payload(session_info, user_info={'given_name': 'Diana'},
                             access_token='012ABCDEFGHIJKLMNOP',
                             code='ABCDEFGHIJKLMNOP')
     assert info['payload'] == {'acr': '2', 'nonce': 'nonce',
-                               'given_name':'Diana',
+                               'given_name': 'Diana',
                                'at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
                                'c_hash': '5-i4nCch0pDMX1VCVJHs1g',
                                'sub': '1234567890'}
     assert info['lifetime'] == 300
 
-# sign_encrypt_id_token(srv_info, session_info, client_info, code=None,
-#                           access_token=None, user_info=None, sign=True,
-#                           encrypt=False):
+
+def test_sign_encrypt_id_token():
+    client_info = RegistrationResponse(
+        id_token_signed_response_alg='RS512', client_id='client_1')
+    session_info = {'sub': 'sub',
+                    'authn_event': {"authn_info": 'loa2',
+                                    "authn_time": time.time()}}
+
+    srv_info.jwx_def["signing_alg"] = {'id_token': 'RS384'}
+    srv_info.cdb['client_1'] = client_info.to_dict()
+
+    _token = sign_encrypt_id_token(srv_info, session_info, 'client_1',
+                                   sign=True)
+    assert _token
+
+    _jws = jws.factory(_token)
+
+    assert _jws.jwt.headers['alg'] == 'RS512'
+
+    client_keyjar = KeyJar()
+    _jwks = KEYJAR.export_jwks()
+    client_keyjar.import_jwks(_jwks, srv_info.issuer)
+
+    _jwt = JWT(keyjar=client_keyjar, iss='client_1')
+    res = _jwt.unpack(_token)
+    assert isinstance(res, JsonWebToken)
+    assert res['aud'] == ['client_1']

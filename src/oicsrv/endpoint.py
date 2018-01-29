@@ -7,6 +7,7 @@ from oicmsg.message import Message
 from oicmsg.oauth2 import ErrorResponse, AuthorizationErrorResponse
 
 from oicsrv import sanitize
+from oicsrv.client_authn import verify_client
 from oicsrv.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = 'Roland Hedberg'
@@ -123,10 +124,8 @@ class Endpoint(object):
         :param authn: Authorization info
         :return: client_id or an ErrorResponse instance
         """
-        try:
-            return request['client_id']
-        except KeyError:
-            return ''
+
+        return verify_client(srv_info, request, auth)
 
     def do_post_parse_request(self, srv_info, request, client_id='', **kwargs):
         for meth in self.post_parse_request:

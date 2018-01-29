@@ -104,7 +104,7 @@ def id_token_payload(session, loa="2", alg="RS256", code=None,
     return {'payload': _args, 'lifetime': lifetime}
 
 
-def sign_encrypt_id_token(srv_info, session_info, client_info, code=None,
+def sign_encrypt_id_token(srv_info, session_info, client_id, code=None,
                           access_token=None, user_info=None, sign=True,
                           encrypt=False):
     """
@@ -112,7 +112,7 @@ def sign_encrypt_id_token(srv_info, session_info, client_info, code=None,
 
     :param srv_info: Server Information
     :param session_info: Session information
-    :param client_info: Client information
+    :param client_id: Client ID
     :param code: Access grant
     :param access_token: Access Token
     :param user_info: User information
@@ -121,6 +121,7 @@ def sign_encrypt_id_token(srv_info, session_info, client_info, code=None,
     :return: IDToken as a signed and/or encrypted JWT
     """
 
+    client_info = srv_info.cdb[client_id]
     alg_dict = get_sign_and_encrypt_algorithms(srv_info, client_info,
                                                'id_token', sign=sign,
                                                encrypt=encrypt)
@@ -135,4 +136,4 @@ def sign_encrypt_id_token(srv_info, session_info, client_info, code=None,
     _jwt = JWT(srv_info.keyjar, iss=srv_info.issuer,
                lifetime=_idt_info['lifetime'], **alg_dict)
 
-    return _jwt.pack(_idt_info['payload'])
+    return _jwt.pack(_idt_info['payload'], recv=client_id)

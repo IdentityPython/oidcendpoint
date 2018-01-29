@@ -1,14 +1,15 @@
-from future.utils import tobytes
+from cryptojwt import as_unicode, as_bytes
 
 import base64
 import hashlib
 import logging
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
+from cryptography.fernet import InvalidToken
 from oiccli import rndstr
 from oicmsg.time_util import time_sans_frac
 
-__author__ = 'rohe0002'
+__author__ = 'Roland Hedberg'
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +68,15 @@ class Crypt(object):
 
     def encrypt(self, text):
         # Padding to blocksize of AES
-        text = tobytes(text)
+        text = as_bytes(text)
         if len(text) % 16:
             text += b' ' * (16 - len(text) % 16)
-        return self.core.encrypt(tobytes(text))
+        return self.core.encrypt(as_bytes(text))
 
     def decrypt(self, ciphertext):
-        return self.core.decrypt(ciphertext)
+        dec_text = self.core.decrypt(ciphertext)
+        dec_text = dec_text.rstrip(b' ')
+        return as_unicode(dec_text)
 
 
 class Token(object):
@@ -156,9 +159,9 @@ class DefaultToken(Token):
         csum.update(rndstr(32).encode('utf-8'))
         return csum.hexdigest()  # 56 bytes long, 224 bits
 
-    def _split_token(self, token):
+    def split_token(self, token):
         try:
-            plain = self.crypt.decrypt(base64.b64decode(token)).decode()
+            plain = self.crypt.decrypt(base64.b64decode(token))
         except Exception:
             raise UnknownToken(token)
         # order: rnd, type, sid
@@ -172,7 +175,7 @@ class DefaultToken(Token):
         :return: dictionary with info about the token
         """
         _res = dict(zip(['_id', 'type', 'sid', 'exp'],
-                        self._split_token(token)))
+                        self.split_token(token)))
         if _res['type'] != self.type:
             raise WrongTokenType(_res['type'])
         else:
@@ -211,11 +214,11 @@ class TokenHandler(object):
             self.handler['refresh_token'] = refresh_token_handler
             self.handler_order.append('refresh_token')
 
-        self.lifetime_policy = {}
-        self.token_policy = {}
-        for handler in self.handler_order:
-            self.lifetime_policy[handler] = {}
-            self.token_policy[handler] = {}
+        # self.lifetime_policy = {}
+        # self.token_policy = {}
+        # for handler in self.handler_order:
+        #     self.lifetime_policy[handler] = {}
+        #     self.token_policy[handler] = {}
 
     def __getitem__(self, typ):
         return self.handler[typ]
@@ -267,19 +270,19 @@ class TokenHandler(object):
     def keys(self):
         return self.handler.keys()
 
-    def set_token_policy(self, cid, cinfo):
-        for ttyp in ['access_token', 'refresh_token']:
-            pol = {}
-            for rgtyp in ['response_type', 'grant_type']:
-                try:
-                    rtyp = cinfo[rgtyp]
-                except KeyError:
-                    pass
-                else:
-                    for typ in rtyp:
-                        try:
-                            pol[typ] = self.lifetime_policy[ttyp][typ]
-                        except KeyError:
-                            pass
-
-            self.token_policy[ttyp][cid] = pol
+    # def set_token_policy(self, cid, cinfo):
+    #     for ttyp in ['access_token', 'refresh_token']:
+    #         pol = {}
+    #         for rgtyp in ['response_type', 'grant_type']:
+    #             try:
+    #                 rtyp = cinfo[rgtyp]
+    #             except KeyError:
+    #                 pass
+    #             else:
+    #                 for typ in rtyp:
+    #                     try:
+    #                         pol[typ] = self.lifetime_policy[ttyp][typ]
+    #                     except KeyError:
+    #                         pass
+    #
+    #         self.token_policy[ttyp][cid] = pol

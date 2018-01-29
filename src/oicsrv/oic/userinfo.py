@@ -73,9 +73,14 @@ class UserInfo(Endpoint):
         :return:
         """
 
+        if not request:
+            request = {}
+
         # Verify that the client is allowed to do this
         _client_id = self.client_authentication(srv_info, {}, auth, **kwargs)
         if isinstance(_client_id, ErrorResponse):
             return _client_id
         else:
             request['client_id'] = _client_id
+
+        return request

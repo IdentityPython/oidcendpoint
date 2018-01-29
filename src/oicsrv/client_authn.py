@@ -105,11 +105,11 @@ class BearerHeader(ClientSecretBasic):
     """
     """
 
-    def verify(self, request, http_args, **kwargs):
-        if not http_args['Authorization'].startswith("Bearer "):
+    def verify(self, request, authorization_info, **kwargs):
+        if not authorization_info.startswith("Bearer "):
             raise AuthnFailure("Wrong type of authorization token")
 
-        return {'token': http_args['Authorization'].split(' ', 1)[1]}
+        return {'token': authorization_info.split(' ', 1)[1]}
 
 
 class BearerBody(ClientSecretPost):
@@ -192,7 +192,7 @@ def valid_client_info(cinfo):
     return True
 
 
-def verify_client(srv_info, request, http_args):
+def verify_client(srv_info, request, authorization_info):
     """
     Initiated Guessing !
 
@@ -202,9 +202,8 @@ def verify_client(srv_info, request, http_args):
     :return: tuple containing client id and client authentication method
     """
 
-    try:
-        authorization_info = http_args['Authorization']
-    except (KeyError, TypeError):
+
+    if not authorization_info:
         if 'client_id' in request and 'client_secret' in request:
             auth_method = 'client_secret_post'
             auth_info = ClientSecretPost(srv_info).verify(request)
@@ -222,12 +221,12 @@ def verify_client(srv_info, request, http_args):
     else:
         if authorization_info.startswith('Basic '):
             auth_method = 'client_secret_basic'
-            auth_info = ClientSecretBasic(srv_info).verify(request,
-                                                           authorization_info)
+            auth_info = ClientSecretBasic(srv_info).verify(
+                request, authorization_info)
         elif authorization_info.startswith('Bearer '):
             auth_method = 'bearer_header'
-            auth_info = BearerHeader(srv_info).verify(request,
-                                                      authorization_info)
+            auth_info = BearerHeader(srv_info).verify(
+                request, authorization_info)
         else:
             raise UnknownAuthnMethod(authorization_info)
 
@@ -235,7 +234,14 @@ def verify_client(srv_info, request, http_args):
         client_id = auth_info['client_id']
     except KeyError:
         client_id = ''
-        logger.warning('Unknown client ID')
+        try:
+            _token = auth_info['token']
+        except KeyError:
+            pass
+            logger.warning('Unknown client ID')
+        else:
+            sinfo = srv_info.sdb[_token]
+            client_id = sinfo['client_id']
     else:
         try:
             _cinfo = srv_info.cdb[client_id]

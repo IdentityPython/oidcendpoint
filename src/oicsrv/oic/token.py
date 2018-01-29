@@ -36,12 +36,12 @@ class AccessToken(Endpoint):
     def _pre_construct(self, srv_info, response_args, request, **kwargs):
         _access_code = request["code"].replace(' ', '+')
         _info = srv_info.sdb[_access_code]
-        client_info = srv_info.cdb[str(request["client_id"])]
 
         if "openid" in _info["scope"]:
             userinfo = userinfo_in_id_token_claims(srv_info, _info)
             try:
-                _idtoken = sign_encrypt_id_token(srv_info, _info, client_info,
+                _idtoken = sign_encrypt_id_token(srv_info, _info,
+                                                 str(request["client_id"]),
                                                  user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))

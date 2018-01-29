@@ -244,7 +244,7 @@ def create_authn_response(srv_info, areq, sid):
                 else:
                     user_info.update(info)
 
-            client_info = srv_info.cdb[str(areq["client_id"])]
+            #client_info = srv_info.cdb[str(areq["client_id"])]
 
             hargs = {}
             if {'code', 'id_token', 'token'}.issubset(rtype):
@@ -256,8 +256,8 @@ def create_authn_response(srv_info, areq, sid):
 
             # or 'code id_token'
             try:
-                id_token = sign_encrypt_id_token(srv_info,
-                                                 _sinfo, client_info,
+                id_token = sign_encrypt_id_token(srv_info, _sinfo,
+                                                 str(areq["client_id"]),
                                                  user_info=user_info,
                                                  sign=True, **hargs)
             except (JWEException, NoSuitableSigningKeys) as err:
