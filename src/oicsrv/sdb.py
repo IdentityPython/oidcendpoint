@@ -7,7 +7,9 @@ from oicmsg.oic import AuthorizationRequest
 from oicmsg.time_util import time_sans_frac
 
 from oicsrv.sso_db import SSODb
-from oicsrv.token_handler import is_expired, UnknownToken, ExpiredToken
+from oicsrv.token_handler import ExpiredToken
+from oicsrv.token_handler import is_expired
+from oicsrv.token_handler import UnknownToken
 from oicsrv.token_handler import AccessCodeUsed
 from oicsrv.token_handler import DefaultToken
 from oicsrv.token_handler import WrongTokenType
@@ -118,8 +120,11 @@ class SessionDB(object):
         :param item: authz grant code or refresh token
         """
         try:
+            # First guess it's a session ID
             return self._db[item]
         except KeyError:
+            # Was not, so then it can be a code, access token or refresh token
+            # Map such an item against a session ID
             sid = self.handler.sid(item)
             return self._db[sid]
 
@@ -137,6 +142,12 @@ class SessionDB(object):
         :param sid: session identifier
         """
         del self._db[sid]
+
+    def is_valid(self, item):
+        try:
+            return not self.handler.is_black_listed(item)
+        except KeyError:
+            return False
 
     def get_sids_by_sub(self, sub):
         return self.sso_db.get_sids_by_sub(sub)
@@ -256,6 +267,7 @@ class SessionDB(object):
     def replace_token(self, sid, sinfo, token_type):
         """
         Replace an old refresh_token with a new one
+
         :param sid: session ID
         :param sinfo: session info
         :param token_type: What type of tokens should be replaced
@@ -294,6 +306,12 @@ class SessionDB(object):
             dic = self._db[_tinfo['sid']]
 
             if self.handler['code'].is_black_listed(grant):
+                # invalidate the released access token and refresh token
+                for item in ['access_token', 'refresh_token']:
+                    try:
+                        self.handler[item].black_list(dic[item])
+                    except KeyError:
+                        pass
                 raise AccessCodeUsed(grant)
 
             # mint a new access token

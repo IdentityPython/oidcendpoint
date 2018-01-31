@@ -8,7 +8,7 @@ from jwkest import jws
 from oiccli import rndstr
 from oiccli.http import HTTPLib
 from oicmsg.key_jar import KeyJar
-from oicmsg.oic import SCOPE2CLAIMS
+from oicmsg.oic import SCOPE2CLAIMS, IdToken
 
 from oicsrv import authz
 from oicsrv.exception import ConfigurationError
@@ -94,10 +94,11 @@ class SrvInfo(object):
         self.sso_ttl = 14400  # 4h
         self.cookie_name = 'oicsrc'
         self.symkey = rndstr(24)
+        self.id_token_schema = IdToken
 
         for param in ['verify_ssl', 'base_url', 'issuer', 'jwks_uri',
                       'endpoint', 'sso_ttl', 'cookie_name', 'symkey',
-                      'userinfo', 'client_authn']:
+                      'userinfo', 'client_authn', 'id_token_schema']:
             try:
                 setattr(self, param, conf[param])
             except KeyError:

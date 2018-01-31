@@ -1,3 +1,7 @@
+import base64
+import hashlib
+import hmac
+import random
 import time
 
 import pytest
@@ -20,10 +24,40 @@ def test_is_expired():
 
 def test_crypt():
     crypt = Crypt('Ditt nya bankkort')
-    txt = 'Arsenal great season gifts'
+    txt = "Arsenal's great season gifts"
     enc_text = crypt.encrypt(txt)
     dec_text = crypt.decrypt(enc_text)
     assert dec_text == txt
+
+
+class TestCrypt(object):
+    @pytest.fixture(autouse=True)
+    def create_crypt(self):
+        self.crypt = Crypt("4-amino-1H-pyrimidine-2-one")
+
+    def test_encrypt_decrypt(self):
+        ctext = self.crypt.encrypt("Cytosine")
+        plain = self.crypt.decrypt(ctext)
+        assert plain == 'Cytosine'
+
+        ctext = self.crypt.encrypt("cytidinetriphosp")
+        plain = self.crypt.decrypt(ctext)
+
+        assert plain == 'cytidinetriphosp'
+
+    def test_crypt_with_b64(self):
+        db = {}
+        msg = "secret{}{}".format(time.time(), random.random())
+        csum = hmac.new(msg.encode("utf-8"), digestmod=hashlib.sha224)
+        txt = csum.digest()  # 28 bytes long, 224 bits
+        db[txt] = "foobar"
+        txt = txt + b"aces"  # another 4 bytes
+
+        ctext = self.crypt.encrypt(txt)
+        onthewire = base64.b64encode(ctext)
+        plain = self.crypt.decrypt(base64.b64decode(onthewire))
+        assert plain.endswith(b"aces")
+        assert db[plain[:-4]] == "foobar"
 
 
 class TestDefaultToken(object):

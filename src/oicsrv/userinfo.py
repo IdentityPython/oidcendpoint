@@ -1,7 +1,7 @@
 import logging
 
 from oiccli import sanitize
-from oicmsg.oic import AuthorizationRequest, Claims
+from oicmsg.oic import AuthorizationRequest, Claims, scope2claims
 from oicmsg.oic import OpenIDRequest
 from oicmsg.oic import SCOPE2CLAIMS
 
@@ -42,24 +42,27 @@ def update_claims(session, where, about, old_claims=None):
             req = OpenIDRequest().deserialize(session[where], "json")
         except KeyError:
             pass
-    else:  # where == "authzreq"
+    elif where == "authzreq":
         try:
             req = AuthorizationRequest().deserialize(session[where], "json")
         except KeyError:
             pass
+    else:
+        raise ValueError('Unknown request specifier: {}'.format(where))
 
     if req:
         logger.debug("%s: %s" % (where, sanitize(req.to_dict())))
         try:
             _claims = req["claims"][about]
+        except KeyError:
+            pass
+        else:
             if _claims:
                 # update with old claims, do not overwrite
                 for key, val in old_claims.items():
                     if key not in _claims:
                         _claims[key] = val
                 return _claims
-        except KeyError:
-            pass
 
     return old_claims
 
@@ -71,9 +74,9 @@ def claims_match(value, claimspec):
     The lack of value is not checked here.
     Also the text doesn't prohibit having both 'value' and 'values'.
 
-    :param value: single value or list of values
+    :param value: single value
     :param claimspec: None or dictionary with 'essential', 'value' or 'values'
-    as key
+        as key
     :return: Boolean
     """
     if claimspec is None:  # match anything
@@ -101,18 +104,14 @@ def claims_match(value, claimspec):
     return matched
 
 
-def scope2claims(scopes):
-    res = {}
-    for scope in scopes:
-        try:
-            claims = dict([(name, None) for name in SCOPE2CLAIMS[scope]])
-            res.update(claims)
-        except KeyError:
-            continue
-    return res
-
-
 def by_schema(cls, **kwa):
+    """
+    Will return only those claims that are listed in the Class definition.
+
+    :param cls: A subclass of :py:class:´oicmsg.message.Message`
+    :param kwa: Keyword arguments
+    :return: A dictionary with claims (keys) that meets the filter criteria
+    """
     return dict([(key, val) for key, val in kwa.items() if key in cls.c_param])
 
 
@@ -186,7 +185,7 @@ def userinfo_in_id_token_claims(srv_info, session):
     if not itc:
         return None
 
-    _claims = by_schema(srv_info.schema, **itc)
+    _claims = by_schema(srv_info.id_token_schema, **itc)
 
     if _claims:
         return collect_user_info(session, _claims)

@@ -9,7 +9,8 @@ from http.cookies import SimpleCookie
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from cryptojwt import as_unicode, as_bytes
+from cryptojwt import as_bytes
+from cryptojwt import as_unicode
 from cryptojwt import safe_str_cmp
 from cryptojwt.jwe import JWEException
 from cryptojwt.jwe import split_ctx_and_tag
