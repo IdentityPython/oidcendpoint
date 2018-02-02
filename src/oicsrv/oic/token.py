@@ -45,8 +45,9 @@ class AccessToken(Endpoint):
                                                  user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
-                return self.error_cls(error="invalid_request",
-                                      descr="Could not sign/encrypt id_token")
+                return self.error_cls(
+                    error="invalid_request",
+                    error_description="Could not sign/encrypt id_token")
 
             srv_info.sdb.update_by_token(_access_code, id_token=_idtoken)
             response_args['id_token'] = _idtoken
@@ -107,7 +108,7 @@ class AccessToken(Endpoint):
             # Should revoke the token issued to this access code
             _sdb.revoke_all_tokens(_access_code)
             return self.error_cls(error="access_denied",
-                                  descr="Access Code already used")
+                                  error_description="Access Code already used")
 
         if "openid" in _info["scope"]:
             userinfo = userinfo_in_id_token_claims(srv_info, _info)
@@ -117,8 +118,9 @@ class AccessToken(Endpoint):
                     _info, req["client_id"], sign=True, user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
-                return self.error_cls(error="invalid_request",
-                             erro_description="Could not sign/encrypt id_token")
+                return self.error_cls(
+                    error="invalid_request",
+                    error_description="Could not sign/encrypt id_token")
 
             _sdb.update_by_token(_access_code, id_token=_idtoken)
             _info = _sdb[_access_code]
@@ -209,7 +211,7 @@ class AccessToken(Endpoint):
                 response_args = self._access_token(srv_info, request, **kwargs)
             except JWEException as err:
                 return self.error_cls(error="invalid_request",
-                                      erro_description="%s" % err)
+                                      error_description="%s" % err)
 
         else:
             response_args = self._refresh_access_token(srv_info, request, **kwargs)
