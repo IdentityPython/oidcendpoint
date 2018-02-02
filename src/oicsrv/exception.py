@@ -52,3 +52,7 @@ class RedirectURIError(OicSrvError):
 
 class UnknownClient(OicSrvError):
     pass
+
+
+class UnAuthorizedClient(OicSrvError):
+    pass

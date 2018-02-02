@@ -26,7 +26,7 @@ class NoMatchingKey(Exception):
     pass
 
 
-class UnknownAuthnMethod(Exception):
+class UnknownOrNoAuthnMethod(Exception):
     pass
 
 
@@ -217,7 +217,7 @@ def verify_client(srv_info, request, authorization_info):
             auth_method = 'bearer_body'
             auth_info = BearerBody(srv_info).verify(request)
         else:
-            raise UnknownAuthnMethod()
+            raise UnknownOrNoAuthnMethod()
     else:
         if authorization_info.startswith('Basic '):
             auth_method = 'client_secret_basic'
@@ -228,7 +228,7 @@ def verify_client(srv_info, request, authorization_info):
             auth_info = BearerHeader(srv_info).verify(
                 request, authorization_info)
         else:
-            raise UnknownAuthnMethod(authorization_info)
+            raise UnknownOrNoAuthnMethod(authorization_info)
 
     try:
         client_id = auth_info['client_id']

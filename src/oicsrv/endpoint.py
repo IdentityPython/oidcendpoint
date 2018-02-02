@@ -7,7 +7,8 @@ from oicmsg.message import Message
 from oicmsg.oauth2 import ErrorResponse, AuthorizationErrorResponse
 
 from oicsrv import sanitize
-from oicsrv.client_authn import verify_client
+from oicsrv.client_authn import verify_client, UnknownOrNoAuthnMethod
+from oicsrv.exception import UnAuthorizedClient
 from oicsrv.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = 'Roland Hedberg'
@@ -51,6 +52,7 @@ class Endpoint(object):
     request_format = 'urlencoded'
     response_format = 'json'
     response_placement = 'body'
+    client_auth_method = ''
 
     def __init__(self, keyjar):
         self.keyjar = keyjar
@@ -89,11 +91,22 @@ class Endpoint(object):
             req = {}
 
         # Verify that the client is allowed to do this
-        _client_id = self.client_authentication(srv_info, req, auth, **kwargs)
-        if isinstance(_client_id, ErrorResponse):
-            return _client_id
-        elif _client_id:
-            req['client_id'] = _client_id
+        _client_id = ''
+        try:
+            _client_id = self.client_authentication(srv_info, req, auth, **kwargs)
+        except UnknownOrNoAuthnMethod:
+            if not self.client_auth_method:
+                pass
+            else:
+                raise UnAuthorizedClient()
+        else:
+            if _client_id:
+                req['client_id'] = _client_id
+            else:
+                try:
+                    _client_id = req['client_id']
+                except KeyError:
+                    pass
 
         try:
             keyjar = self.keyjar
@@ -122,7 +135,7 @@ class Endpoint(object):
         :param srv_info: A :py:class:`oicsrv.srv_info.SrvInfo` instance
         :param request: Parsed request, a self.request_cls class instance
         :param authn: Authorization info
-        :return: client_id or an ErrorResponse instance
+        :return: client_id or raise and exception
         """
 
         return verify_client(srv_info, request, auth)

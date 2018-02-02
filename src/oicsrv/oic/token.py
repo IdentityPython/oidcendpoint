@@ -114,7 +114,7 @@ class AccessToken(Endpoint):
             client_info = srv_info.cdb[str(req["client_id"])]
             try:
                 _idtoken = sign_encrypt_id_token(srv_info,
-                    _info, client_info, sign=True, user_info=userinfo)
+                    _info, req["client_id"], sign=True, user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 return self.error_cls(error="invalid_request",
