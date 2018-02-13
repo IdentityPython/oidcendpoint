@@ -69,7 +69,7 @@ class AuthnEvent(object):
         return self.__dict__
 
 
-def create_session_db(base_url, password, db=None,
+def create_session_db(issuer, password, db=None,
                       token_expires_in=3600, grant_expires_in=600,
                       refresh_token_expires_in=86400, sso_db=None):
     """
@@ -78,7 +78,7 @@ def create_session_db(base_url, password, db=None,
     Using this you can create a very basic non persistant
     session database that issues opaque DefaultTokens.
 
-    :param base_url: Same as base_url parameter of `SessionDB`
+    :param issuer: Same as issuer parameter of `SessionDB`
     :param password: Secret key to pass to `DefaultToken` class.
     :param db: Storage for the session data, usually a dict.
     :param token_expires_in: Expiry time for access tokens in seconds.
@@ -104,13 +104,13 @@ def create_session_db(base_url, password, db=None,
         refresh_token_handler=refresh_token_handler,
     )
 
-    return SessionDB(base_url, db, handler=handler, sso_db=sso_db)
+    return SessionDB(issuer, db, handler=handler, sso_db=sso_db)
 
 
 class SessionDB(object):
-    def __init__(self, base_url, db, handler, sso_db):
+    def __init__(self, issuer, db, handler, sso_db):
 
-        self.base_url = base_url
+        self.issuer = issuer
         self._db = db
         self.handler = handler
         self.sso_db = sso_db

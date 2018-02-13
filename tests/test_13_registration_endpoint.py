@@ -1,13 +1,17 @@
 import json
-
 import pytest
-from oicmsg.key_jar import build_keyjar
-from oicmsg.oic import RegistrationRequest, RegistrationResponse
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from requests import request
 
+from oicmsg.key_jar import build_keyjar
+from oicmsg.oic import RegistrationRequest
+from oicmsg.oic import RegistrationResponse
+from oicsrv.oic.authorization import Authorization
+from oicsrv.oic.provider_config import ProviderConfiguration
 from oicsrv.oic.registration import Registration
+from oicsrv.oic.token import AccessToken
+from oicsrv.oic import userinfo
 from oicsrv.srv_info import SrvInfo
+from oicsrv.user_info import UserInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -62,7 +66,6 @@ class TestEndpoint(object):
     def create_endpoint(self):
         self.endpoint = Registration(KEYJAR)
         conf = {
-            "base_url": "https://example.com",
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
             "token_expires_in": 600,
@@ -70,18 +73,38 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks_uri": 'https://example.com/jwks.json',
-            "endpoint": {
-                'registration': 'registration',
-                'authorization': 'authz',
-                'token': 'token',
-                'userinfo': 'userinfo'
+            "jwks": {
+                'url_path': '{}/jwks.json',
+                'local_path': 'static/jwks.json',
+                'private_path': 'own/jwks.json'
             },
-            "authentication": [{
-                'acr': INTERNETPROTOCOLPASSWORD,
-                'name': 'NoAuthn',
-                'args': {'user': 'diana'}
-            }]
+            'endpoint': {
+                'provider_config': {
+                    'path': '{}/.well-known/openid-configuration',
+                    'class': ProviderConfiguration,
+                    'kwargs': {}
+                },
+                'registration': {
+                    'path': '{}/registration',
+                    'class': Registration,
+                    'kwargs': {}
+                },
+                'authorization': {
+                    'path': '{}/authorization',
+                    'class': Authorization,
+                    'kwargs': {}
+                },
+                'token': {
+                    'path': '{}/token',
+                    'class': AccessToken,
+                    'kwargs': {}
+                },
+                'userinfo': {
+                    'path': '{}/userinfo',
+                    'class': userinfo.UserInfo,
+                    'kwargs': {'db_file': 'users.json'}
+                }
+            }
         }
         self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
 

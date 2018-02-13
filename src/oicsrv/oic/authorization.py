@@ -565,7 +565,7 @@ class Authorization(Endpoint):
             return resp_info
 
         # Mix-Up mitigation
-        resp_info['response_args']['iss'] = srv_info.base_url
+        resp_info['response_args']['iss'] = srv_info.issuer
         resp_info['response_args']['client_id'] = areq['client_id']
 
         return resp_info

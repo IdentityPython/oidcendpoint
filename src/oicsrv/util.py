@@ -88,3 +88,42 @@ def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
                     "Don't know which encryption algorithm to use")
 
     return args
+
+
+def build_endpoints(conf, keyjar, client_authn_method, issuer):
+    """
+    conf is typically::
+        'provider_config': {
+            'path': '{}/.well-known/openid-configuration',
+            'class': ProviderConfiguration,
+            'kwargs': {}
+        },
+
+    :param conf:
+    :param keyjar:
+    :param client_authn_method:
+    :param issuer:
+    :return:
+    """
+
+    if issuer.endswith('/'):
+        _url = issuer[:-1]
+    else:
+        _url = issuer
+
+    endpoint = {}
+    for name, spec in conf.items():
+        try:
+            kwargs = spec['kwargs']
+        except KeyError:
+            kwargs = {}
+
+        _instance = spec['class'](keyjar=keyjar, **kwargs)
+        _instance.endpoint_path = spec['path'].format(_url)
+        _instance.client_auth_method = client_authn_method
+
+        endpoint[name] = _instance
+
+    return endpoint
+
+

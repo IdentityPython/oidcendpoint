@@ -1,14 +1,20 @@
 import json
 import os
-
 import time
 
 from cryptojwt import jws
 from oicmsg.jwt import JWT
-from oicmsg.key_jar import build_keyjar, KeyJar
-from oicmsg.oic import RegistrationResponse, JsonWebToken
+from oicmsg.key_jar import build_keyjar
+from oicmsg.key_jar import KeyJar
+from oicmsg.oic import JsonWebToken
+from oicmsg.oic import RegistrationResponse
+
 from oicsrv.client_authn import verify_client
-from oicsrv.id_token import id_token_payload, sign_encrypt_id_token
+from oicsrv.id_token import sign_encrypt_id_token
+from oicsrv.id_token import id_token_payload
+from oicsrv.oic.authorization import Authorization
+from oicsrv.oic.token import AccessToken
+from oicsrv.oic import userinfo
 from oicsrv.srv_info import SrvInfo
 from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
@@ -32,7 +38,6 @@ def full_path(local_file):
 USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
 
 conf = {
-    "base_url": "https://example.com",
     "issuer": "https://example.com/",
     "password": "mycket hemligt",
     "token_expires_in": 600,
@@ -40,13 +45,23 @@ conf = {
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
     "jwks_uri": 'https://example.com/jwks.json',
-    "endpoint": {
-        'registration': 'registration',
-        'authorization': 'authz',
-        'token': 'token',
-        'userinfo': 'userinfo'
+    'endpoint': {
+        'authorization_endpoint': {
+            'path': '{}/authorization',
+            'class': Authorization,
+            'kwargs': {}
+        },
+        'token_endpoint': {
+            'path': '{}/token',
+            'class': AccessToken,
+            'kwargs': {}
+        },
+        'userinfo_endpoint': {
+            'path': '{}/userinfo',
+            'class': userinfo.UserInfo,
+            'kwargs': {'db_file': 'users.json'}
+        }
     },
-    # 'authz' : {'name': 'Implicit'},
     'authentication': [
         {
             'acr': INTERNETPROTOCOLPASSWORD,
@@ -54,7 +69,6 @@ conf = {
             'args': {'user': 'diana'}
         }
     ],
-    'userinfo': USERINFO,
     'client_authn': verify_client
 }
 

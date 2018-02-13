@@ -18,13 +18,13 @@ class TestEndpoint(object):
     def create_endpoint(self):
         self.endpoint = Discovery(KEYJAR)
         conf = {
-            "base_url": "https://example.com",
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
             "token_expires_in": 600,
             "grant_expires_in": 300,
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
+            "endpoint": {},
             "authentication": [{
                 'acr': INTERNETPROTOCOLPASSWORD,
                 'name': 'NoAuthn',

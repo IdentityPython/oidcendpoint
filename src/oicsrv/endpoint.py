@@ -54,11 +54,12 @@ class Endpoint(object):
     response_placement = 'body'
     client_auth_method = ''
 
-    def __init__(self, keyjar):
+    def __init__(self, keyjar, **kwargs):
         self.keyjar = keyjar
         self.pre_construct = []
         self.post_construct = []
         self.post_parse_request = []
+        self.kwargs = kwargs
 
     def parse_request(self, request, srv_info, auth=None, **kwargs):
         """
@@ -225,3 +226,5 @@ class Endpoint(object):
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 
         return {'response': resp, 'http_headers': http_headers}
+
+

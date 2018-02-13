@@ -71,6 +71,7 @@ def verify_url(url, urlset):
 
     return False
 
+
 def client_secret_expiration_time():
     '''
     Returns client_secret expiration time.
@@ -152,7 +153,7 @@ class Registration(Endpoint):
         if "sector_identifier_uri" in request:
             try:
                 _cinfo["si_redirects"], _cinfo[
-                    "sector_id"] = self._verify_sector_identifier(srv_info, 
+                    "sector_id"] = self._verify_sector_identifier(srv_info,
                                                                   request)
             except InvalidSectorIdentifier as err:
                 return ErrorResponse(error="invalid_configuration_parameter",
@@ -172,7 +173,8 @@ class Registration(Endpoint):
                         except AssertionError:
                             return ErrorResponse(
                                 error="invalid_configuration_parameter",
-                                error_description="'sector_identifier_uri' must be registered")
+                                error_description="'sector_identifier_uri' "
+                                                  "must be registered")
 
         for item in ["policy_uri", "logo_uri", "tos_uri"]:
             if item in request:
@@ -188,7 +190,7 @@ class Registration(Endpoint):
                      "userinfo_signed_response_alg"]:
             if item in request:
                 if request[item] in srv_info.provider_info[
-                        PREFERENCE2PROVIDER[item]]:
+                    PREFERENCE2PROVIDER[item]]:
                     ktyp = jws.alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
@@ -344,7 +346,8 @@ class Registration(Endpoint):
         client_secret = secret(srv_info.seed, client_id)
 
         _rat = rndstr(32)
-        reg_enp = urljoin(srv_info.base_url, srv_info.endpoint['registration'])
+        reg_enp = srv_info.endpoint['registration'].endpoint_path.format(
+            srv_info.issuer)
 
         srv_info.cdb[client_id] = {
             "client_id": client_id,

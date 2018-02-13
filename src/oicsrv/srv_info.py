@@ -1,19 +1,21 @@
 import copy
 import logging
 from functools import cmp_to_key
-from urllib.parse import urljoin
 
 from jwkest import jwe
 from jwkest import jws
 from oicmsg.key_jar import KeyJar
 from oicmsg.oic import SCOPE2CLAIMS, IdToken
 
-from oicsrv import authz, rndstr
+from oicsrv import rndstr
+from oicsrv import authz
+from oicsrv.client_authn import CLIENT_AUTHN_METHOD
 from oicsrv.exception import ConfigurationError
 from oicsrv.sdb import create_session_db
 from oicsrv.sso_db import SSODb
 from oicsrv.user_authn import user
 from oicsrv.user_authn.authn_context import AuthnBroker
+from oicsrv.util import build_endpoints
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +71,7 @@ class SrvInfo(object):
             self.sdb = session_db
         else:
             self.sdb = create_session_db(
-                conf['base_url'], conf['password'], db=None,
+                conf['issuer'], conf['password'], db=None,
                 token_expires_in=conf['token_expires_in'],
                 grant_expires_in=conf['grant_expires_in'],
                 refresh_token_expires_in=conf['refresh_token_expires_in'],
@@ -85,7 +87,6 @@ class SrvInfo(object):
 
         # Default values, to be changed below depending on configuration
         self.endpoint = {}
-        self.base_url = ''
         self.issuer = ''
         self.verify_ssl = True
         self.jwks_uri = None
@@ -94,9 +95,9 @@ class SrvInfo(object):
         self.symkey = rndstr(24)
         self.id_token_schema = IdToken
 
-        for param in ['verify_ssl', 'base_url', 'issuer', 'jwks_uri',
-                      'endpoint', 'sso_ttl', 'cookie_name', 'symkey',
-                      'userinfo', 'client_authn', 'id_token_schema']:
+        for param in ['verify_ssl', 'issuer', 'jwks_uri',
+                      'sso_ttl', 'cookie_name', 'symkey',
+                      'client_authn', 'id_token_schema']:
             try:
                 setattr(self, param, conf[param])
             except KeyError:
@@ -104,6 +105,8 @@ class SrvInfo(object):
 
         self.setup = {}
 
+        self.endpoint = build_endpoints(conf['endpoint'], keyjar,
+                                        CLIENT_AUTHN_METHOD, conf['issuer'])
         try:
             _cap = conf['capabilities']
         except KeyError:
@@ -122,19 +125,37 @@ class SrvInfo(object):
 
         self.authn_broker = AuthnBroker()
 
-        for authn_spec in conf['authentication']:
+        try:
+            _authn = conf['authentication']
+        except KeyError:
+            pass
+        else:
+            for authn_spec in _authn:
+                try:
+                    _args = authn_spec['args']
+                except KeyError:
+                    _args = {}
+                authn_method = user.factory(authn_spec['name'], **_args)
+                authn_method.srv_info = self
+                args = {k: authn_spec[k] for k in
+                        ['acr', 'level', 'authn_authority'] if k in authn_spec}
+
+                self.authn_broker.add(method=authn_method, **args)
+
+            self.cookie_func = self.authn_broker[0][0].create_cookie
+
+        try:
+            _conf = conf['userinfo']
+        except KeyError:
+            pass
+        else:
             try:
-                _args = authn_spec['args']
+                kwargs = _conf['kwargs']
             except KeyError:
-                _args = {}
-            authn_method = user.factory(authn_spec['name'], **_args)
-            authn_method.srv_info = self
-            args = {k: authn_spec[k] for k in
-                    ['acr', 'level', 'authn_authority'] if k in authn_spec}
+                kwargs = {}
 
-            self.authn_broker.add(method=authn_method, **args)
+            self.userinfo = _conf['class'](**kwargs)
 
-        self.cookie_func = self.authn_broker[0][0].create_cookie
         self.provider_info = self.create_providerinfo(_cap)
 
         # which signing/encryption algorithms to use in what context
@@ -234,12 +255,7 @@ class SrvInfo(object):
         if self.jwks_uri and self.keyjar:
             _pinfo["jwks_uri"] = self.jwks_uri
 
-        if not self.base_url.endswith('/'):
-            baseurl = self.base_url + '/'
-        else:
-            baseurl = self.base_url
-
-        for name, path in self.endpoint.items():
-            _pinfo['{}_endpoint'.format(name)] = urljoin(baseurl, path)
+        for name, instance in self.endpoint.items():
+            _pinfo[name] = instance.endpoint_path
 
         return _pinfo

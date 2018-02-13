@@ -46,7 +46,7 @@ def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
 
 
-USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
+USERINFO_DB = json.loads(open(full_path('users.json')).read())
 
 
 def test_update_claims_oidreq_id_token():
@@ -106,11 +106,15 @@ def test_collect_user_info():
     session.update({'scope': ['openid', 'profile'], 'sub': 'doe',
                     'uid': 'diana', 'client_id': 'client'})
 
-    srv_info = SrvInfo({'userinfo': USERINFO,
+    srv_info = SrvInfo({'userinfo': {
+                            'class': UserInfo,
+                            'kwargs': {'db': USERINFO_DB}
+                        },
                         'password': "we didn't start the fire",
-                        'base_url': 'https://example.com/op',
+                        'issuer': 'https://example.com/op',
                         'token_expires_in': 900, 'grant_expires_in': 600,
                         'refresh_token_expires_in': 86400,
+                        "endpoint": {},
                         "authentication": [{
                             'acr': INTERNETPROTOCOLPASSWORD,
                             'name': 'NoAuthn',

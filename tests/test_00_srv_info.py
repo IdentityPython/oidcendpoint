@@ -1,11 +1,17 @@
 import pytest
 from copy import copy
-from oicmsg.key_jar import build_keyjar
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from requests import request
 
+from oicmsg.key_jar import build_keyjar
+
 from oicsrv.exception import ConfigurationError
+from oicsrv.oic.authorization import Authorization
+from oicsrv.oic.provider_config import ProviderConfiguration
+from oicsrv.oic.registration import Registration
+from oicsrv.oic.token import AccessToken
+from oicsrv.oic.userinfo import UserInfo
 from oicsrv.srv_info import SrvInfo
+from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -15,7 +21,6 @@ KEYDEFS = [
 KEYJAR = build_keyjar(KEYDEFS)[1]
 
 conf = {
-    "base_url": "https://example.com",
     "issuer": "https://example.com/",
     "password": "mycket hemligt",
     "token_expires_in": 600,
@@ -23,18 +28,45 @@ conf = {
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
     "capabilities": {},
-    "jwks_uri": 'https://example.com/jwks.json',
-    "endpoint": {
-        'registration': 'registration',
-        'authorization': 'authz',
-        'token': 'token',
-        'userinfo': 'userinfo'
+    "jwks": {
+        'url_path': '{}/jwks.json',
+        'local_path': 'static/jwks.json',
+        'private_path': 'own/jwks.json'
     },
-    "authentication": [{
-        'acr': INTERNETPROTOCOLPASSWORD,
-        'name': 'NoAuthn',
-        'args': {'user': 'diana'}
-    }]
+    'endpoint': {
+        'provider_config': {
+            'path': '{}/.well-known/openid-configuration',
+            'class': ProviderConfiguration,
+            'kwargs': {}
+        },
+        'registration_endpoint': {
+            'path': '{}/registration',
+            'class': Registration,
+            'kwargs': {}
+        },
+        'authorization_endpoint': {
+            'path': '{}/authorization',
+            'class': Authorization,
+            'kwargs': {}
+        },
+        'token_endpoint': {
+            'path': '{}/token',
+            'class': AccessToken,
+            'kwargs': {}
+        },
+        'userinfo_endpoint': {
+            'path': '{}/userinfo',
+            'class': UserInfo,
+            'kwargs': {'db_file': 'users.json'}
+        }
+    },
+    'authentication': [
+        {
+            'acr': INTERNETPROTOCOLPASSWORD,
+            'name': 'NoAuthn',
+            'args': {'user': 'diana'}
+        }
+    ]
 }
 
 

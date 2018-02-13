@@ -49,13 +49,13 @@ class TestEndpoint(object):
     def create_endpoint(self):
         self.endpoint = Endpoint(KEYJAR)
         conf = {
-            "base_url": "https://example.com",
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
             "token_expires_in": 600,
             "grant_expires_in": 300,
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
+            "endpoint": {},
             "authentication": [{
                 'acr': INTERNETPROTOCOLPASSWORD,
                 'name': 'NoAuthn',
@@ -72,7 +72,7 @@ class TestEndpoint(object):
 
     def test_parse_url(self):
         self.endpoint.request_format = 'url'
-        request = '{}?{}'.format(self.srv_info.base_url, REQ.to_urlencoded())
+        request = '{}?{}'.format(self.srv_info.issuer, REQ.to_urlencoded())
         req = self.endpoint.parse_request(request, self.srv_info)
         assert req == REQ
 

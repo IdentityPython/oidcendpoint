@@ -9,8 +9,12 @@ from oicmsg.key_jar import build_keyjar
 from oicmsg.oauth2 import ErrorResponse
 from oicmsg.oic import AuthorizationRequest
 
-from oicsrv.oic.authorization import Authorization
 from oicsrv.srv_info import SrvInfo
+from oicsrv.oic.authorization import Authorization
+from oicsrv.oic.provider_config import ProviderConfiguration
+from oicsrv.oic.registration import Registration
+from oicsrv.oic.token import AccessToken
+from oicsrv.oic import userinfo
 from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oicsrv.user_info import UserInfo
 
@@ -57,7 +61,7 @@ def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
 
 
-USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
+USERINFO_db  = json.loads(open(full_path('users.json')).read())
 
 
 class TestEndpoint(object):
@@ -65,7 +69,6 @@ class TestEndpoint(object):
     def create_endpoint(self):
         self.endpoint = Authorization(KEYJAR)
         conf = {
-            "base_url": "https://example.com",
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
             "token_expires_in": 600,
@@ -73,22 +76,47 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks_uri": 'https://example.com/jwks.json',
-            "endpoint": {
-                'registration': 'registration',
-                'authorization': 'authz',
-                'token': 'token',
-                'userinfo': 'userinfo'
+            "jwks": {
+                'url_path': '{}/jwks.json',
+                'local_path': 'static/jwks.json',
+                'private_path': 'own/jwks.json'
             },
-            # 'authz' : {'name': 'Implicit'},
-            'authentication': [
-                {
-                    'acr': INTERNETPROTOCOLPASSWORD,
-                    'name': 'NoAuthn',
-                    'args': {'user': 'diana'}
+            'endpoint': {
+                'provider_config': {
+                    'path': '{}/.well-known/openid-configuration',
+                    'class': ProviderConfiguration,
+                    'kwargs': {}
+                },
+                'registration': {
+                    'path': '{}/registration',
+                    'class': Registration,
+                    'kwargs': {}
+                },
+                'authorization': {
+                    'path': '{}/authorization',
+                    'class': Authorization,
+                    'kwargs': {}
+                },
+                'token': {
+                    'path': '{}/token',
+                    'class': AccessToken,
+                    'kwargs': {}
+                },
+                'userinfo': {
+                    'path': '{}/userinfo',
+                    'class': userinfo.UserInfo,
+                    'kwargs': {'db_file': 'users.json'}
                 }
-            ],
-            'userinfo': USERINFO
+            },
+            "authentication": [{
+                'acr': INTERNETPROTOCOLPASSWORD,
+                'name': 'NoAuthn',
+                'args': {'user': 'diana'}
+            }],
+            "userinfo":{
+                'class': UserInfo,
+                'kwargs': {'db': USERINFO_db}
+            }
         }
         self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
         self.srv_info.cdb['client_1'] = {

@@ -8,7 +8,11 @@ from requests import request
 from oicmsg.key_jar import build_keyjar
 from oicmsg.oic import AuthorizationRequest, AccessTokenRequest
 
+from oicsrv.oic import userinfo
 from oicsrv.client_authn import verify_client
+from oicsrv.oic.authorization import Authorization
+from oicsrv.oic.provider_config import ProviderConfiguration
+from oicsrv.oic.registration import Registration
 from oicsrv.oic.token import AccessToken
 from oicsrv.sdb import AuthnEvent
 from oicsrv.srv_info import SrvInfo
@@ -78,7 +82,6 @@ class TestEndpoint(object):
     def create_endpoint(self):
         self.endpoint = AccessToken(KEYJAR)
         conf = {
-            "base_url": "https://example.com",
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
             "token_expires_in": 600,
@@ -86,22 +89,47 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks_uri": 'https://example.com/jwks.json',
-            "endpoint": {
-                'registration': 'registration',
-                'authorization': 'authz',
-                'token': 'token',
-                'userinfo': 'userinfo'
+            "jwks": {
+                'url_path': '{}/jwks.json',
+                'local_path': 'static/jwks.json',
+                'private_path': 'own/jwks.json'
             },
-            # 'authz' : {'name': 'Implicit'},
-            'authentication': [
-                {
-                    'acr': INTERNETPROTOCOLPASSWORD,
-                    'name': 'NoAuthn',
-                    'args': {'user': 'diana'}
+            'endpoint': {
+                'provider_config': {
+                    'path': '{}/.well-known/openid-configuration',
+                    'class': ProviderConfiguration,
+                    'kwargs': {}
+                },
+                'registration': {
+                    'path': '{}/registration',
+                    'class': Registration,
+                    'kwargs': {}
+                },
+                'authorization': {
+                    'path': '{}/authorization',
+                    'class': Authorization,
+                    'kwargs': {}
+                },
+                'token': {
+                    'path': '{}/token',
+                    'class': AccessToken,
+                    'kwargs': {}
+                },
+                'userinfo': {
+                    'path': '{}/userinfo',
+                    'class': userinfo.UserInfo,
+                    'kwargs': {'db_file': 'users.json'}
                 }
-            ],
-            'userinfo': USERINFO,
+            },
+            "authentication": [{
+                'acr': INTERNETPROTOCOLPASSWORD,
+                'name': 'NoAuthn',
+                'args': {'user': 'diana'}
+            }],
+            "userinfo": {
+                'class': UserInfo,
+                'kwargs': {'db': {}}
+            },
             'client_authn': verify_client
         }
         self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
