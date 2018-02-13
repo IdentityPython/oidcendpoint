@@ -5,12 +5,10 @@ from urllib.parse import urljoin
 
 from jwkest import jwe
 from jwkest import jws
-from oiccli import rndstr
-from oiccli.http import HTTPLib
 from oicmsg.key_jar import KeyJar
 from oicmsg.oic import SCOPE2CLAIMS, IdToken
 
-from oicsrv import authz
+from oicsrv import authz, rndstr
 from oicsrv.exception import ConfigurationError
 from oicsrv.sdb import create_session_db
 from oicsrv.sso_db import SSODb
@@ -62,10 +60,10 @@ class SrvInfo(object):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
 
-        self.http = httplib or HTTPLib(ca_certs=conf['ca_certs'],
-                                       verify_ssl=conf['verify_ssl'],
-                                       client_cert=conf['client_cert'],
-                                       keyjar=keyjar)
+        # self.http = httplib or HTTPLib(ca_certs=conf['ca_certs'],
+        #                                verify_ssl=conf['verify_ssl'],
+        #                                client_cert=conf['client_cert'],
+        #                                keyjar=keyjar)
 
         if session_db:
             self.sdb = session_db
