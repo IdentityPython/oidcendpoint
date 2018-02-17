@@ -25,11 +25,12 @@ class AccessToken(Endpoint):
     response_cls = oic.AccessTokenResponse
     error_cls = TokenErrorResponse
     request_format = 'json'
+    request_placement = 'body'
     response_format = 'json'
     response_placement = 'body'
 
-    def __init__(self, keyjar):
-        Endpoint.__init__(self, keyjar)
+    def __init__(self, keyjar, **kwargs):
+        Endpoint.__init__(self, keyjar, **kwargs)
         self.pre_construct.append(self._pre_construct)
         self.post_parse_request.append(self._post_parse_request)
 

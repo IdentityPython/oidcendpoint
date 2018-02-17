@@ -127,7 +127,12 @@ def build_endpoints(conf, keyjar, client_authn_method, issuer):
         else:
             _instance.endpoint_path = '{}/{}'.format(_url, _path)
 
-        _instance.client_auth_method = client_authn_method
+        try:
+            _client_authn_method = kwargs['client_authn_method']
+        except KeyError:
+            _instance.client_auth_method = client_authn_method
+        else:
+            _instance.client_auth_method = _client_authn_method
 
         endpoint[name] = _instance
 

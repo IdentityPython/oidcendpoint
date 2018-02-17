@@ -92,6 +92,7 @@ class Registration(Endpoint):
     response_cls = RegistrationResponse
     error_response = ClientRegistrationErrorResponse
     request_format = 'json'
+    request_placement = 'body'
     response_format = 'json'
 
     # default

@@ -1,9 +1,9 @@
-import json
-
 from oicmsg import oic
+from oicmsg.oic import JRD, Link
 
 from oicsrv.endpoint import Endpoint
 
+OIC_ISSUER = "http://openid.net/specs/connect/1.0/issuer"
 
 class Discovery(Endpoint):
     request_cls = oic.DiscoveryRequest
@@ -20,9 +20,16 @@ class Discovery(Endpoint):
         :return:
         """
 
+        links = [Link(href=h, rel=OIC_ISSUER)for h in response_args['hrefs']]
+
+        _response = JRD(subject=response_args['subject'], links=links)
+
         info = {
-            'response': json.dumps({'locations':[srv_info.issuer]}),
+            'response': _response.to_json(),
             'http_headers': [('Content-type', 'application/json')]
         }
 
         return info
+
+    def process_request(self, srv_info, request=None):
+        return {'subject':request['resource'], 'hrefs':[srv_info.issuer]}

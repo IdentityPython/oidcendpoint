@@ -2,12 +2,14 @@ import logging
 # noinspection PyCompatibility
 from urllib.parse import urlparse
 
-from oicmsg.exception import MissingRequiredAttribute, MissingRequiredValue
+from oicmsg.exception import MissingRequiredAttribute
+from oicmsg.exception import MissingRequiredValue
 from oicmsg.message import Message
-from oicmsg.oauth2 import ErrorResponse, AuthorizationErrorResponse
+from oicmsg.oauth2 import ErrorResponse
 
 from oicsrv import sanitize
-from oicsrv.client_authn import verify_client, UnknownOrNoAuthnMethod
+from oicsrv.client_authn import UnknownOrNoAuthnMethod
+from oicsrv.client_authn import verify_client
 from oicsrv.exception import UnAuthorizedClient
 from oicsrv.util import OAUTH2_NOCACHE_HEADERS
 
@@ -50,6 +52,7 @@ class Endpoint(object):
     endpoint_name = ''
     endpoint_path = ''
     request_format = 'urlencoded'
+    request_placement = 'query'
     response_format = 'json'
     response_placement = 'body'
     client_auth_method = ''
@@ -89,7 +92,7 @@ class Endpoint(object):
                     req = self.request_cls().deserialize(request,
                                                          self.request_format)
         else:
-            req = {}
+            req = self.request_cls()
 
         # Verify that the client is allowed to do this
         _client_id = ''

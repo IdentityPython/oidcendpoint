@@ -56,6 +56,19 @@ def sort_sign_alg(alg1, alg2):
             return 0
 
 
+def add_path(url, path):
+    if url.endswith('/'):
+        if path.startswith('/'):
+            return '{}{}'.format(url, path[1:])
+        else:
+            return '{}{}'.format(url, path)
+    else:
+        if path.startswith('/'):
+            return '{}{}'.format(url, path)
+        else:
+            return '{}/{}'.format(url, path)
+
+
 class SrvInfo(object):
     def __init__(self, conf, httplib=None, keyjar=None, client_db=None,
                  session_db=None):
@@ -95,15 +108,15 @@ class SrvInfo(object):
         self.symkey = rndstr(24)
         self.id_token_schema = IdToken
 
-        for param in ['verify_ssl', 'issuer', 'jwks_uri',
-                      'sso_ttl', 'cookie_name', 'symkey',
-                      'client_authn', 'id_token_schema']:
+        for param in ['verify_ssl', 'issuer', 'sso_ttl', 'cookie_name',
+                      'symkey', 'client_authn', 'id_token_schema']:
             try:
                 setattr(self, param, conf[param])
             except KeyError:
                 pass
 
         self.setup = {}
+        self.jwks_uri = add_path(self.issuer, conf['jwks']['url_path'])
 
         self.endpoint = build_endpoints(conf['endpoint'], keyjar,
                                         CLIENT_AUTHN_METHOD, conf['issuer'])
@@ -256,6 +269,7 @@ class SrvInfo(object):
             _pinfo["jwks_uri"] = self.jwks_uri
 
         for name, instance in self.endpoint.items():
-            _pinfo[name] = instance.endpoint_path
+            if name in ['registration','authorization', 'token', 'userinfo']:
+                _pinfo['{}_endpoint'.format(name)] = instance.endpoint_path
 
         return _pinfo
