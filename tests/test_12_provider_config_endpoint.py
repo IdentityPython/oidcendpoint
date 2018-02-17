@@ -12,7 +12,6 @@ from oicsrv.oic.registration import Registration
 from oicsrv.oic.token import AccessToken
 
 from oicsrv.srv_info import SrvInfo
-from oicsrv.user_info import UserInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},

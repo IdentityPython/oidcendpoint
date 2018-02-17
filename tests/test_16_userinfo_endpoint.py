@@ -146,7 +146,7 @@ class TestEndpoint(object):
         session_id = setup_session(self.srv_info, AUTH_REQ)
         _dic = self.srv_info.sdb.upgrade_to_token(key=session_id)
         _req = self.endpoint.parse_request(
-            {}, self.srv_info, auth="Bearer {}".format(_dic['access_token']))
+            self.srv_info, {}, auth="Bearer {}".format(_dic['access_token']))
 
         assert _req == {'client_id': 'client_1'}
 

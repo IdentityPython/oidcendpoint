@@ -63,7 +63,7 @@ class UserInfo(Endpoint):
         return {'response':jinfo,
                 'http_headers': [('Content-type', content_type)]}
 
-    def parse_request(self, request, srv_info, auth=None, **kwargs):
+    def parse_request(self, srv_info, request, auth=None, **kwargs):
         """
 
         :param request:

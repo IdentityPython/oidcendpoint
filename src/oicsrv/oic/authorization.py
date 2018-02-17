@@ -1,6 +1,5 @@
 import logging
 
-from http.cookies import SimpleCookie
 from urllib.parse import parse_qs
 from urllib.parse import splitquery
 from urllib.parse import unquote
@@ -56,31 +55,31 @@ def inputs(form_args):
     return "\n".join(element)
 
 
-def max_age(areq):
+def max_age(request):
     try:
-        return areq["request"]["max_age"]
+        return request["request"]["max_age"]
     except KeyError:
         try:
-            return areq["max_age"]
+            return request["max_age"]
         except KeyError:
             return 0
 
 
-def re_authenticate(areq, authn):
-    if "prompt" in areq and "login" in areq["prompt"]:
-        if authn.done(areq):
+def re_authenticate(request, authn):
+    if "prompt" in request and "login" in request["prompt"]:
+        if authn.done(request):
             return True
 
     return False
 
 
-def setup_session(srv_info, areq, authn_event):
-    sid = srv_info.sdb.create_authz_session(authn_event, areq)
+def setup_session(srv_info, request, authn_event):
+    sid = srv_info.sdb.create_authz_session(authn_event, request)
     srv_info.sdb.do_sub(sid, '')
     return sid
 
 
-def verify_redirect_uri(srv_info, areq):
+def verify_redirect_uri(srv_info, request):
     """
     MUST NOT contain a fragment
     MAY contain query component
@@ -89,7 +88,7 @@ def verify_redirect_uri(srv_info, areq):
         None
     """
     try:
-        _redirect_uri = unquote(areq["redirect_uri"])
+        _redirect_uri = unquote(request["redirect_uri"])
 
         part = urlparse(_redirect_uri)
         if part.fragment:
@@ -100,7 +99,7 @@ def verify_redirect_uri(srv_info, areq):
             _query = parse_qs(_query)
 
         match = False
-        for regbase, rquery in srv_info.cdb[str(areq["client_id"])][
+        for regbase, rquery in srv_info.cdb[str(request["client_id"])][
             "redirect_uris"]:
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
@@ -127,35 +126,35 @@ def verify_redirect_uri(srv_info, areq):
         # ignore query components that are not registered
         return None
     except Exception:
-        logger.error("Faulty redirect_uri: %s" % areq["redirect_uri"])
+        logger.error("Faulty redirect_uri: %s" % request["redirect_uri"])
         try:
-            _cinfo = srv_info.cdb[str(areq["client_id"])]
+            _cinfo = srv_info.cdb[str(request["client_id"])]
         except KeyError:
             try:
-                cid = areq["client_id"]
+                cid = request["client_id"]
             except KeyError:
                 logger.error('No client id found')
                 raise UnknownClient('No client_id provided')
             else:
                 logger.info("Unknown client: %s" % cid)
-                raise UnknownClient(areq["client_id"])
+                raise UnknownClient(request["client_id"])
         else:
             logger.info("Registered redirect_uris: %s" % sanitize(_cinfo))
             raise RedirectURIError(
-                "Faulty redirect_uri: %s" % areq["redirect_uri"])
+                "Faulty redirect_uri: %s" % request["redirect_uri"])
 
 
-def get_redirect_uri(srv_info, areq):
+def get_redirect_uri(srv_info, request):
     """ verify that the redirect URI is reasonable
 
     :param srv_info:
-    :param areq: The Authorization request
+    :param request: The Authorization request
     :return: Tuple of (redirect_uri, Response instance)
         Response instance is not None of matching redirect_uri failed
     """
-    if 'redirect_uri' in areq:
-        verify_redirect_uri(srv_info, areq)
-        uri = areq["redirect_uri"]
+    if 'redirect_uri' in request:
+        verify_redirect_uri(srv_info, request)
+        uri = request["redirect_uri"]
     else:
         raise ParameterError(
             "Missing redirect_uri and more than one or none registered")
@@ -163,10 +162,10 @@ def get_redirect_uri(srv_info, areq):
     return uri
 
 
-def authn_args_gather(areq, authn_class_ref, cinfo, **kwargs):
+def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
     # gather information to be used by the authentication method
     authn_args = {"authn_class_ref": authn_class_ref,
-                  "query": areq.to_urlencoded()}
+                  "query": request.to_urlencoded()}
 
     if "req_user" in kwargs:
         authn_args["as_user"] = kwargs["req_user"],
@@ -179,39 +178,39 @@ def authn_args_gather(areq, authn_class_ref, cinfo, **kwargs):
 
     for attr in ["ui_locales", "acr_values"]:
         try:
-            authn_args[attr] = areq[attr]
+            authn_args[attr] = request[attr]
         except KeyError:
             pass
 
     return authn_args
 
 
-def create_authn_response(srv_info, areq, sid):
+def create_authn_response(srv_info, request, sid):
     # create the response
     aresp = AuthorizationResponse()
     try:
-        aresp["state"] = areq["state"]
+        aresp["state"] = request["state"]
     except KeyError:
         pass
 
-    if "response_type" in areq and areq["response_type"] == ["none"]:
+    if "response_type" in request and request["response_type"] == ["none"]:
         fragment_enc = False
     else:
         _sinfo = srv_info.sdb[sid]
 
         try:
-            aresp["scope"] = areq["scope"]
+            aresp["scope"] = request["scope"]
         except KeyError:
             pass
 
-        rtype = set(areq["response_type"][:])
+        rtype = set(request["response_type"][:])
         handled_response_type = []
         if len(rtype) == 1 and "code" in rtype:
             fragment_enc = False
         else:
             fragment_enc = True
 
-        if "code" in areq["response_type"]:
+        if "code" in request["response_type"]:
             _code = aresp["code"] = srv_info.sdb[sid]["code"]
             handled_response_type.append("code")
         else:
@@ -234,9 +233,9 @@ def create_authn_response(srv_info, areq, sid):
         except KeyError:
             _access_token = None
 
-        if "id_token" in areq["response_type"]:
+        if "id_token" in request["response_type"]:
             user_info = userinfo_in_id_token_claims(srv_info, _sinfo)
-            if areq["response_type"] == ["id_token"]:
+            if request["response_type"] == ["id_token"]:
                 #  scopes should be returned here
                 info = collect_user_info(srv_info, _sinfo)
                 if user_info is None:
@@ -244,7 +243,7 @@ def create_authn_response(srv_info, areq, sid):
                 else:
                     user_info.update(info)
 
-            #client_info = srv_info.cdb[str(areq["client_id"])]
+            #client_info = srv_info.cdb[str(request["client_id"])]
 
             hargs = {}
             if {'code', 'id_token', 'token'}.issubset(rtype):
@@ -257,7 +256,7 @@ def create_authn_response(srv_info, areq, sid):
             # or 'code id_token'
             try:
                 id_token = sign_encrypt_id_token(srv_info, _sinfo,
-                                                 str(areq["client_id"]),
+                                                 str(request["client_id"]),
                                                  user_info=user_info,
                                                  sign=True, **hargs)
             except (JWEException, NoSuitableSigningKeys) as err:
@@ -305,7 +304,14 @@ class Authorization(Endpoint):
         return set(request["response_type"]) not in _registered
 
     def _post_parse_request(self, srv_info, request, client_id, **kwargs):
+        """
 
+        :param srv_info:
+        :param request:
+        :param client_id:
+        :param kwargs:
+        :return:
+        """
         if not request:
             logger.debug("No AuthzRequest")
             return AuthorizationErrorResponse(
@@ -342,9 +348,9 @@ class Authorization(Endpoint):
         return request
 
     @staticmethod
-    def _acr_claims(areq):
+    def _acr_claims(request):
         try:
-            acrdef = areq["claims"]["id_token"]["acr"]
+            acrdef = request["claims"]["id_token"]["acr"]
         except KeyError:
             return None
         else:
@@ -359,8 +365,15 @@ class Authorization(Endpoint):
 
         return None
 
-    def pick_authn_method(self, srv_info, areq, redirect_uri):
-        acrs = self._acr_claims(areq)
+    def pick_authn_method(self, srv_info, request, redirect_uri):
+        """
+        
+        :param srv_info: 
+        :param request: 
+        :param redirect_uri: 
+        :return: 
+        """
+        acrs = self._acr_claims(request)
         if acrs:
             # If acr claims are present the picked acr value MUST match
             # one of the given
@@ -374,24 +387,24 @@ class Authorization(Endpoint):
                     break
             authn, authn_class_ref = tup
         else:
-            authn, authn_class_ref = pick_auth(srv_info, areq)
+            authn, authn_class_ref = pick_auth(srv_info, request)
             if not authn:
-                authn, authn_class_ref = pick_auth(srv_info, areq, "better")
+                authn, authn_class_ref = pick_auth(srv_info, request, "better")
                 if not authn:
-                    authn, authn_class_ref = pick_auth(srv_info, areq, "any")
+                    authn, authn_class_ref = pick_auth(srv_info, request, "any")
 
         if authn is None:
             return AuthorizationErrorResponse(error="access_denied",
                                               redirect_uri=redirect_uri,
-                                              return_type=areq["response_type"])
+                                              return_type=request["response_type"])
 
         return authn, authn_class_ref
 
-    def setup_auth(self, srv_info, areq, redirect_uri, cinfo, cookie, **kwargs):
+    def setup_auth(self, srv_info, request, redirect_uri, cinfo, cookie, **kwargs):
         """
 
         :param srv_info:
-        :param areq:
+        :param request:
         :param redirect_uri:
         :param cinfo:
         :param cookie:
@@ -399,7 +412,7 @@ class Authorization(Endpoint):
         :return:
         """
 
-        authn, authn_class_ref = self.pick_authn_method(srv_info, areq,
+        authn, authn_class_ref = self.pick_authn_method(srv_info, request,
                                                         redirect_uri)
 
         try:
@@ -408,10 +421,10 @@ class Authorization(Endpoint):
             except KeyError:
                 _auth_info = ""
 
-            if "upm_answer" in areq and areq["upm_answer"] == "true":
+            if "upm_answer" in request and request["upm_answer"] == "true":
                 _max_age = 0
             else:
-                _max_age = max_age(areq)
+                _max_age = max_age(request)
 
             identity, _ts = authn.authenticated_as(
                 cookie, authorization=_auth_info, max_age=_max_age)
@@ -425,20 +438,20 @@ class Authorization(Endpoint):
         else:
             logger.info("No active authentication")
 
-        authn_args = authn_args_gather(areq, authn_class_ref, cinfo,
+        authn_args = authn_args_gather(request, authn_class_ref, cinfo,
                                        **kwargs)
 
         # To authenticate or Not
         if identity is None:  # No!
-            if "prompt" in areq and "none" in areq["prompt"]:
+            if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
                 return AuthorizationErrorResponse(
                     error="login_required", redirect_uri=redirect_uri,
-                    return_type=areq["response_type"])
+                    return_type=request["response_type"])
             else:
                 return {'function': authn, 'args': authn_args}
         else:
-            if re_authenticate(areq, authn):
+            if re_authenticate(request, authn):
                 # demand re-authentication
                 return {'function': authn, 'args': authn_args}
             else:
@@ -449,7 +462,7 @@ class Authorization(Endpoint):
                     if sids and user != srv_info.sdb.get_authentication_event(
                             sids[-1]).uid:
                         logger.debug("Wanted to be someone else!")
-                        if "prompt" in areq and "none" in areq["prompt"]:
+                        if "prompt" in request and "none" in request["prompt"]:
                             # Need to authenticate but not allowed
                             return AuthorizationErrorResponse(
                                 error="login_required",
@@ -463,11 +476,11 @@ class Authorization(Endpoint):
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
-    def aresp_check(self, aresp, areq):
+    def aresp_check(self, aresp, request):
         return ""
 
-    def response_mode(self, areq, **kwargs):
-        resp_mode = areq["response_mode"]
+    def response_mode(self, request, **kwargs):
+        resp_mode = request["response_mode"]
         if resp_mode == "form_post":
             msg = FORM_POST.format(
                 inputs=inputs(kwargs["response_args"].to_dict()),
@@ -483,13 +496,13 @@ class Authorization(Endpoint):
         else:
             raise InvalidRequest("Unknown response_mode")
 
-    def post_authn(self, srv_info, user, areq, sid, **kwargs):
+    def post_authn(self, srv_info, user, request, sid, **kwargs):
         """
         Things that are donw after a successful authentication.
 
         :param srv_info:
         :param user:
-        :param areq:
+        :param request:
         :param sid:
         :param kwargs:
         :return:
@@ -497,19 +510,19 @@ class Authorization(Endpoint):
 
         # Do the authorization
         try:
-            permission = srv_info.authz(user, client_id=areq['client_id'])
+            permission = srv_info.authz(user, client_id=request['client_id'])
             srv_info.sdb.update(sid, permission=permission)
         except Exception:
             raise
 
-        logger.debug("response type: %s" % areq["response_type"])
+        logger.debug("response type: %s" % request["response_type"])
 
         if srv_info.sdb.is_session_revoked(sid):
             return AuthorizationErrorResponse(
                 error="access_denied", error_description="Session is revoked")
 
         try:
-            response_info = create_authn_response(srv_info, areq, sid)
+            response_info = create_authn_response(srv_info, request, sid)
         except UnSupported as err:
             return AuthorizationErrorResponse(
                 error='unsupported_response_type',
@@ -519,7 +532,7 @@ class Authorization(Endpoint):
             return response_info
 
         try:
-            redirect_uri = get_redirect_uri(srv_info, areq)
+            redirect_uri = get_redirect_uri(srv_info, request)
         except (RedirectURIError, ParameterError) as err:
             return AuthorizationErrorResponse(
                 error='invalid_request', error_description="{}".format(err))
@@ -528,7 +541,7 @@ class Authorization(Endpoint):
 
         # Must not use HTTP unless implicit grant type and native application
 
-        info = self.aresp_check(response_info['response_args'], areq)
+        info = self.aresp_check(response_info['response_args'], request)
         if isinstance(info, ErrorResponse):
             return info
 
@@ -538,9 +551,9 @@ class Authorization(Endpoint):
         # from the response_type. Knows about 'query', 'fragment' and
         # 'form_post'.
 
-        if "response_mode" in areq:
+        if "response_mode" in request:
             try:
-                response_info = self.response_mode(areq, **response_info)
+                response_info = self.response_mode(request, **response_info)
             except InvalidRequest as err:
                 return AuthorizationErrorResponse(
                     error="invalid_request", error_description=str(err))
@@ -549,24 +562,24 @@ class Authorization(Endpoint):
 
         return response_info
 
-    def authz_part2(self, srv_info, user, areq, sid, **kwargs):
+    def authz_part2(self, srv_info, user, request, sid, **kwargs):
         """
         After the authentication this is where you should end up
 
         ;param srv_info:
         :param user:
-        :param areq: The Authorization Request
+        :param request: The Authorization Request
         :param sid: Session key
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """
-        resp_info = self.post_authn(srv_info, user, areq, sid, **kwargs)
+        resp_info = self.post_authn(srv_info, user, request, sid, **kwargs)
         if isinstance(resp_info, ErrorResponse):
             return resp_info
 
         # Mix-Up mitigation
         resp_info['response_args']['iss'] = srv_info.issuer
-        resp_info['response_args']['client_id'] = areq['client_id']
+        resp_info['response_args']['client_id'] = request['client_id']
 
         return resp_info
 
@@ -574,7 +587,8 @@ class Authorization(Endpoint):
         """ The AuthorizationRequest endpoint
 
         :param srv_info: Server info
-        :param request: The client request
+        :param request: The client request as a dictionary
+        :return: res
         """
 
         _cid = request["client_id"]

@@ -61,7 +61,7 @@ class Endpoint(object):
         self.post_parse_request = []
         self.kwargs = kwargs
 
-    def parse_request(self, request, srv_info, auth=None, **kwargs):
+    def parse_request(self, srv_info, request, auth=None, **kwargs):
         """
 
         :param request:
@@ -169,6 +169,7 @@ class Endpoint(object):
 
     def construct(self, srv_info, response_args, request, **kwargs):
         """
+        Construct the response
 
         :param srv_info: :py:class:`oicsrv.srv_info.SrvInfo` instance
         :param response_args: response arguments

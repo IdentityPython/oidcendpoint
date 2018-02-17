@@ -6,7 +6,8 @@ import time
 from requests import request
 
 from oicmsg.key_jar import build_keyjar
-from oicmsg.oic import AuthorizationRequest, AccessTokenRequest
+from oicmsg.oic import AccessTokenRequest
+from oicmsg.oic import AuthorizationRequest
 
 from oicsrv.oic import userinfo
 from oicsrv.client_authn import verify_client
@@ -148,7 +149,7 @@ class TestEndpoint(object):
         session_id = setup_session(self.srv_info, AUTH_REQ)
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request['code'] = self.srv_info.sdb[session_id]['code']
-        _req = self.endpoint.parse_request(_token_request, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _token_request)
 
         assert isinstance(_req, AccessTokenRequest)
         assert set(_req.keys()) == set(_token_request.keys())
@@ -158,7 +159,7 @@ class TestEndpoint(object):
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request['code'] = self.srv_info.sdb[session_id]['code']
         self.srv_info.sdb.update(session_id, user='diana')
-        _req = self.endpoint.parse_request(_token_request, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _token_request)
 
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
@@ -171,7 +172,7 @@ class TestEndpoint(object):
         self.srv_info.sdb.update(session_id, user='diana')
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request['code'] = self.srv_info.sdb[session_id]['code']
-        _req = self.endpoint.parse_request(_token_request, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _token_request)
 
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)

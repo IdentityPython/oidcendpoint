@@ -67,32 +67,32 @@ class TestEndpoint(object):
     def test_parse_urlencoded(self):
         self.endpoint.request_format = 'urlencoded'
         request = REQ.to_urlencoded()
-        req = self.endpoint.parse_request(request, self.srv_info)
+        req = self.endpoint.parse_request(self.srv_info, request)
         assert req == REQ
 
     def test_parse_url(self):
         self.endpoint.request_format = 'url'
         request = '{}?{}'.format(self.srv_info.issuer, REQ.to_urlencoded())
-        req = self.endpoint.parse_request(request, self.srv_info)
+        req = self.endpoint.parse_request(self.srv_info, request)
         assert req == REQ
 
     def test_parse_json(self):
         self.endpoint.request_format = 'json'
         request = REQ.to_json()
-        req = self.endpoint.parse_request(request, self.srv_info)
+        req = self.endpoint.parse_request(self.srv_info, request)
         assert req == REQ
 
     def test_parse_dict(self):
         # Doesn't matter what request_format is defined
         self.endpoint.request_format = 'json'
         request = REQ.to_dict()
-        req = self.endpoint.parse_request(request, self.srv_info)
+        req = self.endpoint.parse_request(self.srv_info, request)
         assert req == REQ
 
     def test_parse_jwt(self):
         self.endpoint.request_format = 'jwt'
         request = REQ.to_jwt(KEYJAR.get_signing_key('RSA'), 'RS256')
-        req = self.endpoint.parse_request(request, self.srv_info)
+        req = self.endpoint.parse_request(self.srv_info, request)
         assert req == REQ
 
     def test_construct(self):

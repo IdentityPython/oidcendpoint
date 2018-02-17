@@ -92,9 +92,10 @@ def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
 
 def build_endpoints(conf, keyjar, client_authn_method, issuer):
     """
-    conf is typically::
+    conf typically contains::
+
         'provider_config': {
-            'path': '{}/.well-known/openid-configuration',
+            'path': '.well-known/openid-configuration',
             'class': ProviderConfiguration,
             'kwargs': {}
         },
@@ -119,7 +120,13 @@ def build_endpoints(conf, keyjar, client_authn_method, issuer):
             kwargs = {}
 
         _instance = spec['class'](keyjar=keyjar, **kwargs)
-        _instance.endpoint_path = spec['path'].format(_url)
+
+        _path = spec['path']
+        if _path.startswith('/'):
+            _instance.endpoint_path = '{}{}'.format(_url, _path)
+        else:
+            _instance.endpoint_path = '{}/{}'.format(_url, _path)
+
         _instance.client_auth_method = client_authn_method
 
         endpoint[name] = _instance

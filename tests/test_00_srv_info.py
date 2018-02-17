@@ -29,33 +29,33 @@ conf = {
     "verify_ssl": False,
     "capabilities": {},
     "jwks": {
-        'url_path': '{}/jwks.json',
+        'url_path': 'jwks.json',
         'local_path': 'static/jwks.json',
         'private_path': 'own/jwks.json'
     },
     'endpoint': {
         'provider_config': {
-            'path': '{}/.well-known/openid-configuration',
+            'path': '.well-known/openid-configuration',
             'class': ProviderConfiguration,
             'kwargs': {}
         },
         'registration_endpoint': {
-            'path': '{}/registration',
+            'path': 'registration',
             'class': Registration,
             'kwargs': {}
         },
         'authorization_endpoint': {
-            'path': '{}/authorization',
+            'path': 'authorization',
             'class': Authorization,
             'kwargs': {}
         },
         'token_endpoint': {
-            'path': '{}/token',
+            'path': 'token',
             'class': AccessToken,
             'kwargs': {}
         },
         'userinfo_endpoint': {
-            'path': '{}/userinfo',
+            'path': 'userinfo',
             'class': UserInfo,
             'kwargs': {'db_file': 'users.json'}
         }

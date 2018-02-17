@@ -36,4 +36,4 @@ class TestEndpoint(object):
     def test_do_response(self):
         args = self.endpoint.process_request(self.srv_info)
         msg = self.endpoint.do_response(self.srv_info, args)
-        assert msg['response'] == '{"location": "https://example.com/"}'
+        assert msg['response'] == '{"locations": ["https://example.com/"]}'

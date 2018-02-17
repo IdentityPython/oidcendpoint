@@ -45,7 +45,6 @@ CAPABILITIES = {
     "request_uri_parameter_supported": True,
 }
 
-
 AUTH_REQ = AuthorizationRequest(client_id='client_1',
                                 redirect_uri='https://example.com/cb',
                                 scope=['openid'],
@@ -61,7 +60,7 @@ def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
 
 
-USERINFO_db  = json.loads(open(full_path('users.json')).read())
+USERINFO_db = json.loads(open(full_path('users.json')).read())
 
 
 class TestEndpoint(object):
@@ -113,7 +112,7 @@ class TestEndpoint(object):
                 'name': 'NoAuthn',
                 'args': {'user': 'diana'}
             }],
-            "userinfo":{
+            "userinfo": {
                 'class': UserInfo,
                 'kwargs': {'db': USERINFO_db}
             }
@@ -131,20 +130,20 @@ class TestEndpoint(object):
         assert self.srv_info
 
     def test_parse(self):
-        _req = self.endpoint.parse_request(AUTH_REQ_DICT, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, AUTH_REQ_DICT)
 
         assert isinstance(_req, AuthorizationRequest)
         assert set(_req.keys()) == set(AUTH_REQ.keys())
 
     def test_process_request(self):
-        _req = self.endpoint.parse_request(AUTH_REQ_DICT, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, AUTH_REQ_DICT)
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         assert set(_resp.keys()) == {'response_args', 'fragment_enc',
                                      'return_uri', 'http_headers'}
 
     def test_do_response_code(self):
-        _req = self.endpoint.parse_request(AUTH_REQ_DICT, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, AUTH_REQ_DICT)
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         msg = self.endpoint.do_response(self.srv_info, **_resp)
@@ -158,11 +157,10 @@ class TestEndpoint(object):
         assert _query
         assert 'code' in _query
 
-
     def test_do_response_id_token_no_nonce(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'id_token'
-        _req = self.endpoint.parse_request(_orig_req, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _orig_req)
         # Missing nonce
         assert isinstance(_req, ErrorResponse)
 
@@ -170,7 +168,7 @@ class TestEndpoint(object):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'id_token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _orig_req)
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         msg = self.endpoint.do_response(self.srv_info, **_resp)
@@ -188,7 +186,7 @@ class TestEndpoint(object):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'id_token token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _orig_req)
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         msg = self.endpoint.do_response(self.srv_info, **_resp)
@@ -205,7 +203,7 @@ class TestEndpoint(object):
     def test_do_response_code_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'code token'
-        _req = self.endpoint.parse_request(_orig_req, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _orig_req)
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         msg = self.endpoint.do_response(self.srv_info, **_resp)
@@ -223,7 +221,7 @@ class TestEndpoint(object):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'code id_token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _orig_req)
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         msg = self.endpoint.do_response(self.srv_info, **_resp)
@@ -237,12 +235,11 @@ class TestEndpoint(object):
         assert 'code' in _frag_msg
         assert 'access_token' not in _frag_msg
 
-
     def test_do_response_code_id_token_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'code id_token token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req, self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, _orig_req)
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         msg = self.endpoint.do_response(self.srv_info, **_resp)

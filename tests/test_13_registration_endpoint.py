@@ -109,20 +109,20 @@ class TestEndpoint(object):
         self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
 
     def test_parse(self):
-        _req = self.endpoint.parse_request(CLI_REQ.to_json(), self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info,CLI_REQ.to_json())
 
         assert isinstance(_req, RegistrationRequest)
         assert set(_req.keys()) == set(CLI_REQ.keys())
 
     def test_process_request(self):
-        _req = self.endpoint.parse_request(CLI_REQ.to_json(), self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, CLI_REQ.to_json())
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         assert isinstance(_resp, RegistrationResponse)
         assert 'client_id' in _resp and 'client_secret' in _resp
 
     def test_do_response(self):
-        _req = self.endpoint.parse_request(CLI_REQ.to_json(), self.srv_info)
+        _req = self.endpoint.parse_request(self.srv_info, CLI_REQ.to_json())
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
         msg = self.endpoint.do_response(self.srv_info, _resp)
