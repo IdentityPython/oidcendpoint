@@ -199,34 +199,34 @@ def verify_client(srv_info, request, authorization_info):
     :param srv_info: SrvInfo instance
     :param request: The request
     :param http_args: HTTP headers
-    :return: tuple containing client id and client authentication method
+    :return: dictionary containing client id, client authentication method and
+        possibly access token.
     """
-
 
     if not authorization_info:
         if 'client_id' in request and 'client_secret' in request:
-            auth_method = 'client_secret_post'
             auth_info = ClientSecretPost(srv_info).verify(request)
+            auth_info['method'] = 'client_secret_post'
         elif 'client_assertion' in request:
             auth_info = JWSAuthnMethod(srv_info).verify(request)
             #  If symmetric key was used
             # auth_method = 'client_secret_jwt'
             #  If asymmetric key was used
-            auth_method = 'private_key_jwt'
+            auth_info['method'] = 'private_key_jwt'
         elif 'access_token' in request:
-            auth_method = 'bearer_body'
             auth_info = BearerBody(srv_info).verify(request)
+            auth_info['method'] = 'bearer_body'
         else:
             raise UnknownOrNoAuthnMethod()
     else:
         if authorization_info.startswith('Basic '):
-            auth_method = 'client_secret_basic'
             auth_info = ClientSecretBasic(srv_info).verify(
                 request, authorization_info)
+            auth_info['method'] = 'client_secret_basic'
         elif authorization_info.startswith('Bearer '):
-            auth_method = 'bearer_header'
             auth_info = BearerHeader(srv_info).verify(
                 request, authorization_info)
+            auth_info['method'] = 'bearer_header'
         else:
             raise UnknownOrNoAuthnMethod(authorization_info)
 
@@ -241,7 +241,7 @@ def verify_client(srv_info, request, authorization_info):
             logger.warning('Unknown client ID')
         else:
             sinfo = srv_info.sdb[_token]
-            client_id = sinfo['client_id']
+            auth_info['client_id'] = sinfo['client_id']
     else:
         try:
             _cinfo = srv_info.cdb[client_id]
@@ -257,12 +257,12 @@ def verify_client(srv_info, request, authorization_info):
                 # check that the expected authz method was used
                 try:
                     srv_info.cdb[client_id]['auth_method'][
-                        request.__class__.__name__] = auth_method
+                        request.__class__.__name__] = auth_info['method']
                 except KeyError:
                     try:
                         srv_info.cdb[client_id]['auth_method'] = {
-                            request.__class__.__name__: auth_method}
+                            request.__class__.__name__: auth_info['method']}
                     except KeyError:
                         pass
 
-    return client_id
+    return auth_info

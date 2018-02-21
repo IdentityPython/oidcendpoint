@@ -15,5 +15,5 @@ class ProviderConfiguration(Endpoint):
     #response_placement = 'body'
 
     def process_request(self, srv_info, request=None, **kwargs):
-        return srv_info.provider_info
+        return {'response_args': srv_info.provider_info}
 

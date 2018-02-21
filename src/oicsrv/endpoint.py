@@ -97,15 +97,16 @@ class Endpoint(object):
         # Verify that the client is allowed to do this
         _client_id = ''
         try:
-            _client_id = self.client_authentication(srv_info, req, auth, **kwargs)
+            auth_info = self.client_authentication(srv_info, req, auth, **kwargs)
         except UnknownOrNoAuthnMethod:
             if not self.client_auth_method:
                 pass
             else:
                 raise UnAuthorizedClient()
         else:
-            if _client_id:
-                req['client_id'] = _client_id
+            if 'client_id' in auth_info:
+                req['client_id'] = auth_info['client_id']
+                _client_id = auth_info['client_id']
             else:
                 try:
                     _client_id = req['client_id']
@@ -166,7 +167,7 @@ class Endpoint(object):
 
         :param srv_info: :py:class:`oicsrv.srv_info.SrvInfo` instance
         :param request: The request, can be in a number of formats
-        :return: response arguments
+        :return: Arguments for the do_response method
         """
         return {}
 
@@ -208,7 +209,8 @@ class Endpoint(object):
                 content_type = 'application/x-www-form-urlencoded'
                 resp = _response.to_urlencoded()
         elif self.response_placement == 'url':
-            content_type = 'application/x-www-form-urlencoded'
+            # content_type = 'application/x-www-form-urlencoded'
+            content_type = ''
             try:
                 fragment_enc = kwargs['fragment_enc']
             except KeyError:
@@ -222,11 +224,15 @@ class Endpoint(object):
             raise ValueError(
                 "Don't know where that is: '{}".format(self.response_placement))
 
-        try:
-            http_headers = set_content_type(kwargs['http_headers'],
-                                            content_type)
-        except KeyError:
-            http_headers = [('Content-type', content_type)]
+        if content_type:
+            try:
+                http_headers = set_content_type(kwargs['http_headers'],
+                                                content_type)
+            except KeyError:
+                http_headers = [('Content-type', content_type)]
+        else:
+            http_headers = []
+
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 
         return {'response': resp, 'http_headers': http_headers}

@@ -116,7 +116,10 @@ class SrvInfo(object):
                 pass
 
         self.setup = {}
-        self.jwks_uri = add_path(self.issuer, conf['jwks']['url_path'])
+        try:
+            self.jwks_uri = add_path(self.issuer, conf['jwks']['url_path'])
+        except KeyError:
+            self.jwks_uri = ''
 
         self.endpoint = build_endpoints(conf['endpoint'], keyjar,
                                         CLIENT_AUTHN_METHOD, conf['issuer'])

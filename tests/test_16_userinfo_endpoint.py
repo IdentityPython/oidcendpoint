@@ -148,31 +148,6 @@ class TestEndpoint(object):
         _req = self.endpoint.parse_request(
             self.srv_info, {}, auth="Bearer {}".format(_dic['access_token']))
 
-        assert _req == {'client_id': 'client_1'}
+        assert set(_req.keys()) == {'client_id', 'access_token'}
 
-    #     assert set(_req.keys()) == set(_token_request.keys())
-    #
-    # def test_process_request(self):
-    #     session_id = setup_session(self.srv_info, AUTH_REQ)
-    #     _token_request = TOKEN_REQ_DICT.copy()
-    #     _token_request['code'] = self.srv_info.sdb[session_id]['code']
-    #     self.srv_info.sdb.update(session_id, user='diana')
-    #     _req = self.endpoint.parse_request(_token_request, self.srv_info)
-    #
-    #     _resp = self.endpoint.process_request(srv_info=self.srv_info,
-    #                                           request=_req)
-    #
-    #     assert _resp
-    #     assert set(_resp.keys()) == {'http_headers', 'response_args'}
-    #
-    # def test_do_response(self):
-    #     session_id = setup_session(self.srv_info, AUTH_REQ)
-    #     self.srv_info.sdb.update(session_id, user='diana')
-    #     _token_request = TOKEN_REQ_DICT.copy()
-    #     _token_request['code'] = self.srv_info.sdb[session_id]['code']
-    #     _req = self.endpoint.parse_request(_token_request, self.srv_info)
-    #
-    #     _resp = self.endpoint.process_request(srv_info=self.srv_info,
-    #                                           request=_req)
-    #     msg = self.endpoint.do_response(self.srv_info, request=_req, **_resp)
-    #     assert isinstance(msg, dict)
+

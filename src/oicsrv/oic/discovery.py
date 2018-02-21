@@ -20,9 +20,9 @@ class Discovery(Endpoint):
         :return:
         """
 
-        links = [Link(href=h, rel=OIC_ISSUER)for h in response_args['hrefs']]
+        links = [Link(href=h, rel=OIC_ISSUER)for h in kwargs['hrefs']]
 
-        _response = JRD(subject=response_args['subject'], links=links)
+        _response = JRD(subject=kwargs['subject'], links=links)
 
         info = {
             'response': _response.to_json(),

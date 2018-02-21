@@ -391,4 +391,5 @@ class Registration(Endpoint):
         return response
 
     def process_request(self, srv_info, request=None, **kwargs):
-        return self.client_registration_setup(srv_info, request)
+        return {'response_args':
+                    self.client_registration_setup(srv_info, request)}

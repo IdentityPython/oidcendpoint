@@ -77,10 +77,11 @@ class UserInfo(Endpoint):
             request = {}
 
         # Verify that the client is allowed to do this
-        _client_id = self.client_authentication(srv_info, {}, auth, **kwargs)
-        if isinstance(_client_id, ErrorResponse):
-            return _client_id
+        auth_info = self.client_authentication(srv_info, {}, auth, **kwargs)
+        if isinstance(auth_info, ErrorResponse):
+            return auth_info
         else:
-            request['client_id'] = _client_id
+            request['client_id'] = auth_info['client_id']
+            request['access_token'] = auth_info['token']
 
         return request

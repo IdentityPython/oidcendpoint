@@ -118,14 +118,15 @@ class TestEndpoint(object):
         _req = self.endpoint.parse_request(self.srv_info, CLI_REQ.to_json())
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
-        assert isinstance(_resp, RegistrationResponse)
-        assert 'client_id' in _resp and 'client_secret' in _resp
+        _reg_resp = _resp['response_args']
+        assert isinstance(_reg_resp, RegistrationResponse)
+        assert 'client_id' in _reg_resp and 'client_secret' in _reg_resp
 
     def test_do_response(self):
         _req = self.endpoint.parse_request(self.srv_info, CLI_REQ.to_json())
         _resp = self.endpoint.process_request(srv_info=self.srv_info,
                                               request=_req)
-        msg = self.endpoint.do_response(self.srv_info, _resp)
+        msg = self.endpoint.do_response(self.srv_info, **_resp)
         assert isinstance(msg, dict)
         _msg = json.loads(msg['response'])
         assert _msg

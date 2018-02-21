@@ -7,6 +7,8 @@ from oicmsg.oic import AccessTokenRequest
 from oicmsg.oic import AccessTokenResponse
 from oicmsg.oic import RefreshAccessTokenRequest
 from oicmsg.oic import TokenErrorResponse
+
+from oicsrv.client_authn import verify_client
 from oicsrv.util import make_headers
 
 from oicsrv import sanitize
@@ -148,19 +150,20 @@ class AccessToken(Endpoint):
 
     def client_authentication(self, srv_info, request, auth=None, **kwargs):
         try:
-            client_id = srv_info.client_authn(srv_info, request, auth)
-            msg = ""
+            auth_info = verify_client(srv_info, request, auth)
+            msg = ''
         except Exception as err:
             msg = "Failed to verify client due to: {}".format(err)
             logger.error(msg)
-            client_id = ""
-
-        if not client_id:
-            logger.error('No client_id, authentication failed')
             return self.error_cls(error="unauthorized_client",
                                   error_description=msg)
+        else:
+            if 'client_id' not in auth_info:
+                logger.error('No client_id, authentication failed')
+                return self.error_cls(error="unauthorized_client",
+                                      error_description='unknown client')
 
-        return client_id
+        return auth_info
 
     def _post_parse_request(self, srv_info, request, client_id='', **kwargs):
         """
@@ -218,6 +221,6 @@ class AccessToken(Endpoint):
             response_args = self._refresh_access_token(srv_info, request, **kwargs)
 
         _access_code = request["code"].replace(' ', '+')
-        _headers = make_headers(srv_info, srv_info.sdb[_access_code]['user'])
+        _headers = make_headers(srv_info, srv_info.sdb[_access_code]['sub'])
         _headers.append(('Content-type', 'application/json'))
         return {'response_args': response_args, 'http_headers': _headers}
