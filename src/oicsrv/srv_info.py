@@ -3,6 +3,8 @@ import logging
 from functools import cmp_to_key
 
 import os
+
+from jinja2 import Environment, FileSystemLoader
 from jwkest import jwe
 from jwkest import jws
 from oicmsg.key_jar import KeyJar
@@ -112,6 +114,9 @@ class SrvInfo(object):
             except KeyError:
                 pass
 
+        template_dir = conf["template_dir"]
+        jinja_env = Environment(loader=FileSystemLoader(template_dir))
+
         self.setup = {}
         try:
             self.jwks_uri = add_path(self.issuer, conf['jwks']['url_path'])
@@ -136,18 +141,22 @@ class SrvInfo(object):
             else:
                 self.authz = authz.factory(authz_spec['name'])
 
-        self.authn_broker = AuthnBroker()
-
         try:
             _authn = conf['authentication']
         except KeyError:
             pass
         else:
+            self.authn_broker = AuthnBroker()
+
             for authn_spec in _authn:
                 try:
-                    _args = authn_spec['args']
+                    _args = authn_spec['kwargs']
                 except KeyError:
                     _args = {}
+
+                if 'template' in _args:
+                    _args['template_env'] = jinja_env
+
                 authn_method = user.factory(authn_spec['name'], **_args)
                 authn_method.srv_info = self
                 args = {k: authn_spec[k] for k in

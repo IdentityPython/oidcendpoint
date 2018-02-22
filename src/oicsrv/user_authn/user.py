@@ -1,6 +1,7 @@
 # coding=utf-8
 import base64
 import inspect
+import json
 import logging
 import time
 from urllib.parse import parse_qs
@@ -45,11 +46,22 @@ LOC = {
 class UserAuthnMethod(CookieDealer):
     MULTI_AUTH_COOKIE = "rp_query_cookie"
 
+    # override in subclass specifying suitable url endpoint to POST user input
+    url_endpoint = '/verify'
+    FAILED_AUTHN = (None, True)
+
     def __init__(self, ttl=5, srv_info=None):
         CookieDealer.__init__(self, srv_info, ttl)
         self.query_param = "upm_answer"
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, **kwargs):
+        """
+        Display user interaction.
+
+        :param args:
+        :param kwargs:
+        :return:
+        """
         raise NotImplemented
 
     def authenticated_as(self, cookie=None, **kwargs):
@@ -108,7 +120,11 @@ class UserAuthnMethod(CookieDealer):
 
         return create_return_url(_path, uid, **{self.query_param: "true"})
 
-    def verify(self, **kwargs):
+    def verify(self, *args, **kwargs):
+        """
+        Callback to verify user input
+        :return: username of the authenticated user
+        """
         raise NotImplemented
 
     def get_multi_auth_cookie(self, cookie):
@@ -328,6 +344,37 @@ class UsernamePasswordMako(UserAuthnMethod):
             return False
 
 
+class UserPassJinja2(UserAuthnMethod):
+    url_endpoint = "/user_pass/verify"
+
+    def __init__(self, db, template_env, template="user_pass.jinja2", **kwargs):
+        super(UserPassJinja2, self).__init__()
+        self.template_env = template_env
+        self.template = template
+
+        self.user_db = db["class"](**db["kwargs"])
+
+        self.kwargs = kwargs
+        self.kwargs.setdefault("page_header", "Log in")
+        self.kwargs.setdefault("user_label", "Username")
+        self.kwargs.setdefault("passwd_label", "Password")
+        self.kwargs.setdefault("submit_btn", "Log in")
+
+    def __call__(self, **kwargs):
+        template = self.template_env.get_template(self.template)
+        return template.render(action=self.url_endpoint,
+                               state=json.dumps(kwargs),
+                               **self.kwargs)
+
+    def verify(self, *args, **kwargs):
+        username = kwargs["username"]
+        if username in self.user_db and self.user_db[username] == kwargs[
+                "password"]:
+            return username, True
+        else:
+            return self.FAILED_AUTHN
+
+
 class BasicAuthn(UserAuthnMethod):
 
     def __init__(self, pwd, ttl=5, srv_info=None):
@@ -405,11 +452,11 @@ class NoAuthn(UserAuthnMethod):
         return {"uid": self.user}, time.time()
 
 
-def factory(msgtype, **kwargs):
+def factory(cls, **kwargs):
     """
     Factory method that can be used to easily instantiate a class instance
 
-    :param msgtype: The name of the class
+    :param cls: The name of the class
     :param kwargs: Keyword arguments
     :return: An instance of the class or None if the name doesn't match any
         known class.
@@ -417,7 +464,7 @@ def factory(msgtype, **kwargs):
     for name, obj in inspect.getmembers(sys.modules[__name__]):
         if inspect.isclass(obj) and issubclass(obj, UserAuthnMethod):
             try:
-                if obj.__name__ == msgtype:
+                if obj.__name__ == cls:
                     return obj(**kwargs)
             except AttributeError:
                 pass
