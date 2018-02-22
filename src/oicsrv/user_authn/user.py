@@ -9,7 +9,6 @@ from urllib.parse import urlencode
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
-import six
 import sys
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -60,7 +59,7 @@ class UserAuthnMethod(CookieDealer):
             logger.debug("kwargs: %s" % sanitize(kwargs))
 
             try:
-                val = self.getCookieValue(cookie, self.srv_info.cookie_name)
+                val = self.get_cookie_value(cookie, self.srv_info.cookie_name)
             except (InvalidCookieSign, AssertionError):
                 val = None
 
@@ -113,8 +112,8 @@ class UserAuthnMethod(CookieDealer):
         raise NotImplemented
 
     def get_multi_auth_cookie(self, cookie):
-        rp_query_cookie = self.getCookieValue(cookie,
-                                              UserAuthnMethod.MULTI_AUTH_COOKIE)
+        rp_query_cookie = self.get_cookie_value(
+            cookie, UserAuthnMethod.MULTI_AUTH_COOKIE)
 
         if rp_query_cookie:
             return rp_query_cookie[0]
@@ -149,7 +148,7 @@ def create_return_url(base, query, **kwargs):
 
     for key, values in parse_qs(query).items():
         if key in kwargs:
-            if isinstance(kwargs[key], six.string_types):
+            if isinstance(kwargs[key], str):
                 kwargs[key] = [kwargs[key]]
             kwargs[key].extend(values)
         else:
@@ -158,7 +157,7 @@ def create_return_url(base, query, **kwargs):
     if part.query:
         for key, values in parse_qs(part.query).items():
             if key in kwargs:
-                if isinstance(kwargs[key], six.string_types):
+                if isinstance(kwargs[key], str):
                     kwargs[key] = [kwargs[key]]
                 kwargs[key].extend(values)
             else:
@@ -354,6 +353,7 @@ class BasicAuthn(UserAuthnMethod):
 
 
 class SymKeyAuthn(UserAuthnMethod):
+    # user authentication using a token
 
     def __init__(self, ttl, symkey, srv_info=None):
         UserAuthnMethod.__init__(self, ttl, srv_info)
