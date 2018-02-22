@@ -140,7 +140,7 @@ def create_return_url(base, query, **kwargs):
     :param base: redirect_uri may contain a query part, no fragment allowed.
     :param query: Old query part as a string
     :param kwargs: extra query parameters
-    :return:
+    :return: Constructed URL
     """
     part = urlsplit(base)
     if part.fragment:
@@ -163,15 +163,15 @@ def create_return_url(base, query, **kwargs):
             else:
                 kwargs[key] = values
 
-        _pre = base.split("?")[0]
+        _url_base = base.split("?")[0]
     else:
-        _pre = base
+        _url_base = base
 
     logger.debug("kwargs: %s" % sanitize(kwargs))
     if kwargs:
-        return "%s?%s" % (_pre, url_encode_params(kwargs))
+        return "%s?%s" % (_url_base, url_encode_params(kwargs))
     else:
-        return _pre
+        return _url_base
 
 
 class UsernamePasswordMako(UserAuthnMethod):
