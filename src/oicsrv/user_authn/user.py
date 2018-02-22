@@ -208,7 +208,8 @@ class UsernamePasswordMako(UserAuthnMethod):
         Method to override if necessary, dependent on the page layout
         and context
 
-        :param kwargs:
+        :param end_point_index: An index into the list of verification endpoints
+        :param kwargs: Extra keyword arguments
         :return: dictionary of parameters used to build the Authn page
         """
 
@@ -311,9 +312,14 @@ class UsernamePasswordMako(UserAuthnMethod):
             except KeyError:
                 return_to = self.generate_return_url(self.return_to, _qp)
 
-        return {'redirect': return_to, 'headers':headers}
+        return {'redirect': return_to, 'headers': headers}
 
     def done(self, areq):
+        """
+
+        :param areq: Authentication request
+        :return: True if the 'query_parameter' doesn't appear in the request
+        """
         try:
             _ = areq[self.query_param]
         except KeyError:
@@ -339,7 +345,6 @@ class BasicAuthn(UserAuthnMethod):
 
         :param cookie: A HTTP Cookie
         :param authorization: The HTTP Authorization header
-        :param args: extra args
         :param kwargs: extra key word arguments
         :return:
         """
@@ -368,7 +373,6 @@ class SymKeyAuthn(UserAuthnMethod):
 
         :param cookie: A HTTP Cookie
         :param authorization: The HTTP Authorization header
-        :param args: extra args
         :param kwargs: extra key word arguments
         :return:
         """
@@ -394,7 +398,6 @@ class NoAuthn(UserAuthnMethod):
 
         :param cookie: A HTTP Cookie
         :param authorization: The HTTP Authorization header
-        :param args: extra args
         :param kwargs: extra key word arguments
         :return:
         """
