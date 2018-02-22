@@ -2,6 +2,7 @@ import copy
 import logging
 from functools import cmp_to_key
 
+import os
 from jwkest import jwe
 from jwkest import jws
 from oicmsg.key_jar import KeyJar
@@ -70,15 +71,11 @@ def add_path(url, path):
 
 
 class SrvInfo(object):
-    def __init__(self, conf, httplib=None, keyjar=None, client_db=None,
-                 session_db=None):
+    def __init__(self, conf, keyjar=None, client_db=None,
+                 session_db=None, cwd=''):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
-
-        # self.http = httplib or HTTPLib(ca_certs=conf['ca_certs'],
-        #                                verify_ssl=conf['verify_ssl'],
-        #                                client_cert=conf['client_cert'],
-        #                                keyjar=keyjar)
+        self.cwd = cwd
 
         if session_db:
             self.sdb = session_db
@@ -170,6 +167,8 @@ class SrvInfo(object):
             except KeyError:
                 kwargs = {}
 
+            if 'db_file' in kwargs:
+                kwargs['db_file'] = os.path.join(self.cwd, kwargs['db_file'])
             self.userinfo = _conf['class'](**kwargs)
 
         self.provider_info = self.create_providerinfo(_cap)

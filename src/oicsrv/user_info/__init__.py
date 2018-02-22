@@ -1,4 +1,5 @@
 import copy
+import json
 
 __author__ = 'rolandh'
 
@@ -6,8 +7,11 @@ __author__ = 'rolandh'
 class UserInfo(object):
     """ Read only interface to a user info store """
 
-    def __init__(self, db=None):
-        self.db = db
+    def __init__(self, db=None, db_file=''):
+        if db:
+            self.db = db
+        else:
+            self.db = json.loads(open(db_file).read())
 
     def filter(self, userinfo, user_info_claims=None):
         """
@@ -15,7 +19,7 @@ class UserInfo(object):
         It's a best effort task; if essential claims are not present
         no error is flagged.
 
-        :param userinfo: A dictionary containing the available user info.
+        :param userinfo: A dictionary containing the available info for one user
         :param user_info_claims: A dictionary specifying the asked for claims
         :return: A dictionary of filtered claims.
         """
@@ -36,8 +40,8 @@ class UserInfo(object):
                         optional.append(key)
             return result
 
-    def __call__(self, userid, client_id, user_info_claims=None, **kwargs):
+    def __call__(self, user_id, client_id, user_info_claims=None, **kwargs):
         try:
-            return self.filter(self.db[userid], user_info_claims)
+            return self.filter(self.db[user_id], user_info_claims)
         except KeyError:
             return {}

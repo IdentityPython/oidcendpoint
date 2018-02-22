@@ -1,7 +1,7 @@
+import json
 import logging
 
 from cryptojwt.exception import UnknownAlgorithm
-from cryptojwt.jws import alg2keytype
 from oicmsg import oic
 from oicmsg.jwt import JWT
 from oicmsg.message import Message
@@ -10,7 +10,7 @@ from oicmsg.oauth2 import ErrorResponse
 from oicsrv.endpoint import Endpoint
 from oicsrv.exception import OicSrvError
 from oicsrv.userinfo import collect_user_info
-from oicsrv.util import get_sign_and_encrypt_algorithms
+from oicsrv.util import get_sign_and_encrypt_algorithms, OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,41 @@ class UserInfo(Endpoint):
     request_format = 'json'
     response_format = 'json'
     response_placement = 'body'
+
+    def do_response(self, srv_info, response_args=None, request=None, **kwargs):
+        # Should I return a JSON or a JWT ?
+        _cinfo = srv_info.cdb[kwargs['client_id']]
+
+        # default is not to sign or encrypt
+        sign_encrypt = {'sign': False, 'encrypt': False}
+        if "userinfo_signed_response_alg" in _cinfo:
+            sign_encrypt['sign'] = True
+        if "userinfo_encrypted_response_alg" in _cinfo:
+            sign_encrypt['encrypt'] = True
+
+        if sign_encrypt['sign'] or sign_encrypt['encrypt']:
+            try:
+                jwt_args = get_sign_and_encrypt_algorithms(srv_info, _cinfo,
+                                                           'userinfo',
+                                                           **sign_encrypt)
+            except UnknownAlgorithm as err:
+                raise OicSrvError('Configuration error: {}'.format(err))
+
+            _jwt = JWT(srv_info.keyjar, **jwt_args)
+
+            resp = _jwt.pack(payload=response_args)
+            content_type = 'application/jwt'
+        else:
+            if isinstance(response_args, dict):
+                resp = json.dumps(response_args)
+            else:
+                resp = response_args.to_json()
+            content_type = 'application/json'
+
+        http_headers = [('Content-type', content_type)]
+        http_headers.extend(OAUTH2_NOCACHE_HEADERS)
+
+        return {'response': resp, 'http_headers': http_headers}
 
     def process_request(self, srv_info, request=None):
         _sdb = srv_info.sdb
@@ -33,35 +68,9 @@ class UserInfo(Endpoint):
         session = _sdb.read(request['access_token'])
 
         # Scope can translate to userinfo_claims
-        info = self.response_cls(**collect_user_info(srv_info, session))
+        info = collect_user_info(srv_info, session)
 
-        # Should I return a JSON or a JWT ?
-        _cinfo = srv_info.cdb[session["client_id"]]
-
-        sign_encrypt = {'sign': False, 'encrypt': False}
-        if "userinfo_signed_response_alg" in _cinfo:
-            sign_encrypt['sign'] = True
-        if "userinfo_encrypted_response_alg" in _cinfo:
-            sign_encrypt['encrypt'] = True
-
-        try:
-            jwt_args = get_sign_and_encrypt_algorithms(srv_info, _cinfo,
-                                                       'userinfo',
-                                                       **sign_encrypt)
-        except UnknownAlgorithm as err:
-            raise OicSrvError('Configuration error: {}'.format(err))
-
-        _jwt = JWT(srv_info.keyjar, **jwt_args)
-
-        if sign_encrypt['sign'] or sign_encrypt['encrypt']:
-            jinfo = _jwt.pack(info)
-            content_type = "application/jwt"
-        else:
-            jinfo = info.to_json()
-            content_type = "application/json"
-
-        return {'response':jinfo,
-                'http_headers': [('Content-type', content_type)]}
+        return {'response_args': info, 'client_id': session['client_id']}
 
     def parse_request(self, srv_info, request, auth=None, **kwargs):
         """
