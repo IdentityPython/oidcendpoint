@@ -397,6 +397,9 @@ class Authorization(Endpoint):
             return AuthorizationErrorResponse(error="access_denied",
                                               redirect_uri=redirect_uri,
                                               return_type=request["response_type"])
+        else:
+            logger.info('Authentication class: {}, acr: {}'.format(
+                authn.__class__.__name__, authn_class_ref))
 
         return authn, authn_class_ref
 
