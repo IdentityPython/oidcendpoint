@@ -8,10 +8,12 @@ class UserInfo(object):
     """ Read only interface to a user info store """
 
     def __init__(self, db=None, db_file=''):
-        if db:
+        if db is not None:
             self.db = db
-        else:
+        elif db_file:
             self.db = json.loads(open(db_file).read())
+        else:
+            self.db = {}
 
     def filter(self, userinfo, user_info_claims=None):
         """

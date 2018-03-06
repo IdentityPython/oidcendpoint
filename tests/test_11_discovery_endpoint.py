@@ -30,8 +30,9 @@ class TestEndpoint(object):
             "authentication": [{
                 'acr': INTERNETPROTOCOLPASSWORD,
                 'name': 'NoAuthn',
-                'args': {'user': 'diana'}
-            }]
+                'kwargs': {'user': 'diana'}
+            }],
+            'template_dir': 'template'
         }
         self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
 
