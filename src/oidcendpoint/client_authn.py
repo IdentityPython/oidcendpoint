@@ -5,13 +5,13 @@ from cryptojwt.jwt import utc_time_sans_frac
 from jwkest import Invalid, as_bytes, as_unicode
 from jwkest import MissingKey
 
-from oicmsg.jwt import JWT
-from oicmsg.oic import AuthnToken
+from oidcmsg.jwt import JWT
+from oidcmsg.oidc import AuthnToken
 
-from oicsrv import JWT_BEARER
-from oicsrv import rndstr
-from oicsrv import sanitize
-from oicsrv.exception import NotForMe
+from oidcendpoint import JWT_BEARER
+from oidcendpoint import rndstr
+from oidcendpoint import sanitize
+from oidcendpoint.exception import NotForMe
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ def assertion_jwt(cli, keys, audience, algorithm, lifetime=600):
 class ClientAuthnMethod(object):
     def __init__(self, srv_info=None):
         """
-        :param srv_info: Server info, a :py:class:`oicsrv.srv_info.ServerInfo`
-            instance
+        :param srv_info: Server info, a
+            :py:class:`oidcendpoint.srv_info.ServerInfo` instance
         """
         self.srv_info = srv_info
 

@@ -1,16 +1,17 @@
 import base64
 
 from cryptojwt import as_bytes, as_unicode
-from oicmsg.jwt import JWT
-from requests import request
 
-from oicmsg.key_jar import build_keyjar, KeyJar
+from oidcmsg.jwt import JWT
+from oidcmsg.key_jar import build_keyjar, KeyJar
 
-from oicsrv import JWT_BEARER
-from oicsrv.client_authn import ClientSecretBasic, ClientSecretPost, \
-    ClientSecretJWT, PrivateKeyJWT
-from oicsrv.srv_info import SrvInfo
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint import JWT_BEARER
+from oidcendpoint.client_authn import ClientSecretBasic
+from oidcendpoint.client_authn import ClientSecretJWT
+from oidcendpoint.client_authn import ClientSecretPost
+from oidcendpoint.client_authn import PrivateKeyJWT
+from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -27,18 +28,14 @@ conf = {
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
     "endpoint": {},
-    "authentication": [{
-        'acr': INTERNETPROTOCOLPASSWORD,
-        'name': 'NoAuthn',
-        'args': {'user': 'diana'}
-    }]
+    'template_dir': 'template'
 }
 client_id = 'client_id'
 client_secret = 'client_secret'
 # Need to add the client_secret as a symmetric key bound to the client_id
 KEYJAR.add_symmetric(client_id, client_secret, ['sig'])
 
-srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
+srv_info = SrvInfo(conf, keyjar=KEYJAR)
 srv_info.cdb[client_id] = {'client_secret': client_secret}
 
 

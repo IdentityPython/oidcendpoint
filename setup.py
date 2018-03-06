@@ -37,21 +37,20 @@ class PyTest(TestCommand):
         sys.exit(errno)
 
 
-version = ''
-with open('src/oicsrv/__init__.py', 'r') as fd:
+with open('src/oidcendpoint/__init__.py', 'r') as fd:
     version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
                         fd.read(), re.MULTILINE).group(1)
 
 setup(
-    name="oicsrv",
+    name="oidcendpoint",
     version=version,
     description="Python implementation of OAuth2 AS and OpenID Connect OP",
     author="Roland Hedberg",
     author_email="roland@catalogix.se",
     license="Apache 2.0",
     url='https://github.com/IdentityPython/oicsrv',
-    packages=["oicsrv", 'oicsrv/oic', 'oicsrv/authz', 'oicsrv/user_authn',
-              'oicsrv/user_info'],
+    packages=["oidcendpoint", 'oidcendpoint/oidc', 'oidcendpoint/authz',
+              'oidcendpoint/user_authn', 'oidcendpoint/user_info'],
     package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -61,10 +60,9 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
-        "oicmsg",
-        "requests",
-        "cryptography",
-        "pyjwkest>=1.3.6",
+        "oidcmsg",
+        'oidcservice',
+        "cryptojwt",
     ],
     tests_require=[
         "pytest"

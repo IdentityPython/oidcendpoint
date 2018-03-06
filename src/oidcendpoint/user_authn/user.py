@@ -14,13 +14,13 @@ import sys
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from oicsrv import sanitize
-from oicsrv.exception import FailedAuthentication
-from oicsrv.exception import ImproperlyConfigured
-from oicsrv.exception import InstantiationError
-from oicsrv.exception import ToOld
-from oicsrv.cookie import CookieDealer
-from oicsrv.cookie import InvalidCookieSign
+from oidcendpoint import sanitize
+from oidcendpoint.exception import FailedAuthentication
+from oidcendpoint.exception import ImproperlyConfigured
+from oidcendpoint.exception import InstantiationError
+from oidcendpoint.exception import ToOld
+from oidcendpoint.cookie import CookieDealer
+from oidcendpoint.cookie import InvalidCookieSign
 
 __author__ = 'Roland Hedberg'
 

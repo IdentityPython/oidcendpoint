@@ -1,4 +1,4 @@
-from oicsrv.srv_info import SrvInfo
+from oidcendpoint.srv_info import SrvInfo
 
 
 class Client(object):

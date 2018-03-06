@@ -3,17 +3,17 @@ import hashlib
 import logging
 import time
 
-from oicmsg.oic import AuthorizationRequest
-from oicmsg.time_util import time_sans_frac
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import time_sans_frac
 
-from oicsrv.sso_db import SSODb
-from oicsrv.token_handler import ExpiredToken
-from oicsrv.token_handler import is_expired
-from oicsrv.token_handler import UnknownToken
-from oicsrv.token_handler import AccessCodeUsed
-from oicsrv.token_handler import DefaultToken
-from oicsrv.token_handler import WrongTokenType
-from oicsrv.token_handler import TokenHandler
+from oidcendpoint.sso_db import SSODb
+from oidcendpoint.token_handler import ExpiredToken
+from oidcendpoint.token_handler import is_expired
+from oidcendpoint.token_handler import UnknownToken
+from oidcendpoint.token_handler import AccessCodeUsed
+from oidcendpoint.token_handler import DefaultToken
+from oidcendpoint.token_handler import WrongTokenType
+from oidcendpoint.token_handler import TokenHandler
 
 __author__ = 'rohe0002'
 

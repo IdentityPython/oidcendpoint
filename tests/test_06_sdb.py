@@ -2,12 +2,13 @@ import time
 
 import pytest
 
-from oicmsg.oic import AuthorizationRequest
-from oicmsg.oic import OpenIDRequest
-from oicsrv.sdb import AccessCodeUsed, create_session_db
-from oicsrv.sdb import AuthnEvent
-from oicsrv.sdb import ExpiredToken
-from oicsrv.sdb import WrongTokenType
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import OpenIDRequest
+from oidcendpoint.sdb import AccessCodeUsed
+from oidcendpoint.sdb import AuthnEvent
+from oidcendpoint.sdb import create_session_db
+from oidcendpoint.sdb import ExpiredToken
+from oidcendpoint.sdb import WrongTokenType
 
 __author__ = 'rohe0002'
 

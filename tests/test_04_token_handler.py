@@ -1,14 +1,14 @@
 import base64
 import hashlib
 import hmac
+import pytest
 import random
 import time
 
-import pytest
-from oicsrv.token_handler import Crypt
-from oicsrv.token_handler import DefaultToken
-from oicsrv.token_handler import TokenHandler
-from oicsrv.token_handler import is_expired
+from oidcendpoint.token_handler import Crypt
+from oidcendpoint.token_handler import DefaultToken
+from oidcendpoint.token_handler import TokenHandler
+from oidcendpoint.token_handler import is_expired
 
 
 def test_is_expired():

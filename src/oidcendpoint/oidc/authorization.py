@@ -7,28 +7,29 @@ from urllib.parse import urlparse
 
 from cryptojwt.jwe import JWEException
 from cryptojwt.jws import NoSuitableSigningKeys
-from oiccli.exception import InvalidRequest
-from oicmsg import oic
-from oicmsg.exception import ParameterError
-from oicmsg.exception import UnSupported
-from oicmsg.exception import URIError
-from oicmsg.oauth2 import AuthorizationErrorResponse
-from oicmsg.oauth2 import ErrorResponse
-from oicmsg.oic import AuthorizationResponse
 
-from oicsrv import sanitize
-from oicsrv.endpoint import Endpoint
-from oicsrv.exception import NoSuchAuthentication
-from oicsrv.exception import RedirectURIError
-from oicsrv.exception import TamperAllert
-from oicsrv.exception import ToOld
-from oicsrv.exception import UnknownClient
-from oicsrv.id_token import sign_encrypt_id_token
-from oicsrv.sdb import AuthnEvent
-from oicsrv.user_authn.authn_context import pick_auth
-from oicsrv.userinfo import userinfo_in_id_token_claims
-from oicsrv.userinfo import collect_user_info
-from oicsrv.util import make_headers
+from oidcservice.exception import InvalidRequest
+from oidcmsg import oidc
+from oidcmsg.exception import ParameterError
+from oidcmsg.exception import UnSupported
+from oidcmsg.exception import URIError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oidc import AuthorizationResponse
+
+from oidcendpoint import sanitize
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import NoSuchAuthentication
+from oidcendpoint.exception import RedirectURIError
+from oidcendpoint.exception import TamperAllert
+from oidcendpoint.exception import ToOld
+from oidcendpoint.exception import UnknownClient
+from oidcendpoint.id_token import sign_encrypt_id_token
+from oidcendpoint.sdb import AuthnEvent
+from oidcendpoint.user_authn.authn_context import pick_auth
+from oidcendpoint.userinfo import userinfo_in_id_token_claims
+from oidcendpoint.userinfo import collect_user_info
+from oidcendpoint.util import make_headers
 
 logger = logging.getLogger(__name__)
 
@@ -277,8 +278,8 @@ def create_authn_response(srv_info, request, sid):
 
 
 class Authorization(Endpoint):
-    request_cls = oic.AuthorizationRequest
-    response_cls = oic.AuthorizationResponse
+    request_cls = oidc.AuthorizationRequest
+    response_cls = oidc.AuthorizationResponse
     request_format = 'urlencoded'
     response_format = 'urlencoded'
     response_placement = 'url'

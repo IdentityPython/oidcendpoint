@@ -1,11 +1,13 @@
 import logging
 
 from cryptojwt import jws
-from oiccli.exception import AccessDenied
-from oicmsg.jwt import JWT
 
-from oicsrv.userinfo import id_token_claims
-from oicsrv.util import get_sign_and_encrypt_algorithms
+from oidcmsg.jwt import JWT
+
+from oidcservice.exception import AccessDenied
+
+from oidcendpoint.userinfo import id_token_claims
+from oidcendpoint.util import get_sign_and_encrypt_algorithms
 
 logger = logging.getLogger(__name__)
 

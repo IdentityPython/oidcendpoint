@@ -1,17 +1,18 @@
 import pytest
+
 from cryptojwt.exception import UnknownAlgorithm
-from oicmsg.oic import RegistrationResponse
-from requests import request
 
-from oicsrv.oic.authorization import Authorization
-from oicsrv.oic.provider_config import ProviderConfiguration
-from oicsrv.oic.registration import Registration
-from oicsrv.oic.token import AccessToken
-from oicsrv.oic.userinfo import UserInfo
-from oicsrv.srv_info import SrvInfo
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcmsg.oidc import RegistrationResponse
 
-from oicsrv.util import get_sign_and_encrypt_algorithms
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.provider_config import ProviderConfiguration
+from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.userinfo import UserInfo
+from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+
+from oidcendpoint.util import get_sign_and_encrypt_algorithms
 
 conf = {
     "issuer": "https://example.com/",
@@ -61,7 +62,7 @@ conf = {
 
 def test_get_sign_algorithm():
     client_info = RegistrationResponse()
-    srv_info = SrvInfo(conf, httplib=request)
+    srv_info = SrvInfo(conf)
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
                                            sign=True)
     # default signing alg
@@ -70,14 +71,14 @@ def test_get_sign_algorithm():
 
 def test_no_default_encrypt_algorithms():
     client_info = RegistrationResponse()
-    srv_info = SrvInfo(conf, httplib=request)
+    srv_info = SrvInfo(conf)
     with pytest.raises(UnknownAlgorithm):
         get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
                                         sign=True, encrypt=True)
 
 def test_get_sign_algorithm_2():
     client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
-    srv_info = SrvInfo(conf, httplib=request)
+    srv_info = SrvInfo(conf)
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
                                            sign=True)
     # default signing alg
@@ -86,7 +87,7 @@ def test_get_sign_algorithm_2():
 
 def test_get_sign_algorithm_3():
     client_info = RegistrationResponse()
-    srv_info = SrvInfo(conf, httplib=request)
+    srv_info = SrvInfo(conf)
     srv_info.jwx_def["signing_alg"] = {'id_token':'RS384'}
 
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
@@ -97,7 +98,7 @@ def test_get_sign_algorithm_3():
 
 def test_get_sign_algorithm_4():
     client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
-    srv_info = SrvInfo(conf, httplib=request)
+    srv_info = SrvInfo(conf)
     srv_info.jwx_def["signing_alg"] = {'id_token':'RS384'}
 
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',

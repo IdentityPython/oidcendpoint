@@ -1,17 +1,14 @@
 import json
-
 import pytest
-from oicmsg.key_jar import build_keyjar
 
-from requests import request
+from oidcmsg.key_jar import build_keyjar
 
-from oicsrv.oic import userinfo
-from oicsrv.oic.authorization import Authorization
-from oicsrv.oic.provider_config import ProviderConfiguration
-from oicsrv.oic.registration import Registration
-from oicsrv.oic.token import AccessToken
-
-from oicsrv.srv_info import SrvInfo
+from oidcendpoint.oidc import userinfo
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.provider_config import ProviderConfiguration
+from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.srv_info import SrvInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -86,7 +83,7 @@ class TestEndpoint(object):
                 }
             }
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
+        self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
 
     def test_do_response(self):
         args = self.endpoint.process_request(self.srv_info)

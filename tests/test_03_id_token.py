@@ -3,23 +3,22 @@ import os
 import time
 
 from cryptojwt import jws
-from oicmsg.jwt import JWT
-from oicmsg.key_jar import build_keyjar
-from oicmsg.key_jar import KeyJar
-from oicmsg.oic import JsonWebToken
-from oicmsg.oic import RegistrationResponse
+from oidcmsg.jwt import JWT
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.oidc import JsonWebToken
+from oidcmsg.oidc import RegistrationResponse
 
-from oicsrv.client_authn import verify_client
-from oicsrv.id_token import sign_encrypt_id_token
-from oicsrv.id_token import id_token_payload
-from oicsrv.oic.authorization import Authorization
-from oicsrv.oic.token import AccessToken
-from oicsrv.oic import userinfo
-from oicsrv.srv_info import SrvInfo
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.client_authn import verify_client
+from oidcendpoint.id_token import sign_encrypt_id_token
+from oidcendpoint.id_token import id_token_payload
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc import userinfo
+from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_info import UserInfo
 
-from oicsrv.user_info import UserInfo
-from requests import request
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -62,17 +61,11 @@ conf = {
             'kwargs': {'db_file': 'users.json'}
         }
     },
-    'authentication': [
-        {
-            'acr': INTERNETPROTOCOLPASSWORD,
-            'name': 'NoAuthn',
-            'args': {'user': 'diana'}
-        }
-    ],
-    'client_authn': verify_client
+    'client_authn': verify_client,
+    'template_dir': 'template'
 }
 
-srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
+srv_info = SrvInfo(conf, keyjar=KEYJAR)
 srv_info.cdb['client_1'] = {
     "client_secret": 'hemligt',
     "redirect_uris": [("https://example.com/cb", None)],

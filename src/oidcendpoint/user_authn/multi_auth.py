@@ -1,5 +1,5 @@
-from oic.utils.authn.authn_context import make_auth_verify
-from oic.utils.authn.user import UserAuthnMethod
+from oidcendpoint.user_authn.authn_context import make_auth_verify
+from oidcendpoint.user_authn.user import UserAuthnMethod
 
 __author__ = 'danielevertsson'
 

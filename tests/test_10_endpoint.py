@@ -2,13 +2,12 @@ import json
 from urllib.parse import urlparse
 
 import pytest
-from oicmsg.key_jar import build_keyjar
-from oicmsg.message import Message
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from requests import request
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.message import Message
 
-from oicsrv.endpoint import Endpoint
-from oicsrv.srv_info import SrvInfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.srv_info import SrvInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -62,7 +61,7 @@ class TestEndpoint(object):
                 'args': {'user': 'diana'}
             }]
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
+        self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
 
     def test_parse_urlencoded(self):
         self.endpoint.request_format = 'urlencoded'

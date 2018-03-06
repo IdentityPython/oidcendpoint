@@ -1,5 +1,5 @@
 import pytest
-from oicsrv.sso_db import SSODb
+from oidcendpoint.sso_db import SSODb
 
 
 class TestSessionDB(object):

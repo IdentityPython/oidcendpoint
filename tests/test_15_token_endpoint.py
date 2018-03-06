@@ -5,20 +5,20 @@ import pytest
 import time
 from requests import request
 
-from oicmsg.key_jar import build_keyjar
-from oicmsg.oic import AccessTokenRequest
-from oicmsg.oic import AuthorizationRequest
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
 
-from oicsrv.oic import userinfo
-from oicsrv.client_authn import verify_client
-from oicsrv.oic.authorization import Authorization
-from oicsrv.oic.provider_config import ProviderConfiguration
-from oicsrv.oic.registration import Registration
-from oicsrv.oic.token import AccessToken
-from oicsrv.sdb import AuthnEvent
-from oicsrv.srv_info import SrvInfo
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oicsrv.user_info import UserInfo
+from oidcendpoint.oidc import userinfo
+from oidcendpoint.client_authn import verify_client
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.provider_config import ProviderConfiguration
+from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.sdb import AuthnEvent
+from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},

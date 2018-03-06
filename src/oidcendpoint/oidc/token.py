@@ -2,29 +2,29 @@ import logging
 
 from cryptojwt.jwe import JWEException
 from cryptojwt.jws import NoSuitableSigningKeys
-from oicmsg import oic
-from oicmsg.oic import AccessTokenRequest
-from oicmsg.oic import AccessTokenResponse
-from oicmsg.oic import RefreshAccessTokenRequest
-from oicmsg.oic import TokenErrorResponse
 
-from oicsrv.client_authn import verify_client
-from oicsrv.util import make_headers
+from oidcmsg import oidc
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AccessTokenResponse
+from oidcmsg.oidc import RefreshAccessTokenRequest
+from oidcmsg.oidc import TokenErrorResponse
 
-from oicsrv import sanitize
-from oicsrv.endpoint import Endpoint
-from oicsrv.id_token import sign_encrypt_id_token
-from oicsrv.token_handler import AccessCodeUsed
-from oicsrv.token_handler import ExpiredToken
-from oicsrv.userinfo import by_schema
-from oicsrv.userinfo import userinfo_in_id_token_claims
+from oidcendpoint import sanitize
+from oidcendpoint.client_authn import verify_client
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.id_token import sign_encrypt_id_token
+from oidcendpoint.token_handler import AccessCodeUsed
+from oidcendpoint.token_handler import ExpiredToken
+from oidcendpoint.userinfo import by_schema
+from oidcendpoint.userinfo import userinfo_in_id_token_claims
+from oidcendpoint.util import make_headers
 
 logger = logging.getLogger(__name__)
 
 
 class AccessToken(Endpoint):
-    request_cls = oic.AccessTokenRequest
-    response_cls = oic.AccessTokenResponse
+    request_cls = oidc.AccessTokenRequest
+    response_cls = oidc.AccessTokenResponse
     error_cls = TokenErrorResponse
     request_format = 'json'
     request_placement = 'body'

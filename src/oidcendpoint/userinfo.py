@@ -1,11 +1,12 @@
 import logging
 
-from oiccli import sanitize
-from oicmsg.oic import AuthorizationRequest, Claims, scope2claims
-from oicmsg.oic import OpenIDRequest
-from oicmsg.oic import SCOPE2CLAIMS
+from oidcservice import sanitize
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import Claims
+from oidcmsg.oidc import scope2claims
+from oidcmsg.oidc import OpenIDRequest
 
-from oicsrv.exception import FailedAuthentication
+from oidcendpoint.exception import FailedAuthentication
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ def by_schema(cls, **kwa):
     """
     Will return only those claims that are listed in the Class definition.
 
-    :param cls: A subclass of :py:class:´oicmsg.message.Message`
+    :param cls: A subclass of :py:class:´oidcmsg.message.Message`
     :param kwa: Keyword arguments
     :return: A dictionary with claims (keys) that meets the filter criteria
     """

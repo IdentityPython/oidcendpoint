@@ -1,22 +1,21 @@
 import json
-
 import os
 import pytest
-from requests import request
+
 from urllib.parse import parse_qs, urlparse
 
-from oicmsg.key_jar import build_keyjar
-from oicmsg.oauth2 import ErrorResponse
-from oicmsg.oic import AuthorizationRequest
+from oidcmsg.key_jar import build_keyjar
+from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oidc import AuthorizationRequest
 
-from oicsrv.srv_info import SrvInfo
-from oicsrv.oic.authorization import Authorization
-from oicsrv.oic.provider_config import ProviderConfiguration
-from oicsrv.oic.registration import Registration
-from oicsrv.oic.token import AccessToken
-from oicsrv.oic import userinfo
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oicsrv.user_info import UserInfo
+from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.provider_config import ProviderConfiguration
+from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc import userinfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -117,7 +116,7 @@ class TestEndpoint(object):
                 'kwargs': {'db': USERINFO_db}
             }
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
+        self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
         self.srv_info.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],

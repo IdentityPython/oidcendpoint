@@ -2,22 +2,24 @@ import json
 import logging
 
 from cryptojwt.exception import UnknownAlgorithm
-from oicmsg import oic
-from oicmsg.jwt import JWT
-from oicmsg.message import Message
-from oicmsg.oauth2 import ErrorResponse
 
-from oicsrv.endpoint import Endpoint
-from oicsrv.exception import OicSrvError
-from oicsrv.userinfo import collect_user_info
-from oicsrv.util import get_sign_and_encrypt_algorithms, OAUTH2_NOCACHE_HEADERS
+from oidcmsg import oidc
+from oidcmsg.jwt import JWT
+from oidcmsg.message import Message
+from oidcmsg.oauth2 import ErrorResponse
+
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import OidcEndpointError
+from oidcendpoint.userinfo import collect_user_info
+from oidcendpoint.util import get_sign_and_encrypt_algorithms
+from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
 
 
 class UserInfo(Endpoint):
     request_cls = Message
-    response_cls = oic.OpenIDSchema
+    response_cls = oidc.OpenIDSchema
     request_format = 'json'
     response_format = 'json'
     response_placement = 'body'
@@ -39,7 +41,7 @@ class UserInfo(Endpoint):
                                                            'userinfo',
                                                            **sign_encrypt)
             except UnknownAlgorithm as err:
-                raise OicSrvError('Configuration error: {}'.format(err))
+                raise OidcEndpointError('Configuration error: {}'.format(err))
 
             _jwt = JWT(srv_info.keyjar, **jwt_args)
 

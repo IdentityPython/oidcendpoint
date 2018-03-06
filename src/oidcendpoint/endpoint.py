@@ -2,16 +2,16 @@ import logging
 # noinspection PyCompatibility
 from urllib.parse import urlparse
 
-from oicmsg.exception import MissingRequiredAttribute
-from oicmsg.exception import MissingRequiredValue
-from oicmsg.message import Message
-from oicmsg.oauth2 import ErrorResponse
+from oidcmsg.exception import MissingRequiredAttribute
+from oidcmsg.exception import MissingRequiredValue
+from oidcmsg.message import Message
+from oidcmsg.oauth2 import ErrorResponse
 
-from oicsrv import sanitize
-from oicsrv.client_authn import UnknownOrNoAuthnMethod
-from oicsrv.client_authn import verify_client
-from oicsrv.exception import UnAuthorizedClient
-from oicsrv.util import OAUTH2_NOCACHE_HEADERS
+from oidcendpoint import sanitize
+from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
+from oidcendpoint.client_authn import verify_client
+from oidcendpoint.exception import UnAuthorizedClient
+from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = 'Roland Hedberg'
 
@@ -137,7 +137,7 @@ class Endpoint(object):
     def client_authentication(self, srv_info, request, auth=None, **kwargs):
         """
 
-        :param srv_info: A :py:class:`oicsrv.srv_info.SrvInfo` instance
+        :param srv_info: A :py:class:`oidcendpoint.srv_info.SrvInfo` instance
         :param request: Parsed request, a self.request_cls class instance
         :param authn: Authorization info
         :return: client_id or raise and exception
@@ -165,7 +165,7 @@ class Endpoint(object):
     def process_request(self, srv_info, request=None):
         """
 
-        :param srv_info: :py:class:`oicsrv.srv_info.SrvInfo` instance
+        :param srv_info: :py:class:`oidcendpoint.srv_info.SrvInfo` instance
         :param request: The request, can be in a number of formats
         :return: Arguments for the do_response method
         """
@@ -175,7 +175,7 @@ class Endpoint(object):
         """
         Construct the response
 
-        :param srv_info: :py:class:`oicsrv.srv_info.SrvInfo` instance
+        :param srv_info: :py:class:`oidcendpoint.srv_info.SrvInfo` instance
         :param response_args: response arguments
         :param request: The parsed request, a self.request_cls class instance
         :param kwargs: Extra keyword arguments

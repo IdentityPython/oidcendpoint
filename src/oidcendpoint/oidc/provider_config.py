@@ -1,15 +1,15 @@
 import logging
 
-from oicmsg import oic
+from oidcmsg import oidc
 
-from oicsrv.endpoint import Endpoint
+from oidcendpoint.endpoint import Endpoint
 
 logger = logging.getLogger(__name__)
 
 
 class ProviderConfiguration(Endpoint):
-    request_cls = oic.Message
-    response_cls = oic.ProviderConfigurationResponse
+    request_cls = oidc.Message
+    response_cls = oidc.ProviderConfigurationResponse
     request_format = ''
     response_format = 'json'
     #response_placement = 'body'

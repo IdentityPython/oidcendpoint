@@ -1,14 +1,17 @@
 import json
 import os
-from oicmsg.message import Message
-from oicmsg.oic import AuthorizationRequest, OpenIDSchema
-from oicmsg.oic import OpenIDRequest
-from oicsrv.srv_info import SrvInfo
-from oicsrv.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oicsrv.user_info import UserInfo
-from oicsrv.userinfo import claims_match, by_schema, collect_user_info
-from oicsrv.userinfo import update_claims
-from requests import request
+
+from oidcmsg.message import Message
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import OpenIDRequest
+from oidcmsg.oidc import OpenIDSchema
+from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_info import UserInfo
+from oidcendpoint.userinfo import by_schema
+from oidcendpoint.userinfo import claims_match
+from oidcendpoint.userinfo import collect_user_info
+from oidcendpoint.userinfo import update_claims
 
 CLAIMS = {
     "userinfo": {
@@ -119,8 +122,7 @@ def test_collect_user_info():
                             'acr': INTERNETPROTOCOLPASSWORD,
                             'name': 'NoAuthn',
                             'args': {'user': 'diana'}}]
-                        },
-                       httplib=request)
+                        })
 
     res = collect_user_info(srv_info, session)
 

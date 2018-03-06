@@ -1,13 +1,16 @@
-from cryptojwt import as_unicode, as_bytes
-
 import base64
 import hashlib
 import logging
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
-from oiccli import rndstr
-from oicmsg.time_util import time_sans_frac
+
+from cryptojwt import as_bytes
+from cryptojwt import as_unicode
+
+from oidcmsg.time_util import time_sans_frac
+
+from oidcendpoint import rndstr
 
 __author__ = 'Roland Hedberg'
 

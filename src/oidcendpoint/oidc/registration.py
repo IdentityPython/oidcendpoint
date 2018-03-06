@@ -2,27 +2,31 @@ import hashlib
 import hmac
 import json
 import logging
+import time
+
 from random import random
+
 from urllib.parse import parse_qs
 from urllib.parse import splitquery
 from urllib.parse import urlencode
-from urllib.parse import urljoin
 from urllib.parse import urlparse
 
-import time
-from jwkest import jws
-from oiccli import sanitize, rndstr
-from oiccli.exception import CapabilitiesMisMatch
-from oicmsg.exception import MessageException
-from oicmsg.oauth2 import ErrorResponse
-from oicmsg.oic import ClientRegistrationErrorResponse
-from oicmsg.oic import RegistrationRequest
-from oicmsg.oic import RegistrationResponse
-from oicmsg.time_util import utc_time_sans_frac
+from cryptojwt import jws
 
-from oicsrv.endpoint import Endpoint
-from oicsrv.exception import InvalidRedirectURIError
-from oicsrv.exception import InvalidSectorIdentifier
+from oidcservice import sanitize
+from oidcservice.exception import CapabilitiesMisMatch
+
+from oidcmsg.exception import MessageException
+from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oidc import ClientRegistrationErrorResponse
+from oidcmsg.oidc import RegistrationRequest
+from oidcmsg.oidc import RegistrationResponse
+from oidcmsg.time_util import utc_time_sans_frac
+
+from oidcendpoint import rndstr
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import InvalidRedirectURIError
+from oidcendpoint.exception import InvalidSectorIdentifier
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",

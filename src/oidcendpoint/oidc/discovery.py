@@ -1,13 +1,14 @@
-from oicmsg import oic
-from oicmsg.oic import JRD, Link
+from oidcmsg import oidc
+from oidcmsg.oidc import JRD
+from oidcmsg.oidc import Link
 
-from oicsrv.endpoint import Endpoint
+from oidcendpoint.endpoint import Endpoint
 
 OIC_ISSUER = "http://openid.net/specs/connect/1.0/issuer"
 
 class Discovery(Endpoint):
-    request_cls = oic.DiscoveryRequest
-    response_cls = oic.JRD
+    request_cls = oidc.DiscoveryRequest
+    response_cls = JRD
     request_format = 'urlencoded'
     response_format = 'json'
 

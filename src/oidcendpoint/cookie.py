@@ -15,9 +15,9 @@ from cryptojwt import safe_str_cmp
 from cryptojwt.jwe import JWEException
 from cryptojwt.jwe import split_ctx_and_tag
 
-from oiccli import rndstr
-from oiccli.exception import ImproperlyConfigured
-from oicmsg import time_util
+from oidcservice import rndstr
+from oidcservice.exception import ImproperlyConfigured
+from oidcmsg import time_util
 
 __author__ = 'Roland Hedberg'
 

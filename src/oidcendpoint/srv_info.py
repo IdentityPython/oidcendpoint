@@ -5,20 +5,22 @@ from functools import cmp_to_key
 import os
 
 from jinja2 import Environment, FileSystemLoader
-from jwkest import jwe
-from jwkest import jws
-from oicmsg.key_jar import KeyJar
-from oicmsg.oic import SCOPE2CLAIMS, IdToken
 
-from oicsrv import rndstr
-from oicsrv import authz
-from oicsrv.client_authn import CLIENT_AUTHN_METHOD
-from oicsrv.exception import ConfigurationError
-from oicsrv.sdb import create_session_db
-from oicsrv.sso_db import SSODb
-from oicsrv.user_authn import user
-from oicsrv.user_authn.authn_context import AuthnBroker
-from oicsrv.util import build_endpoints
+from cryptojwt import jwe
+from cryptojwt import jws
+from oidcmsg.key_jar import KeyJar
+from oidcmsg.oidc import IdToken
+from oidcmsg.oidc import SCOPE2CLAIMS
+
+from oidcendpoint import rndstr
+from oidcendpoint import authz
+from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
+from oidcendpoint.exception import ConfigurationError
+from oidcendpoint.sdb import create_session_db
+from oidcendpoint.sso_db import SSODb
+from oidcendpoint.user_authn import user
+from oidcendpoint.user_authn.authn_context import AuthnBroker
+from oidcendpoint.util import build_endpoints
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +75,8 @@ def add_path(url, path):
 
 
 class SrvInfo(object):
-    def __init__(self, conf, keyjar=None, client_db=None,
-                 session_db=None, cwd=''):
+    def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
+                 cwd=''):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
@@ -144,7 +146,7 @@ class SrvInfo(object):
         try:
             _authn = conf['authentication']
         except KeyError:
-            pass
+            self.authn_broker = None
         else:
             self.authn_broker = AuthnBroker()
 
