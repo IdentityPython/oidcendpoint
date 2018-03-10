@@ -3,7 +3,6 @@ import json
 import os
 import pytest
 import time
-from requests import request
 
 from oidcmsg.key_jar import build_keyjar
 from oidcmsg.oidc import AccessTokenRequest
@@ -125,15 +124,16 @@ class TestEndpoint(object):
             "authentication": [{
                 'acr': INTERNETPROTOCOLPASSWORD,
                 'name': 'NoAuthn',
-                'args': {'user': 'diana'}
+                'kwargs': {'user': 'diana'}
             }],
             "userinfo": {
                 'class': UserInfo,
                 'kwargs': {'db': {}}
             },
-            'client_authn': verify_client
+            'client_authn': verify_client,
+            'template_dir': 'template'
         }
-        self.srv_info = EndpointContext(conf, keyjar=KEYJAR, httplib=request)
+        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
         self.srv_info.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],

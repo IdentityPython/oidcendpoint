@@ -54,9 +54,10 @@ conf = {
         {
             'acr': INTERNETPROTOCOLPASSWORD,
             'name': 'NoAuthn',
-            'args': {'user': 'diana'}
+            'kwargs': {'user': 'diana'}
         }
-    ]
+    ],
+    'template_dir': 'template'
 }
 
 

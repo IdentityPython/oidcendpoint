@@ -121,8 +121,8 @@ def test_collect_user_info():
                         "authentication": [{
                             'acr': INTERNETPROTOCOLPASSWORD,
                             'name': 'NoAuthn',
-                            'args': {'user': 'diana'}}]
-                        })
+                            'kwargs': {'user': 'diana'}}],
+                        'template_dir': 'template'})
 
     res = collect_user_info(srv_info, session)
 

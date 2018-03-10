@@ -109,12 +109,13 @@ class TestEndpoint(object):
             "authentication": [{
                 'acr': INTERNETPROTOCOLPASSWORD,
                 'name': 'NoAuthn',
-                'args': {'user': 'diana'}
+                'kwargs': {'user': 'diana'}
             }],
             "userinfo": {
                 'class': UserInfo,
                 'kwargs': {'db': USERINFO_db}
-            }
+            },
+            'template_dir': 'template'
         }
         self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
         self.srv_info.cdb['client_1'] = {

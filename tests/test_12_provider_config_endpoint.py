@@ -81,7 +81,8 @@ class TestEndpoint(object):
                     'class': userinfo.UserInfo,
                     'kwargs': {'db_file': 'users.json'}
                 }
-            }
+            },
+            'template_dir': 'template'
         }
         self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
 

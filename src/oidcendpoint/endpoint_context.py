@@ -164,6 +164,7 @@ class EndpointContext(object):
                 args = {k: authn_spec[k] for k in
                         ['acr', 'level', 'authn_authority'] if k in authn_spec}
 
+                _args['srv_info'] = self
                 self.authn_broker.add(method=authn_method, **args)
 
             self.cookie_func = self.authn_broker[0][0].create_cookie

@@ -1,2 +1,2 @@
-# oicsrv
-Implementation of an OIDC OP library
+# oidcendpoint
+Implementation of OIDC OP endpoints. 
