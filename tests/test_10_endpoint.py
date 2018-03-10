@@ -7,7 +7,7 @@ from oidcmsg.message import Message
 
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -61,7 +61,7 @@ class TestEndpoint(object):
                 'args': {'user': 'diana'}
             }]
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
+        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
 
     def test_parse_urlencoded(self):
         self.endpoint.request_format = 'urlencoded'

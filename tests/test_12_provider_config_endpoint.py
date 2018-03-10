@@ -8,7 +8,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -83,7 +83,7 @@ class TestEndpoint(object):
                 }
             }
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
+        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
 
     def test_do_response(self):
         args = self.endpoint.process_request(self.srv_info)

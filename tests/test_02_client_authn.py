@@ -10,7 +10,7 @@ from oidcendpoint.client_authn import ClientSecretBasic
 from oidcendpoint.client_authn import ClientSecretJWT
 from oidcendpoint.client_authn import ClientSecretPost
 from oidcendpoint.client_authn import PrivateKeyJWT
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
@@ -35,7 +35,7 @@ client_secret = 'client_secret'
 # Need to add the client_secret as a symmetric key bound to the client_id
 KEYJAR.add_symmetric(client_id, client_secret, ['sig'])
 
-srv_info = SrvInfo(conf, keyjar=KEYJAR)
+srv_info = EndpointContext(conf, keyjar=KEYJAR)
 srv_info.cdb[client_id] = {'client_secret': client_secret}
 
 

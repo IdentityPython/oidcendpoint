@@ -5,7 +5,7 @@ from oidcmsg.key_jar import build_keyjar
 
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.oidc.discovery import Discovery
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -33,7 +33,7 @@ class TestEndpoint(object):
                 'args': {'user': 'diana'}
             }]
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
+        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
 
     def test_do_response(self):
         args = self.endpoint.process_request(

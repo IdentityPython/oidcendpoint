@@ -8,7 +8,7 @@ from oidcmsg.key_jar import build_keyjar
 from oidcmsg.oauth2 import ErrorResponse
 from oidcmsg.oidc import AuthorizationRequest
 
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
@@ -116,7 +116,7 @@ class TestEndpoint(object):
                 'kwargs': {'db': USERINFO_db}
             }
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR)
+        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
         self.srv_info.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],

@@ -1,9 +1,9 @@
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 
 
 class Client(object):
     def __init__(self, conf):
-        self.srv_info = SrvInfo(conf)
+        self.srv_info = EndpointContext(conf)
         self.service = {}
 
     def respond_to_request(self, endpoint, request, **kwargs):

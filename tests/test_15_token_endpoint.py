@@ -16,7 +16,7 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.sdb import AuthnEvent
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -133,7 +133,7 @@ class TestEndpoint(object):
             },
             'client_authn': verify_client
         }
-        self.srv_info = SrvInfo(conf, keyjar=KEYJAR, httplib=request)
+        self.srv_info = EndpointContext(conf, keyjar=KEYJAR, httplib=request)
         self.srv_info.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],

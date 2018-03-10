@@ -5,7 +5,7 @@ from oidcmsg.message import Message
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
 from oidcmsg.oidc import OpenIDSchema
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 from oidcendpoint.userinfo import by_schema
@@ -109,7 +109,7 @@ def test_collect_user_info():
     session.update({'scope': ['openid', 'profile'], 'sub': 'doe',
                     'uid': 'diana', 'client_id': 'client'})
 
-    srv_info = SrvInfo({'userinfo': {
+    srv_info = EndpointContext({'userinfo': {
                             'class': UserInfo,
                             'kwargs': {'db': USERINFO_DB}
                         },

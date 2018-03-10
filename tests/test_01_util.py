@@ -9,7 +9,7 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.oidc.userinfo import UserInfo
-from oidcendpoint.srv_info import SrvInfo
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 from oidcendpoint.util import get_sign_and_encrypt_algorithms
@@ -62,7 +62,7 @@ conf = {
 
 def test_get_sign_algorithm():
     client_info = RegistrationResponse()
-    srv_info = SrvInfo(conf)
+    srv_info = EndpointContext(conf)
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
                                            sign=True)
     # default signing alg
@@ -71,14 +71,14 @@ def test_get_sign_algorithm():
 
 def test_no_default_encrypt_algorithms():
     client_info = RegistrationResponse()
-    srv_info = SrvInfo(conf)
+    srv_info = EndpointContext(conf)
     with pytest.raises(UnknownAlgorithm):
         get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
                                         sign=True, encrypt=True)
 
 def test_get_sign_algorithm_2():
     client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
-    srv_info = SrvInfo(conf)
+    srv_info = EndpointContext(conf)
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
                                            sign=True)
     # default signing alg
@@ -87,7 +87,7 @@ def test_get_sign_algorithm_2():
 
 def test_get_sign_algorithm_3():
     client_info = RegistrationResponse()
-    srv_info = SrvInfo(conf)
+    srv_info = EndpointContext(conf)
     srv_info.jwx_def["signing_alg"] = {'id_token':'RS384'}
 
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',
@@ -98,7 +98,7 @@ def test_get_sign_algorithm_3():
 
 def test_get_sign_algorithm_4():
     client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
-    srv_info = SrvInfo(conf)
+    srv_info = EndpointContext(conf)
     srv_info.jwx_def["signing_alg"] = {'id_token':'RS384'}
 
     algs = get_sign_and_encrypt_algorithms(srv_info, client_info, 'id_token',

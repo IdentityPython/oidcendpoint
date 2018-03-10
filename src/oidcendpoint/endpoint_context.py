@@ -74,7 +74,7 @@ def add_path(url, path):
             return '{}/{}'.format(url, path)
 
 
-class SrvInfo(object):
+class EndpointContext(object):
     def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
                  cwd=''):
         self.conf = conf
