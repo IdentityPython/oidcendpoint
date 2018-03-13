@@ -252,38 +252,38 @@ class CookieDealer(object):
     access to.
     """
     def _get_server_info(self):
-        return self._srv_info
+        return self._endpoint_context
 
     def _set_server_info(self, server_info):
-        self._srv_info = server_info
+        self._endpoint_context = server_info
 
-    srv_info = property(_get_server_info, _set_server_info)
+    endpoint_context = property(_get_server_info, _set_server_info)
 
-    def __init__(self, srv_info, ttl=5):
-        self.srv_info = None
-        self.init_srv_info(srv_info)
+    def __init__(self, endpoint_context, ttl=5):
+        self.endpoint_context = None
+        self.init_endpoint_context(endpoint_context)
         # minutes before the interaction should be completed
         self.cookie_ttl = ttl  # N minutes
 
-    def init_srv_info(self, srv_info):
+    def init_endpoint_context(self, endpoint_context):
         """
-        Make sure the server has the necessary attributes
+        Make sure the endpoint context contains the necessary attributes
 
-        :param srv: A server instance
+        :param endpoint_context: A server instance
         """
-        if not srv_info:
+        if not endpoint_context:
             return
-        self.srv_info = srv_info
+        self.endpoint_context = endpoint_context
 
         # verify that the server instance has a cymkey attribute
-        symkey = getattr(self.srv_info, 'symkey', None)
+        symkey = getattr(self.endpoint_context, 'symkey', None)
         if symkey is not None and symkey == "":
             msg = "CookieDealer.srv.symkey can not be an empty value"
             raise ImproperlyConfigured(msg)
 
         # if there is no 'sed' attribute defined create one
-        if not getattr(srv_info, 'seed', None):
-            setattr(srv_info, 'seed', rndstr().encode("utf-8"))
+        if not getattr(endpoint_context, 'seed', None):
+            setattr(endpoint_context, 'seed', rndstr().encode("utf-8"))
 
     def delete_cookie(self, cookie_name=None):
         """
@@ -312,16 +312,16 @@ class CookieDealer(object):
             ttl = self.cookie_ttl
 
         if cookie_name is None:
-            cookie_name = self.srv_info.cookie_name
+            cookie_name = self.endpoint_context.cookie_name
 
         try:
-            srvdomain = self.srv_info.cookie_domain
+            srvdomain = self.endpoint_context.cookie_domain
             cookie_domain = "" if not srvdomain else srvdomain
         except AttributeError:
             cookie_domain = ""
 
         try:
-            srvpath = self.srv_info.cookie_path
+            srvpath = self.endpoint_context.cookie_path
             cookie_path = "" if not srvpath else srvpath
         except AttributeError:
             cookie_path = ""
@@ -335,10 +335,10 @@ class CookieDealer(object):
         except TypeError:
             cookie_payload = "::".join([value[0], timestamp, typ])
 
-        cookie = make_cookie(cookie_name, cookie_payload, self.srv_info.seed,
-                             expire=ttl, domain=cookie_domain, path=cookie_path,
-                             timestamp=timestamp,
-                             enc_key=self.srv_info.symkey)
+        cookie = make_cookie(
+            cookie_name, cookie_payload, self.endpoint_context.seed,
+            expire=ttl, domain=cookie_domain, path=cookie_path,
+            timestamp=timestamp, enc_key=self.endpoint_context.symkey)
         return cookie
 
     def get_cookie_value(self, cookie=None, cookie_name=None):
@@ -353,9 +353,9 @@ class CookieDealer(object):
             return None
         else:
             try:
-                info, timestamp = parse_cookie(cookie_name,
-                                               self.srv_info.seed, cookie,
-                                               self.srv_info.symkey)
+                info, timestamp = parse_cookie(
+                    cookie_name, self.endpoint_context.seed, cookie,
+                    self.endpoint_context.symkey)
             except (TypeError, AssertionError):
                 return None
             else:

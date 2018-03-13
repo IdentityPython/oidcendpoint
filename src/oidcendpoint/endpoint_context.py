@@ -108,6 +108,7 @@ class EndpointContext(object):
         self.cookie_name = 'oicsrc'
         self.symkey = rndstr(24)
         self.id_token_schema = IdToken
+        self.endpoint_to_authn_method = {}
 
         for param in ['verify_ssl', 'issuer', 'sso_ttl', 'cookie_name',
                       'symkey', 'client_authn', 'id_token_schema']:
@@ -160,12 +161,14 @@ class EndpointContext(object):
                     _args['template_env'] = jinja_env
 
                 authn_method = user.factory(authn_spec['name'], **_args)
-                authn_method.srv_info = self
+                authn_method.endpoint_context = self
                 args = {k: authn_spec[k] for k in
                         ['acr', 'level', 'authn_authority'] if k in authn_spec}
 
-                _args['srv_info'] = self
+                _args['endpoint_context'] = self
                 self.authn_broker.add(method=authn_method, **args)
+                self.endpoint_to_authn_method[
+                    authn_method.url_endpoint] = authn_method
 
             self.cookie_func = self.authn_broker[0][0].create_cookie
 
@@ -287,3 +290,4 @@ class EndpointContext(object):
                 _pinfo['{}_endpoint'.format(name)] = instance.endpoint_path
 
         return _pinfo
+

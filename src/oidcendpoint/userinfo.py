@@ -116,7 +116,7 @@ def by_schema(cls, **kwa):
     return dict([(key, val) for key, val in kwa.items() if key in cls.c_param])
 
 
-def collect_user_info(srv_info, session, userinfo_claims=None):
+def collect_user_info(endpoint_context, session, userinfo_claims=None):
     """
     Collect information about a user.
     This can happen in two cases, either when constructing an IdToken or
@@ -157,7 +157,7 @@ def collect_user_info(srv_info, session, userinfo_claims=None):
     else:
         uid = session['uid']
 
-    info = srv_info.userinfo(uid, session['client_id'], userinfo_claims)
+    info = endpoint_context.userinfo(uid, session['client_id'], userinfo_claims)
 
     if "sub" in userinfo_claims:
         if not claims_match(session["sub"], userinfo_claims["sub"]):
@@ -176,7 +176,7 @@ def collect_user_info(srv_info, session, userinfo_claims=None):
     return info
 
 
-def userinfo_in_id_token_claims(srv_info, session):
+def userinfo_in_id_token_claims(endpoint_context, session):
     """
     Put userinfo claims in the id token
     :param session:
@@ -186,7 +186,7 @@ def userinfo_in_id_token_claims(srv_info, session):
     if not itc:
         return None
 
-    _claims = by_schema(srv_info.id_token_schema, **itc)
+    _claims = by_schema(endpoint_context.id_token_schema, **itc)
 
     if _claims:
         return collect_user_info(session, _claims)

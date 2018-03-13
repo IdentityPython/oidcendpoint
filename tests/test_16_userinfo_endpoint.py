@@ -70,11 +70,11 @@ def full_path(local_file):
 USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
 
 
-def setup_session(srv_info, areq):
+def setup_session(endpoint_context, areq):
     authn_event = AuthnEvent("uid", 'salt', authn_info=INTERNETPROTOCOLPASSWORD,
                              time_stamp=time.time())
-    sid = srv_info.sdb.create_authz_session(authn_event, areq)
-    srv_info.sdb.do_sub(sid, '')
+    sid = endpoint_context.sdb.create_authz_session(authn_event, areq)
+    endpoint_context.sdb.do_sub(sid, '')
     return sid
 
 
@@ -130,8 +130,8 @@ class TestEndpoint(object):
             }],
             'template_dir': 'template'
         }
-        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
-        self.srv_info.cdb['client_1'] = {
+        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
@@ -140,14 +140,13 @@ class TestEndpoint(object):
         }
 
     def test_init(self):
-        assert self.srv_info
+        assert self.endpoint_context
 
     def test_parse(self):
-        session_id = setup_session(self.srv_info, AUTH_REQ)
-        _dic = self.srv_info.sdb.upgrade_to_token(key=session_id)
+        session_id = setup_session(self.endpoint_context, AUTH_REQ)
+        _dic = self.endpoint_context.sdb.upgrade_to_token(key=session_id)
         _req = self.endpoint.parse_request(
-            self.srv_info, {}, auth="Bearer {}".format(_dic['access_token']))
+            self.endpoint_context, {},
+            auth="Bearer {}".format(_dic['access_token']))
 
         assert set(_req.keys()) == {'client_id', 'access_token'}
-
-

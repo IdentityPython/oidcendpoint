@@ -84,11 +84,11 @@ class TestEndpoint(object):
             },
             'template_dir': 'template'
         }
-        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
 
     def test_do_response(self):
-        args = self.endpoint.process_request(self.srv_info)
-        msg = self.endpoint.do_response(self.srv_info, args)
+        args = self.endpoint.process_request(self.endpoint_context)
+        msg = self.endpoint.do_response(self.endpoint_context, args)
         assert isinstance(msg, dict)
         _msg = json.loads(msg['response'])
         assert _msg

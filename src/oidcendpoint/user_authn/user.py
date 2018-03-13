@@ -13,6 +13,7 @@ from urllib.parse import urlunsplit
 import sys
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from oidcmsg.jwt import JWT
 
 from oidcendpoint import sanitize
 from oidcendpoint.exception import FailedAuthentication
@@ -50,8 +51,8 @@ class UserAuthnMethod(CookieDealer):
     url_endpoint = '/verify'
     FAILED_AUTHN = (None, True)
 
-    def __init__(self, ttl=5, srv_info=None):
-        CookieDealer.__init__(self, srv_info, ttl)
+    def __init__(self, ttl=5, endpoint_context=None):
+        CookieDealer.__init__(self, endpoint_context, ttl)
         self.query_param = "upm_answer"
 
     def __call__(self, **kwargs):
@@ -71,7 +72,8 @@ class UserAuthnMethod(CookieDealer):
             logger.debug("kwargs: %s" % sanitize(kwargs))
 
             try:
-                val = self.get_cookie_value(cookie, self.srv_info.cookie_name)
+                val = self.get_cookie_value(cookie,
+                                            self.endpoint_context.cookie_name)
             except (InvalidCookieSign, AssertionError):
                 val = None
 
@@ -190,25 +192,36 @@ def create_return_url(base, query, **kwargs):
         return _url_base
 
 
+def create_signed_jwt(issuer, keyjar, sign_alg='RS256', **kwargs):
+    signer = JWT(keyjar, iss=issuer, sign_alg=sign_alg)
+    return signer.pack(payload=kwargs)
+
+
+def verify_signed_jwt(token, keyjar):
+    verifier = JWT(keyjar)
+    return verifier.unpack(token)
+
+
 class UsernamePasswordMako(UserAuthnMethod):
     """Do user authentication using the normal username password form in a
     WSGI environment using Mako as template system"""
 
+    url_endpoint = "/verify/user_pass_mako"
     param_map = {"as_user": "login", "acr_values": "acr",
                  "policy_uri": "policy_uri", "logo_uri": "logo_uri",
                  "tos_uri": "tos_uri", "query": "query"}
 
     def __init__(self, mako_template, template_lookup, pwd,
                  return_to="", templ_arg_func=None,
-                 verification_endpoints=None, srv_info=None):
+                 verification_endpoints=None, endpoint_context=None):
         """
-        :param srv_info: The server instance
+        :param endpoint_context: The endpoint context
         :param mako_template: Which Mako template to use
         :param pwd: Username/password dictionary like database
         :param return_to: Where to send the user after authentication
         :return:
         """
-        UserAuthnMethod.__init__(self, srv_info)
+        UserAuthnMethod.__init__(self, endpoint_context)
         self.mako_template = mako_template
         self.template_lookup = template_lookup
         self.passwd = pwd
@@ -316,7 +329,7 @@ class UsernamePasswordMako(UserAuthnMethod):
                 _qp = self.get_multi_auth_cookie(kwargs['cookie'])
 
         logger.debug("Password verification succeeded.")
-        # if "cookie" not in kwargs or self.srv_info.cookie_name not in
+        # if "cookie" not in kwargs or self.endpoint_context.cookie_name not in
         # kwargs["cookie"]:
         headers = [self.create_cookie(_dict["login"], "upm")]
         try:
@@ -345,7 +358,7 @@ class UsernamePasswordMako(UserAuthnMethod):
 
 
 class UserPassJinja2(UserAuthnMethod):
-    url_endpoint = "/user_pass/verify"
+    url_endpoint = "/verify/user_pass_jinja"
 
     def __init__(self, db, template_env, template="user_pass.jinja2", **kwargs):
         super(UserPassJinja2, self).__init__()
@@ -362,23 +375,23 @@ class UserPassJinja2(UserAuthnMethod):
 
     def __call__(self, **kwargs):
         template = self.template_env.get_template(self.template)
-        return template.render(action=self.url_endpoint,
-                               state=json.dumps(kwargs),
+        jws = create_signed_jwt('self', self.endpoint_context.keyjar, **kwargs)
+        return template.render(action=self.url_endpoint, state=jws,
                                **self.kwargs)
 
     def verify(self, *args, **kwargs):
         username = kwargs["username"]
         if username in self.user_db and self.user_db[username] == kwargs[
                 "password"]:
-            return username, True
+            return username
         else:
-            return self.FAILED_AUTHN
+            raise FailedAuthentication()
 
 
 class BasicAuthn(UserAuthnMethod):
 
-    def __init__(self, pwd, ttl=5, srv_info=None):
-        UserAuthnMethod.__init__(self, ttl, srv_info)
+    def __init__(self, pwd, ttl=5, endpoint_context=None):
+        UserAuthnMethod.__init__(self, ttl, endpoint_context)
         self.passwd = pwd
 
     def verify_password(self, user, password):
@@ -407,8 +420,8 @@ class BasicAuthn(UserAuthnMethod):
 class SymKeyAuthn(UserAuthnMethod):
     # user authentication using a token
 
-    def __init__(self, ttl, symkey, srv_info=None):
-        UserAuthnMethod.__init__(self, ttl, srv_info)
+    def __init__(self, ttl, symkey, endpoint_context=None):
+        UserAuthnMethod.__init__(self, ttl, endpoint_context)
 
         if symkey is not None and symkey == "":
             msg = "SymKeyAuthn.symkey cannot be an empty value"
@@ -436,8 +449,8 @@ class SymKeyAuthn(UserAuthnMethod):
 class NoAuthn(UserAuthnMethod):
     # Just for testing allows anyone it without authentication
 
-    def __init__(self, user, srv_info=None):
-        UserAuthnMethod.__init__(self, srv_info)
+    def __init__(self, user, endpoint_context=None):
+        UserAuthnMethod.__init__(self, endpoint_context)
         self.user = user
 
     def authenticated_as(self, cookie=None, authorization="", **kwargs):

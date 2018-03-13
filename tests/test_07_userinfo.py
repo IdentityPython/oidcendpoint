@@ -109,7 +109,7 @@ def test_collect_user_info():
     session.update({'scope': ['openid', 'profile'], 'sub': 'doe',
                     'uid': 'diana', 'client_id': 'client'})
 
-    srv_info = EndpointContext({'userinfo': {
+    endpoint_context = EndpointContext({'userinfo': {
                             'class': UserInfo,
                             'kwargs': {'db': USERINFO_DB}
                         },
@@ -124,7 +124,7 @@ def test_collect_user_info():
                             'kwargs': {'user': 'diana'}}],
                         'template_dir': 'template'})
 
-    res = collect_user_info(srv_info, session)
+    res = collect_user_info(endpoint_context, session)
 
     assert res == {'given_name': 'Diana', 'nickname': 'Dina',
                    'email': 'diana@example.org', 'email_verified': False,

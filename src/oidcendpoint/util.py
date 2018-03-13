@@ -11,7 +11,7 @@ OAUTH2_NOCACHE_HEADERS = [
 ]
 
 
-def make_headers(srv_info, user, **kwargs):
+def make_headers(endpoint_context, user, **kwargs):
     headers = []
     try:
         _kaka = kwargs["cookie"]
@@ -31,14 +31,14 @@ def make_headers(srv_info, user, **kwargs):
                 for x in _c.output().split('\r\n'):
                     headers.append(tuple(x.split(": ", 1)))
 
-            if srv_info.cookie_name not in _kaka:  # Don't overwrite
-                header = srv_info.cookie_func(user, typ="sso",
-                                              ttl=srv_info.sso_ttl)
+            if endpoint_context.cookie_name not in _kaka:  # Don't overwrite
+                header = endpoint_context.cookie_func(user, typ="sso",
+                                              ttl=endpoint_context.sso_ttl)
                 if header:
                     headers.append(header)
         else:
-            header = srv_info.cookie_func(user, typ="sso",
-                                          ttl=srv_info.sso_ttl)
+            header = endpoint_context.cookie_func(user, typ="sso",
+                                          ttl=endpoint_context.sso_ttl)
             if header:
                 headers.append(header)
     return headers
@@ -51,7 +51,7 @@ DEF_SIGN_ALG = {"id_token": "RS256",
                 "private_key_jwt": "RS256"}
 
 
-def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
+def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
                                     sign=False, encrypt=False):
     args = {'sign': sign, 'encrypt': encrypt}
     if sign:
@@ -60,7 +60,7 @@ def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
                 "{}_signed_response_alg".format(payload_type)]
         except KeyError:  # Fall back to default
             try:
-                args['sign_alg'] = srv_info.jwx_def["signing_alg"][payload_type]
+                args['sign_alg'] = endpoint_context.jwx_def["signing_alg"][payload_type]
             except KeyError:
                 args['sign_alg'] = DEF_SIGN_ALG[payload_type]
 
@@ -70,7 +70,7 @@ def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
                 "%s_encrypted_response_alg" % payload_type]
         except KeyError:
             try:
-                args['enc_alg'] = srv_info.jwx_def["encryption_alg"][
+                args['enc_alg'] = endpoint_context.jwx_def["encryption_alg"][
                     payload_type]
             except KeyError:
                 raise UnknownAlgorithm(
@@ -81,7 +81,7 @@ def get_sign_and_encrypt_algorithms(srv_info, client_info, payload_type,
                 "%s_encrypted_response_enc" % payload_type]
         except KeyError:
             try:
-                args['enc_enc'] = srv_info.jwx_def["encryption_enc"][
+                args['enc_enc'] = endpoint_context.jwx_def["encryption_enc"][
                     payload_type]
             except KeyError:
                 raise UnknownAlgorithm(

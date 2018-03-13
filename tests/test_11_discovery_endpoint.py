@@ -34,12 +34,12 @@ class TestEndpoint(object):
             }],
             'template_dir': 'template'
         }
-        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
 
     def test_do_response(self):
         args = self.endpoint.process_request(
-            self.srv_info, request={'resource': 'acct:foo@example.com'})
-        msg = self.endpoint.do_response(self.srv_info, **args)
+            self.endpoint_context, request={'resource': 'acct:foo@example.com'})
+        msg = self.endpoint.do_response(self.endpoint_context, **args)
         _resp = json.loads(msg['response'])
         assert _resp == {"subject": "acct:foo@example.com", "links": [
             {"href": "https://example.com/",

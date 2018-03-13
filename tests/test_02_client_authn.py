@@ -35,8 +35,8 @@ client_secret = 'client_secret'
 # Need to add the client_secret as a symmetric key bound to the client_id
 KEYJAR.add_symmetric(client_id, client_secret, ['sig'])
 
-srv_info = EndpointContext(conf, keyjar=KEYJAR)
-srv_info.cdb[client_id] = {'client_secret': client_secret}
+endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+endpoint_context.cdb[client_id] = {'client_secret': client_secret}
 
 
 def test_client_secret_basic():
@@ -45,7 +45,7 @@ def test_client_secret_basic():
 
     authz_token = 'Basic {}'.format(token)
 
-    authn_info = ClientSecretBasic(srv_info).verify({}, authz_token)
+    authn_info = ClientSecretBasic(endpoint_context).verify({}, authz_token)
 
     assert authn_info['client_id'] == client_id
 
@@ -53,7 +53,7 @@ def test_client_secret_basic():
 def test_client_secret_post():
     request = {'client_id': client_id, 'client_secret': client_secret}
 
-    authn_info = ClientSecretPost(srv_info).verify(request)
+    authn_info = ClientSecretPost(endpoint_context).verify(request)
 
     assert authn_info['client_id'] == client_id
 
@@ -70,7 +70,7 @@ def test_client_secret_jwt():
     request = {'client_assertion': _assertion,
                'client_assertion_type': JWT_BEARER}
 
-    authn_info = ClientSecretJWT(srv_info).verify(request)
+    authn_info = ClientSecretJWT(endpoint_context).verify(request)
 
     assert authn_info['client_id'] == client_id
     assert 'jwt' in authn_info
@@ -83,7 +83,7 @@ def test_private_key_jwt():
     client_keyjar[conf['issuer']] = KEYJAR.issuer_keys['']
 
     _jwks = client_keyjar.export_jwks()
-    srv_info.keyjar.import_jwks(_jwks, client_id)
+    endpoint_context.keyjar.import_jwks(_jwks, client_id)
 
     _jwt = JWT(client_keyjar, iss=client_id, sign_alg='RS256')
     _assertion = _jwt.pack({'aud': [conf['issuer']]})
@@ -91,7 +91,7 @@ def test_private_key_jwt():
     request = {'client_assertion': _assertion,
                'client_assertion_type': JWT_BEARER}
 
-    authn_info = PrivateKeyJWT(srv_info).verify(request)
+    authn_info = PrivateKeyJWT(endpoint_context).verify(request)
 
     assert authn_info['client_id'] == client_id
     assert 'jwt' in authn_info

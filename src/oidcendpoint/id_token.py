@@ -106,13 +106,13 @@ def id_token_payload(session, loa="2", alg="RS256", code=None,
     return {'payload': _args, 'lifetime': lifetime}
 
 
-def sign_encrypt_id_token(srv_info, session_info, client_id, code=None,
+def sign_encrypt_id_token(endpoint_context, session_info, client_id, code=None,
                           access_token=None, user_info=None, sign=True,
                           encrypt=False):
     """
     Signed and or encrypt a IDToken
 
-    :param srv_info: Server Information
+    :param endpoint_context: Server Information
     :param session_info: Session information
     :param client_id: Client ID
     :param code: Access grant
@@ -123,8 +123,8 @@ def sign_encrypt_id_token(srv_info, session_info, client_id, code=None,
     :return: IDToken as a signed and/or encrypted JWT
     """
 
-    client_info = srv_info.cdb[client_id]
-    alg_dict = get_sign_and_encrypt_algorithms(srv_info, client_info,
+    client_info = endpoint_context.cdb[client_id]
+    alg_dict = get_sign_and_encrypt_algorithms(endpoint_context, client_info,
                                                'id_token', sign=sign,
                                                encrypt=encrypt)
 
@@ -135,7 +135,7 @@ def sign_encrypt_id_token(srv_info, session_info, client_id, code=None,
                                  access_token=access_token, user_info=user_info,
                                  auth_time=_authn_event["authn_time"])
 
-    _jwt = JWT(srv_info.keyjar, iss=srv_info.issuer,
+    _jwt = JWT(endpoint_context.keyjar, iss=endpoint_context.issuer,
                lifetime=_idt_info['lifetime'], **alg_dict)
 
     return _jwt.pack(_idt_info['payload'], recv=client_id)

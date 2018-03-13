@@ -69,11 +69,11 @@ def full_path(local_file):
 USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
 
 
-def setup_session(srv_info, areq):
+def setup_session(endpoint_context, areq):
     authn_event = AuthnEvent("uid", 'salt', authn_info=INTERNETPROTOCOLPASSWORD,
                              time_stamp=time.time())
-    sid = srv_info.sdb.create_authz_session(authn_event, areq)
-    srv_info.sdb.do_sub(sid, '')
+    sid = endpoint_context.sdb.create_authz_session(authn_event, areq)
+    endpoint_context.sdb.do_sub(sid, '')
     return sid
 
 
@@ -133,8 +133,8 @@ class TestEndpoint(object):
             'client_authn': verify_client,
             'template_dir': 'template'
         }
-        self.srv_info = EndpointContext(conf, keyjar=KEYJAR)
-        self.srv_info.cdb['client_1'] = {
+        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
@@ -143,39 +143,39 @@ class TestEndpoint(object):
         }
 
     def test_init(self):
-        assert self.srv_info
+        assert self.endpoint_context
 
     def test_parse(self):
-        session_id = setup_session(self.srv_info, AUTH_REQ)
+        session_id = setup_session(self.endpoint_context, AUTH_REQ)
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request['code'] = self.srv_info.sdb[session_id]['code']
-        _req = self.endpoint.parse_request(self.srv_info, _token_request)
+        _token_request['code'] = self.endpoint_context.sdb[session_id]['code']
+        _req = self.endpoint.parse_request(self.endpoint_context, _token_request)
 
         assert isinstance(_req, AccessTokenRequest)
         assert set(_req.keys()) == set(_token_request.keys())
 
     def test_process_request(self):
-        session_id = setup_session(self.srv_info, AUTH_REQ)
+        session_id = setup_session(self.endpoint_context, AUTH_REQ)
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request['code'] = self.srv_info.sdb[session_id]['code']
-        self.srv_info.sdb.update(session_id, user='diana')
-        _req = self.endpoint.parse_request(self.srv_info, _token_request)
+        _token_request['code'] = self.endpoint_context.sdb[session_id]['code']
+        self.endpoint_context.sdb.update(session_id, user='diana')
+        _req = self.endpoint.parse_request(self.endpoint_context, _token_request)
 
-        _resp = self.endpoint.process_request(srv_info=self.srv_info,
+        _resp = self.endpoint.process_request(endpoint_context=self.endpoint_context,
                                               request=_req)
 
         assert _resp
         assert set(_resp.keys()) == {'http_headers', 'response_args'}
 
     def test_do_response(self):
-        session_id = setup_session(self.srv_info, AUTH_REQ)
-        self.srv_info.sdb.update(session_id, user='diana')
+        session_id = setup_session(self.endpoint_context, AUTH_REQ)
+        self.endpoint_context.sdb.update(session_id, user='diana')
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request['code'] = self.srv_info.sdb[session_id]['code']
-        _req = self.endpoint.parse_request(self.srv_info, _token_request)
+        _token_request['code'] = self.endpoint_context.sdb[session_id]['code']
+        _req = self.endpoint.parse_request(self.endpoint_context, _token_request)
 
-        _resp = self.endpoint.process_request(srv_info=self.srv_info,
+        _resp = self.endpoint.process_request(endpoint_context=self.endpoint_context,
                                               request=_req)
-        msg = self.endpoint.do_response(self.srv_info, request=_req, **_resp)
+        msg = self.endpoint.do_response(self.endpoint_context, request=_req, **_resp)
         assert isinstance(msg, dict)
 

@@ -194,7 +194,7 @@ class AuthnBroker(object):
         return len(self.db["info"].keys())
 
 
-def pick_auth(srv_info, areq, comparision_type=""):
+def pick_auth(endpoint_context, areq, comparision_type=""):
     """
 
     :param areq: AuthorizationRequest instance
@@ -202,11 +202,11 @@ def pick_auth(srv_info, areq, comparision_type=""):
     :return: An authentication method and its authn class ref
     """
     if comparision_type == "any":
-        return srv_info.authn_broker[0]
+        return endpoint_context.authn_broker[0]
 
     try:
-        if len(srv_info.authn_broker) == 1:
-            return srv_info.authn_broker[0]
+        if len(endpoint_context.authn_broker) == 1:
+            return endpoint_context.authn_broker[0]
         elif "acr_values" in areq:
             if not comparision_type:
                 comparision_type = "exact"
@@ -215,7 +215,7 @@ def pick_auth(srv_info, areq, comparision_type=""):
                 areq["acr_values"] = [areq["acr_values"]]
 
             for acr in areq["acr_values"]:
-                res = srv_info.authn_broker.pick(acr, comparision_type)
+                res = endpoint_context.authn_broker.pick(acr, comparision_type)
                 logger.debug("Picked AuthN broker for ACR %s: %s" % (
                     str(acr), str(res)))
                 if res:
@@ -225,10 +225,10 @@ def pick_auth(srv_info, areq, comparision_type=""):
             try:
                 acrs = areq["claims"]["id_token"]["acr"]["values"]
             except KeyError:
-                return srv_info.authn_broker[0]
+                return endpoint_context.authn_broker[0]
             else:
                 for acr in acrs:
-                    res = srv_info.authn_broker.pick(acr, comparision_type)
+                    res = endpoint_context.authn_broker.pick(acr, comparision_type)
                     logger.debug("Picked AuthN broker for ACR %s: %s" % (
                         str(acr), str(res)))
                     if res:

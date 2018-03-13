@@ -71,33 +71,36 @@ conf = {
 
 
 def test_capabilities_default():
-    srv_info = EndpointContext(conf, keyjar=KEYJAR)
-    assert set(srv_info.provider_info['response_types_supported']) == {
+    endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+    assert set(endpoint_context.provider_info['response_types_supported']) == {
         'code', 'token', 'id_token', 'code token', 'code id_token',
         'id_token token', 'code token id_token', 'none'}
-    assert srv_info.provider_info["request_uri_parameter_supported"] is True
+    assert endpoint_context.provider_info[
+               "request_uri_parameter_supported"] is True
 
 
 def test_capabilities_subset1():
     _cnf = copy(conf)
     _cnf['capabilities'] = {'response_types_supported': 'code'}
-    srv_info = EndpointContext(_cnf, keyjar=KEYJAR)
-    assert srv_info.provider_info['response_types_supported'] == ['code']
+    endpoint_context = EndpointContext(_cnf, keyjar=KEYJAR)
+    assert endpoint_context.provider_info['response_types_supported'] == [
+        'code']
 
 
 def test_capabilities_subset2():
     _cnf = copy(conf)
     _cnf['capabilities'] = {'response_types_supported': ['code', 'id_token']}
-    srv_info = EndpointContext(_cnf, keyjar=KEYJAR)
-    assert set(srv_info.provider_info['response_types_supported']) == {
+    endpoint_context = EndpointContext(_cnf, keyjar=KEYJAR)
+    assert set(endpoint_context.provider_info['response_types_supported']) == {
         'code', 'id_token'}
 
 
 def test_capabilities_bool():
     _cnf = copy(conf)
     _cnf['capabilities'] = {'request_uri_parameter_supported': False}
-    srv_info = EndpointContext(_cnf, keyjar=KEYJAR)
-    assert srv_info.provider_info["request_uri_parameter_supported"] is False
+    endpoint_context = EndpointContext(_cnf, keyjar=KEYJAR)
+    assert endpoint_context.provider_info[
+               "request_uri_parameter_supported"] is False
 
 
 def test_capabilities_no_support():

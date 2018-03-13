@@ -64,11 +64,11 @@ class Endpoint(object):
         self.post_parse_request = []
         self.kwargs = kwargs
 
-    def parse_request(self, srv_info, request, auth=None, **kwargs):
+    def parse_request(self, endpoint_context, request, auth=None, **kwargs):
         """
 
         :param request:
-        :param srv_info:
+        :param endpoint_context:
         :param auth:
         :param kwargs:
         :return:
@@ -82,8 +82,8 @@ class Endpoint(object):
             else:
                 if self.request_format == 'jwt':
                     req = self.request_cls().deserialize(
-                        request, "jwt", keyjar=srv_info.keyjar,
-                        verify=srv_info.verify_ssl, **kwargs)
+                        request, "jwt", keyjar=endpoint_context.keyjar,
+                        verify=endpoint_context.verify_ssl, **kwargs)
                 elif self.request_format == 'url':
                     parts = urlparse(request)
                     scheme, netloc, path, params, query, fragment = parts[:6]
@@ -97,7 +97,8 @@ class Endpoint(object):
         # Verify that the client is allowed to do this
         _client_id = ''
         try:
-            auth_info = self.client_authentication(srv_info, req, auth, **kwargs)
+            auth_info = self.client_authentication(endpoint_context, req, auth,
+                                                   **kwargs)
         except UnknownOrNoAuthnMethod:
             if not self.client_auth_method:
                 pass
@@ -127,76 +128,89 @@ class Endpoint(object):
                                   error_description="%s" % err)
 
         logger.info("Parsed and verified request: %s" % sanitize(req))
-        if srv_info.events:
-            srv_info.events.store('Protocol request', request)
+        if endpoint_context.events:
+            endpoint_context.events.store('Protocol request', request)
 
         # Do any endpoint specific parsing
-        self.do_post_parse_request(srv_info, req, _client_id, **kwargs)
+        self.do_post_parse_request(endpoint_context, req, _client_id, **kwargs)
         return req
 
-    def client_authentication(self, srv_info, request, auth=None, **kwargs):
+    def client_authentication(self, endpoint_context, request, auth=None,
+                              **kwargs):
         """
 
-        :param srv_info: A :py:class:`oidcendpoint.srv_info.SrvInfo` instance
+        :param endpoint_context: A
+        :py:class:`oidcendpoint.endpoint_context.SrvInfo` instance
         :param request: Parsed request, a self.request_cls class instance
         :param authn: Authorization info
         :return: client_id or raise and exception
         """
 
-        return verify_client(srv_info, request, auth)
+        return verify_client(endpoint_context, request, auth)
 
-    def do_post_parse_request(self, srv_info, request, client_id='', **kwargs):
+    def do_post_parse_request(self, endpoint_context, request, client_id='',
+                              **kwargs):
         for meth in self.post_parse_request:
-            request = meth(srv_info, request, client_id, **kwargs)
+            request = meth(endpoint_context, request, client_id, **kwargs)
         return request
 
-    def do_pre_construct(self, srv_info, response_args, request, **kwargs):
+    def do_pre_construct(self, endpoint_context, response_args, request,
+                         **kwargs):
         for meth in self.pre_construct:
-            response_args = meth(srv_info, response_args, request, **kwargs)
+            response_args = meth(endpoint_context, response_args, request,
+                                 **kwargs)
 
         return response_args
 
-    def do_post_construct(self, srv_info, response_args, request, **kwargs):
+    def do_post_construct(self, endpoint_context, response_args, request,
+                          **kwargs):
         for meth in self.post_construct:
-            response_args = meth(srv_info, response_args, request, **kwargs)
+            response_args = meth(endpoint_context, response_args, request,
+                                 **kwargs)
 
         return response_args
 
-    def process_request(self, srv_info, request=None):
+    def process_request(self, endpoint_context, request=None):
         """
 
-        :param srv_info: :py:class:`oidcendpoint.srv_info.SrvInfo` instance
+        :param endpoint_context:
+        :py:class:`oidcendpoint.endpoint_context.SrvInfo` instance
         :param request: The request, can be in a number of formats
         :return: Arguments for the do_response method
         """
         return {}
 
-    def construct(self, srv_info, response_args, request, **kwargs):
+    def construct(self, endpoint_context, response_args, request, **kwargs):
         """
         Construct the response
 
-        :param srv_info: :py:class:`oidcendpoint.srv_info.SrvInfo` instance
+        :param endpoint_context:
+        :py:class:`oidcendpoint.endpoint_context.SrvInfo` instance
         :param response_args: response arguments
         :param request: The parsed request, a self.request_cls class instance
         :param kwargs: Extra keyword arguments
         :return: An instance of the self.response_cls class
         """
-        response_args = self.do_pre_construct(srv_info, response_args, request,
+        response_args = self.do_pre_construct(endpoint_context, response_args,
+                                              request,
                                               **kwargs)
 
         # logger.debug("kwargs: %s" % sanitize(kwargs))
         response = self.response_cls(**response_args)
 
-        return self.do_post_construct(srv_info, response, request, **kwargs)
+        return self.do_post_construct(endpoint_context, response, request,
+                                      **kwargs)
 
-    def response_info(self, srv_info, response_args, request, **kwargs):
-        return self.construct(srv_info, response_args, request, **kwargs)
+    def response_info(self, endpoint_context, response_args, request, **kwargs):
+        return self.construct(endpoint_context, response_args, request,
+                              **kwargs)
 
-    def do_response(self, srv_info, response_args=None, request=None, **kwargs):
+    def do_response(self, endpoint_context, response_args=None, request=None,
+                    **kwargs):
         if response_args is None:
             response_args = {}
 
-        _response = self.response_info(srv_info, response_args, request,
+        _response = self.response_info(endpoint_context, response_args, request,
                                        **kwargs)
         if isinstance(_response, ErrorResponse):
             return _response
@@ -236,5 +250,3 @@ class Endpoint(object):
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 
         return {'response': resp, 'http_headers': http_headers}
-
-

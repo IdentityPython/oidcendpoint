@@ -103,27 +103,29 @@ class Registration(Endpoint):
     # response_placement = 'body'
 
     @staticmethod
-    def match_client_request(srv_info, request):
+    def match_client_request(endpoint_context, request):
         for _pref, _prov in PREFERENCE2PROVIDER.items():
             if _pref in request:
                 if _pref == "response_types":
                     if not match_sp_sep(request[_pref],
-                                        srv_info.provider_info[_prov]):
+                                        endpoint_context.provider_info[_prov]):
                         raise CapabilitiesMisMatch(_pref)
                 else:
                     if isinstance(request[_pref], str):
-                        if request[_pref] not in srv_info.provider_info[_prov]:
+                        if request[_pref] not in endpoint_context.provider_info[
+                            _prov]:
                             raise CapabilitiesMisMatch(_pref)
                     else:
                         if not set(request[_pref]).issubset(
-                                set(srv_info.provider_info[_prov])):
+                                set(endpoint_context.provider_info[_prov])):
                             raise CapabilitiesMisMatch(_pref)
 
-    def do_client_registration(self, srv_info, request, client_id, ignore=None):
+    def do_client_registration(self, endpoint_context, request, client_id,
+                               ignore=None):
         if ignore is None:
             ignore = []
 
-        _cinfo = srv_info.cdb[client_id].copy()
+        _cinfo = endpoint_context.cdb[client_id].copy()
         logger.debug("_cinfo: %s" % sanitize(_cinfo))
 
         for key, val in request.items():
@@ -158,8 +160,9 @@ class Registration(Endpoint):
         if "sector_identifier_uri" in request:
             try:
                 _cinfo["si_redirects"], _cinfo[
-                    "sector_id"] = self._verify_sector_identifier(srv_info,
-                                                                  request)
+                    "sector_id"] = self._verify_sector_identifier(
+                    endpoint_context,
+                    request)
             except InvalidSectorIdentifier as err:
                 return ErrorResponse(error="invalid_configuration_parameter",
                                      error_description=err)
@@ -194,7 +197,7 @@ class Registration(Endpoint):
         for item in ["id_token_signed_response_alg",
                      "userinfo_signed_response_alg"]:
             if item in request:
-                if request[item] in srv_info.provider_info[
+                if request[item] in endpoint_context.provider_info[
                     PREFERENCE2PROVIDER[item]]:
                     ktyp = jws.alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
@@ -270,7 +273,7 @@ class Registration(Endpoint):
 
         return verified_redirect_uris
 
-    def _verify_sector_identifier(self, srv_info, request):
+    def _verify_sector_identifier(self, endpoint_context, request):
         """
         Verify `sector_identifier_uri` is reachable and that it contains 
         `redirect_uri`s.
@@ -281,7 +284,7 @@ class Registration(Endpoint):
         """
         si_url = request["sector_identifier_uri"]
         try:
-            res = srv_info.http(si_url)
+            res = endpoint_context.http(si_url)
         except ConnectionError as err:
             logger.error(err)
             res = None
@@ -324,7 +327,7 @@ class Registration(Endpoint):
 
             args[param] = val
 
-    def client_registration_setup(self, srv_info, request):
+    def client_registration_setup(self, endpoint_context, request):
         try:
             request.verify()
         except MessageException as err:
@@ -337,7 +340,7 @@ class Registration(Endpoint):
 
         request.rm_blanks()
         try:
-            self.match_client_request(srv_info, request)
+            self.match_client_request(endpoint_context, request)
         except CapabilitiesMisMatch as err:
             return ErrorResponse(
                 error="invalid_request",
@@ -345,16 +348,17 @@ class Registration(Endpoint):
 
         # create new id och secret
         client_id = rndstr(12)
-        while client_id in srv_info.cdb:
+        while client_id in endpoint_context.cdb:
             client_id = rndstr(12)
 
-        client_secret = secret(srv_info.seed, client_id)
+        client_secret = secret(endpoint_context.seed, client_id)
 
         _rat = rndstr(32)
-        reg_enp = srv_info.endpoint['registration'].endpoint_path.format(
-            srv_info.issuer)
+        reg_enp = endpoint_context.endpoint[
+            'registration'].endpoint_path.format(
+            endpoint_context.issuer)
 
-        srv_info.cdb[client_id] = {
+        endpoint_context.cdb[client_id] = {
             "client_id": client_id,
             "client_secret": client_secret,
             "registration_access_token": _rat,
@@ -364,9 +368,10 @@ class Registration(Endpoint):
             "client_salt": rndstr(8)
         }
 
-        srv_info.cdb[_rat] = client_id
+        endpoint_context.cdb[_rat] = client_id
 
-        _cinfo = self.do_client_registration(srv_info, request, client_id,
+        _cinfo = self.do_client_registration(endpoint_context, request,
+                                             client_id,
                                              ignore=["redirect_uris",
                                                      "policy_uri", "logo_uri",
                                                      "tos_uri"])
@@ -383,10 +388,10 @@ class Registration(Endpoint):
         if client_secret:
             self.keyjar.add_symmetric(client_id, str(client_secret))
 
-        srv_info.cdb[client_id] = _cinfo
+        endpoint_context.cdb[client_id] = _cinfo
 
         try:
-            srv_info.cdb.sync()
+            endpoint_context.cdb.sync()
         except AttributeError:  # Not all databases can be sync'ed
             pass
 
@@ -394,6 +399,6 @@ class Registration(Endpoint):
 
         return response
 
-    def process_request(self, srv_info, request=None, **kwargs):
+    def process_request(self, endpoint_context, request=None, **kwargs):
         return {'response_args':
-                    self.client_registration_setup(srv_info, request)}
+                    self.client_registration_setup(endpoint_context, request)}

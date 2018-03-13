@@ -41,12 +41,12 @@ def assertion_jwt(cli, keys, audience, algorithm, lifetime=600):
 
 
 class ClientAuthnMethod(object):
-    def __init__(self, srv_info=None):
+    def __init__(self, endpoint_context=None):
         """
-        :param srv_info: Server info, a
-            :py:class:`oidcendpoint.srv_info.ServerInfo` instance
+        :param endpoint_context: Server info, a
+            :py:class:`oidcendpoint.endpoint_context.EndpointContext` instance
         """
-        self.srv_info = srv_info
+        self.endpoint_context = endpoint_context
 
     def verify(self, **kwargs):
         """
@@ -77,7 +77,7 @@ class ClientSecretBasic(ClientAuthnMethod):
     def verify(self, request, authorization_info, **kwargs):
         client_info = basic_authn(authorization_info)
 
-        if self.srv_info.cdb[
+        if self.endpoint_context.cdb[
             client_info['id']]["client_secret"] == client_info['secret']:
             return {'client_id': client_info['id']}
         else:
@@ -93,7 +93,7 @@ class ClientSecretPost(ClientSecretBasic):
     """
 
     def verify(self, request, **kwargs):
-        if self.srv_info.cdb[
+        if self.endpoint_context.cdb[
                 request[
                     'client_id']]["client_secret"] == request['client_secret']:
             return {'client_id': request['client_id']}
@@ -127,7 +127,7 @@ class BearerBody(ClientSecretPost):
 class JWSAuthnMethod(ClientAuthnMethod):
 
     def verify(self, request, **kwargs):
-        _jwt = JWT(self.srv_info.keyjar)
+        _jwt = JWT(self.endpoint_context.keyjar)
         try:
             ca_jwt = _jwt.unpack(request["client_assertion"])
         except (Invalid, MissingKey) as err:
@@ -148,9 +148,9 @@ class JWSAuthnMethod(ClientAuthnMethod):
 
         # I should be among the audience
         # could be either my issuer id or the token endpoint
-        if self.srv_info.issuer in ca_jwt["aud"]:
+        if self.endpoint_context.issuer in ca_jwt["aud"]:
             pass
-        elif self.srv_info.endpoint['token'].endpoint_path in ca_jwt['aud']:
+        elif self.endpoint_context.endpoint['token'].endpoint_path in ca_jwt['aud']:
             pass
         else:
             raise NotForMe("Not for me!")
@@ -192,11 +192,11 @@ def valid_client_info(cinfo):
     return True
 
 
-def verify_client(srv_info, request, authorization_info):
+def verify_client(endpoint_context, request, authorization_info):
     """
     Initiated Guessing !
 
-    :param srv_info: SrvInfo instance
+    :param endpoint_context: SrvInfo instance
     :param request: The request
     :param http_args: HTTP headers
     :return: dictionary containing client id, client authentication method and
@@ -205,26 +205,26 @@ def verify_client(srv_info, request, authorization_info):
 
     if not authorization_info:
         if 'client_id' in request and 'client_secret' in request:
-            auth_info = ClientSecretPost(srv_info).verify(request)
+            auth_info = ClientSecretPost(endpoint_context).verify(request)
             auth_info['method'] = 'client_secret_post'
         elif 'client_assertion' in request:
-            auth_info = JWSAuthnMethod(srv_info).verify(request)
+            auth_info = JWSAuthnMethod(endpoint_context).verify(request)
             #  If symmetric key was used
             # auth_method = 'client_secret_jwt'
             #  If asymmetric key was used
             auth_info['method'] = 'private_key_jwt'
         elif 'access_token' in request:
-            auth_info = BearerBody(srv_info).verify(request)
+            auth_info = BearerBody(endpoint_context).verify(request)
             auth_info['method'] = 'bearer_body'
         else:
             raise UnknownOrNoAuthnMethod()
     else:
         if authorization_info.startswith('Basic '):
-            auth_info = ClientSecretBasic(srv_info).verify(
+            auth_info = ClientSecretBasic(endpoint_context).verify(
                 request, authorization_info)
             auth_info['method'] = 'client_secret_basic'
         elif authorization_info.startswith('Bearer '):
-            auth_info = BearerHeader(srv_info).verify(
+            auth_info = BearerHeader(endpoint_context).verify(
                 request, authorization_info)
             auth_info['method'] = 'bearer_header'
         else:
@@ -240,11 +240,11 @@ def verify_client(srv_info, request, authorization_info):
             pass
             logger.warning('Unknown client ID')
         else:
-            sinfo = srv_info.sdb[_token]
+            sinfo = endpoint_context.sdb[_token]
             auth_info['client_id'] = sinfo['client_id']
     else:
         try:
-            _cinfo = srv_info.cdb[client_id]
+            _cinfo = endpoint_context.cdb[client_id]
         except KeyError:
             raise ValueError('Unknown Client ID')
         else:
@@ -256,11 +256,11 @@ def verify_client(srv_info, request, authorization_info):
             else:
                 # check that the expected authz method was used
                 try:
-                    srv_info.cdb[client_id]['auth_method'][
+                    endpoint_context.cdb[client_id]['auth_method'][
                         request.__class__.__name__] = auth_info['method']
                 except KeyError:
                     try:
-                        srv_info.cdb[client_id]['auth_method'] = {
+                        endpoint_context.cdb[client_id]['auth_method'] = {
                             request.__class__.__name__: auth_info['method']}
                     except KeyError:
                         pass
