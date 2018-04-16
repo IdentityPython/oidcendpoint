@@ -17,7 +17,7 @@ from oidcservice import sanitize
 from oidcservice.exception import CapabilitiesMisMatch
 
 from oidcmsg.exception import MessageException
-from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import ClientRegistrationErrorResponse
 from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import RegistrationResponse
@@ -164,7 +164,7 @@ class Registration(Endpoint):
                     endpoint_context,
                     request)
             except InvalidSectorIdentifier as err:
-                return ErrorResponse(error="invalid_configuration_parameter",
+                return ResponseMessage(error="invalid_configuration_parameter",
                                      error_description=err)
         elif "redirect_uris" in request:
             if len(request["redirect_uris"]) > 1:
@@ -179,7 +179,7 @@ class Registration(Endpoint):
                         try:
                             assert host == _host
                         except AssertionError:
-                            return ErrorResponse(
+                            return ResponseMessage(
                                 error="invalid_configuration_parameter",
                                 error_description="'sector_identifier_uri' "
                                                   "must be registered")
@@ -189,7 +189,7 @@ class Registration(Endpoint):
                 if verify_url(request[item], _cinfo["redirect_uris"]):
                     _cinfo[item] = request[item]
                 else:
-                    return ErrorResponse(
+                    return ResponseMessage(
                         error="invalid_configuration_parameter",
                         error_description="%s pointed to illegal URL" % item)
 
@@ -332,17 +332,17 @@ class Registration(Endpoint):
             request.verify()
         except MessageException as err:
             if "type" not in request:
-                return ErrorResponse(error="invalid_type",
+                return ResponseMessage(error="invalid_type",
                                      error_description="%s" % err)
             else:
-                return ErrorResponse(error="invalid_configuration_parameter",
+                return ResponseMessage(error="invalid_configuration_parameter",
                                      error_description="%s" % err)
 
         request.rm_blanks()
         try:
             self.match_client_request(endpoint_context, request)
         except CapabilitiesMisMatch as err:
-            return ErrorResponse(
+            return ResponseMessage(
                 error="invalid_request",
                 error_description="Don't support proposed %s" % err)
 
@@ -375,7 +375,7 @@ class Registration(Endpoint):
                                              ignore=["redirect_uris",
                                                      "policy_uri", "logo_uri",
                                                      "tos_uri"])
-        if isinstance(_cinfo, ErrorResponse):
+        if isinstance(_cinfo, ResponseMessage):
             return _cinfo
 
         args = dict([(k, v) for k, v in _cinfo.items()

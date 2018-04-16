@@ -13,8 +13,7 @@ from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import UnSupported
 from oidcmsg.exception import URIError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oauth2 import AuthorizationErrorResponse, ResponseMessage
 from oidcmsg.oidc import AuthorizationResponse
 
 from oidcendpoint import sanitize
@@ -555,7 +554,7 @@ class Authorization(Endpoint):
         # Must not use HTTP unless implicit grant type and native application
 
         info = self.aresp_check(response_info['response_args'], request)
-        if isinstance(info, ErrorResponse):
+        if isinstance(info, ResponseMessage):
             return info
 
         headers = make_headers(endpoint_context, user, **kwargs)
@@ -588,7 +587,7 @@ class Authorization(Endpoint):
         """
         resp_info = self.post_authn(endpoint_context, user, request, sid,
                                     **kwargs)
-        if isinstance(resp_info, ErrorResponse):
+        if isinstance(resp_info, ResponseMessage):
             return resp_info
 
         # Mix-Up mitigation
@@ -615,7 +614,7 @@ class Authorization(Endpoint):
         info = self.setup_auth(endpoint_context, request,
                                request["redirect_uri"], cinfo, cookie, **kwargs)
 
-        if isinstance(info, ErrorResponse):
+        if isinstance(info, ResponseMessage):
             return info
 
         try:

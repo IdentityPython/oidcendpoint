@@ -5,7 +5,7 @@ import pytest
 from urllib.parse import parse_qs, urlparse
 
 from oidcmsg.key_jar import build_keyjar
-from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationRequest
 
 from oidcendpoint.endpoint_context import EndpointContext
@@ -164,7 +164,7 @@ class TestEndpoint(object):
         _orig_req['response_type'] = 'id_token'
         _req = self.endpoint.parse_request(self.endpoint_context, _orig_req)
         # Missing nonce
-        assert isinstance(_req, ErrorResponse)
+        assert isinstance(_req, ResponseMessage)
 
     def test_do_response_id_token(self):
         _orig_req = AUTH_REQ_DICT.copy()

@@ -6,7 +6,7 @@ from cryptojwt.exception import UnknownAlgorithm
 from oidcmsg import oidc
 from oidcmsg.jwt import JWT
 from oidcmsg.message import Message
-from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import OidcEndpointError
@@ -92,7 +92,7 @@ class UserInfo(Endpoint):
         # Verify that the client is allowed to do this
         auth_info = self.client_authentication(endpoint_context, {}, auth,
                                                **kwargs)
-        if isinstance(auth_info, ErrorResponse):
+        if isinstance(auth_info, ResponseMessage):
             return auth_info
         else:
             request['client_id'] = auth_info['client_id']

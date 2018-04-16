@@ -122,7 +122,7 @@ class EndpointContext(object):
 
         self.setup = {}
         try:
-            self.jwks_uri = add_path(self.issuer, conf['jwks']['url_path'])
+            self.jwks_uri = conf['jwks']['url_path'].format(self.issuer)
         except KeyError:
             self.jwks_uri = ''
 
@@ -132,6 +132,9 @@ class EndpointContext(object):
             _cap = conf['capabilities']
         except KeyError:
             _cap = {}
+
+        for endpoint, endp_conf in self.endpoint.items():
+            _cap[endpoint] = endp_conf.endpoint_path
 
         try:
             authz_spec = conf['authz']

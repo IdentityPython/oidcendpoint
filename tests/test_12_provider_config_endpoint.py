@@ -43,7 +43,7 @@ class TestEndpoint(object):
     def create_endpoint(self):
         self.endpoint = ProviderConfiguration(KEYJAR)
         conf = {
-            "issuer": "https://example.com/",
+            "issuer": "https://example.com",
             "password": "mycket hemligt",
             "token_expires_in": 600,
             "grant_expires_in": 300,
@@ -88,8 +88,11 @@ class TestEndpoint(object):
 
     def test_do_response(self):
         args = self.endpoint.process_request(self.endpoint_context)
-        msg = self.endpoint.do_response(self.endpoint_context, args)
+        msg = self.endpoint.do_response(self.endpoint_context,
+                                        args['response_args'])
         assert isinstance(msg, dict)
         _msg = json.loads(msg['response'])
         assert _msg
+        assert _msg['token_endpoint'] == 'https://example.com/token'
+        assert _msg['jwks_uri'] == 'https://example.com/jwks.json'
         assert ('Content-type', 'application/json') in msg['http_headers']

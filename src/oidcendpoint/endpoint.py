@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.message import Message
-from oidcmsg.oauth2 import ErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
@@ -48,7 +48,7 @@ def set_content_type(headers, content_type):
 class Endpoint(object):
     request_cls = Message
     response_cls = Message
-    error_cls = ErrorResponse
+    error_cls = ResponseMessage
     endpoint_name = ''
     endpoint_path = ''
     request_format = 'urlencoded'
@@ -212,7 +212,7 @@ class Endpoint(object):
 
         _response = self.response_info(endpoint_context, response_args, request,
                                        **kwargs)
-        if isinstance(_response, ErrorResponse):
+        if 'error' in _response:
             return _response
 
         if self.response_placement == 'body':

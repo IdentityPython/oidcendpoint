@@ -120,12 +120,7 @@ def build_endpoints(conf, keyjar, client_authn_method, issuer):
             kwargs = {}
 
         _instance = spec['class'](keyjar=keyjar, **kwargs)
-
-        _path = spec['path']
-        if _path.startswith('/'):
-            _instance.endpoint_path = '{}{}'.format(_url, _path)
-        else:
-            _instance.endpoint_path = '{}/{}'.format(_url, _path)
+        _instance.endpoint_path = spec['path'].format(_url)
 
         try:
             _client_authn_method = kwargs['client_authn_method']
