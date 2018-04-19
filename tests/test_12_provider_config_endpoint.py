@@ -41,7 +41,6 @@ CAPABILITIES = {
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
-        self.endpoint = ProviderConfiguration(KEYJAR)
         conf = {
             "issuer": "https://example.com",
             "password": "mycket hemligt",
@@ -85,11 +84,11 @@ class TestEndpoint(object):
             'template_dir': 'template'
         }
         self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint = ProviderConfiguration(self.endpoint_context)
 
     def test_do_response(self):
-        args = self.endpoint.process_request(self.endpoint_context)
-        msg = self.endpoint.do_response(self.endpoint_context,
-                                        args['response_args'])
+        args = self.endpoint.process_request()
+        msg = self.endpoint.do_response(args['response_args'])
         assert isinstance(msg, dict)
         _msg = json.loads(msg['response'])
         assert _msg

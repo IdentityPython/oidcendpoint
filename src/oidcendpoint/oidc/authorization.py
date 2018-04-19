@@ -100,7 +100,8 @@ def verify_redirect_uri(endpoint_context, request):
 
         match = False
         for regbase, rquery in endpoint_context.cdb[str(request["client_id"])][
-            "redirect_uris"]:
+                "redirect_uris"]:
+
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
                 # every registered query component must exist in the
@@ -283,8 +284,8 @@ class Authorization(Endpoint):
     response_format = 'urlencoded'
     response_placement = 'url'
 
-    def __init__(self, keyjar, **kwargs):
-        Endpoint.__init__(self, keyjar, **kwargs)
+    def __init__(self, endpoint_context, **kwargs):
+        Endpoint.__init__(self, endpoint_context, **kwargs)
         # self.pre_construct.append(self._pre_construct)
         self.post_parse_request.append(self._post_parse_request)
 
@@ -303,7 +304,7 @@ class Authorization(Endpoint):
         # Is the asked for response_type among those that are permitted
         return set(request["response_type"]) not in _registered
 
-    def _post_parse_request(self, endpoint_context, request, client_id,
+    def _post_parse_request(self, request, client_id, endpoint_context,
                             **kwargs):
         """
 
@@ -366,21 +367,21 @@ class Authorization(Endpoint):
 
         return None
 
-    def pick_authn_method(self, endpoint_context, request, redirect_uri):
+    def pick_authn_method(self, request, redirect_uri):
         """
         
-        :param endpoint_context: 
-        :param request: 
+        :param request:
         :param redirect_uri: 
         :return: 
         """
+        _context = self.endpoint_context
         acrs = self._acr_claims(request)
         if acrs:
             # If acr claims are present the picked acr value MUST match
             # one of the given
             tup = (None, None)
             for acr in acrs:
-                res = endpoint_context.authn_broker.pick(acr, "exact")
+                res = _context.authn_broker.pick(acr, "exact")
                 logger.debug("Picked AuthN broker for ACR %s: %s" % (
                     str(acr), str(res)))
                 if res:  # Return the best guess by pick.
@@ -388,13 +389,11 @@ class Authorization(Endpoint):
                     break
             authn, authn_class_ref = tup
         else:
-            authn, authn_class_ref = pick_auth(endpoint_context, request)
+            authn, authn_class_ref = pick_auth(_context, request)
             if not authn:
-                authn, authn_class_ref = pick_auth(endpoint_context, request,
-                                                   "better")
+                authn, authn_class_ref = pick_auth(_context, request, "better")
                 if not authn:
-                    authn, authn_class_ref = pick_auth(endpoint_context,
-                                                       request, "any")
+                    authn, authn_class_ref = pick_auth(_context, request, "any")
 
         if authn is None:
             return AuthorizationErrorResponse(error="access_denied",
@@ -407,8 +406,7 @@ class Authorization(Endpoint):
 
         return authn, authn_class_ref
 
-    def setup_auth(self, endpoint_context, request, redirect_uri, cinfo, cookie,
-                   **kwargs):
+    def setup_auth(self, request, redirect_uri, cinfo, cookie, **kwargs):
         """
 
         :param endpoint_context:
@@ -420,8 +418,7 @@ class Authorization(Endpoint):
         :return:
         """
 
-        authn, authn_class_ref = self.pick_authn_method(
-            endpoint_context, request, redirect_uri)
+        authn, authn_class_ref = self.pick_authn_method(request, redirect_uri)
 
         try:
             try:
@@ -466,11 +463,11 @@ class Authorization(Endpoint):
                 # I get back a dictionary
                 user = identity["uid"]
                 if "req_user" in kwargs:
-                    sids = endpoint_context.sdb.get_sids_by_sub(kwargs[
-                                                                    "req_user"])
+                    sids = self.endpoint_context.sdb.get_sids_by_sub(
+                        kwargs["req_user"])
                     if sids and user != \
-                            endpoint_context.sdb.get_authentication_event(
-                            sids[-1]).uid:
+                            self.endpoint_context.sdb.get_authentication_event(
+                                sids[-1]).uid:
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
                             # Need to authenticate but not allowed
@@ -506,11 +503,10 @@ class Authorization(Endpoint):
         else:
             raise InvalidRequest("Unknown response_mode")
 
-    def post_authn(self, endpoint_context, user, request, sid, **kwargs):
+    def post_authn(self, user, request, sid, **kwargs):
         """
         Things that are donw after a successful authentication.
 
-        :param endpoint_context:
         :param user:
         :param request:
         :param sid:
@@ -520,21 +516,21 @@ class Authorization(Endpoint):
 
         # Do the authorization
         try:
-            permission = endpoint_context.authz(user,
-                                                client_id=request['client_id'])
-            endpoint_context.sdb.update(sid, permission=permission)
+            permission = self.endpoint_context.authz(
+                user, client_id=request['client_id'])
+            self.endpoint_context.sdb.update(sid, permission=permission)
         except Exception:
             raise
 
         logger.debug("response type: %s" % request["response_type"])
 
-        if endpoint_context.sdb.is_session_revoked(sid):
+        if self.endpoint_context.sdb.is_session_revoked(sid):
             return AuthorizationErrorResponse(
                 error="access_denied", error_description="Session is revoked")
 
         try:
-            response_info = create_authn_response(endpoint_context, request,
-                                                  sid)
+            response_info = create_authn_response(self.endpoint_context,
+                                                  request, sid)
         except UnSupported as err:
             return AuthorizationErrorResponse(
                 error='unsupported_response_type',
@@ -544,7 +540,7 @@ class Authorization(Endpoint):
             return response_info
 
         try:
-            redirect_uri = get_redirect_uri(endpoint_context, request)
+            redirect_uri = get_redirect_uri(self.endpoint_context, request)
         except (RedirectURIError, ParameterError) as err:
             return AuthorizationErrorResponse(
                 error='invalid_request', error_description="{}".format(err))
@@ -557,7 +553,7 @@ class Authorization(Endpoint):
         if isinstance(info, ResponseMessage):
             return info
 
-        headers = make_headers(endpoint_context, user, **kwargs)
+        headers = make_headers(self.endpoint_context, user, **kwargs)
 
         # Now about the response_mode. Should not be set if it's obvious
         # from the response_type. Knows about 'query', 'fragment' and
@@ -574,45 +570,42 @@ class Authorization(Endpoint):
 
         return response_info
 
-    def authz_part2(self, endpoint_context, user, request, sid, **kwargs):
+    def authz_part2(self, user, request, sid, **kwargs):
         """
         After the authentication this is where you should end up
 
-        ;param endpoint_context:
         :param user:
         :param request: The Authorization Request
         :param sid: Session key
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """
-        resp_info = self.post_authn(endpoint_context, user, request, sid,
-                                    **kwargs)
+        resp_info = self.post_authn(user, request, sid, **kwargs)
         if isinstance(resp_info, ResponseMessage):
             return resp_info
 
         # Mix-Up mitigation
-        resp_info['response_args']['iss'] = endpoint_context.issuer
+        resp_info['response_args']['iss'] = self.endpoint_context.issuer
         resp_info['response_args']['client_id'] = request['client_id']
 
         return resp_info
 
-    def process_request(self, endpoint_context, request=None, **kwargs):
+    def process_request(self, request=None, **kwargs):
         """ The AuthorizationRequest endpoint
 
-        :param endpoint_context: Server info
         :param request: The client request as a dictionary
         :return: res
         """
 
         _cid = request["client_id"]
-        cinfo = endpoint_context.cdb[_cid]
+        cinfo = self.endpoint_context.cdb[_cid]
         try:
             cookie = kwargs['cookie']
         except KeyError:
             cookie = ''
 
-        info = self.setup_auth(endpoint_context, request,
-                               request["redirect_uri"], cinfo, cookie, **kwargs)
+        info = self.setup_auth(request, request["redirect_uri"], cinfo, cookie,
+                               **kwargs)
 
         if isinstance(info, ResponseMessage):
             return info
@@ -624,9 +617,9 @@ class Authorization(Endpoint):
             logger.debug("- authenticated -")
             logger.debug("AREQ keys: %s" % request.keys())
 
-            sid = setup_session(endpoint_context, request, info["authn_event"])
+            sid = setup_session(self.endpoint_context, request,
+                                info["authn_event"])
 
-            res = self.authz_part2(endpoint_context, info["user"], request, sid,
-                                   cookie=cookie)
+            res = self.authz_part2(info["user"], request, sid, cookie=cookie)
 
             return res

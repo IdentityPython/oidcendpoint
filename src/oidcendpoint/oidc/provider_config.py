@@ -14,6 +14,6 @@ class ProviderConfiguration(Endpoint):
     response_format = 'json'
     #response_placement = 'body'
 
-    def process_request(self, endpoint_context, request=None, **kwargs):
-        return {'response_args': endpoint_context.provider_info}
+    def process_request(self, request=None, **kwargs):
+        return {'response_args': self.endpoint_context.provider_info}
 

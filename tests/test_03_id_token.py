@@ -65,8 +65,8 @@ conf = {
     'template_dir': 'template'
 }
 
-endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
-endpoint_context.cdb['client_1'] = {
+ENDPOINT_CONTEXT = EndpointContext(conf, keyjar=KEYJAR)
+ENDPOINT_CONTEXT.cdb['client_1'] = {
     "client_secret": 'hemligt',
     "redirect_uris": [("https://example.com/cb", None)],
     "client_salt": "salted",
@@ -156,10 +156,10 @@ def test_sign_encrypt_id_token():
                     'authn_event': {"authn_info": 'loa2',
                                     "authn_time": time.time()}}
 
-    endpoint_context.jwx_def["signing_alg"] = {'id_token': 'RS384'}
-    endpoint_context.cdb['client_1'] = client_info.to_dict()
+    ENDPOINT_CONTEXT.jwx_def["signing_alg"] = {'id_token': 'RS384'}
+    ENDPOINT_CONTEXT.cdb['client_1'] = client_info.to_dict()
 
-    _token = sign_encrypt_id_token(endpoint_context, session_info, 'client_1',
+    _token = sign_encrypt_id_token(ENDPOINT_CONTEXT, session_info, 'client_1',
                                    sign=True)
     assert _token
 
@@ -169,7 +169,7 @@ def test_sign_encrypt_id_token():
 
     client_keyjar = KeyJar()
     _jwks = KEYJAR.export_jwks()
-    client_keyjar.import_jwks(_jwks, endpoint_context.issuer)
+    client_keyjar.import_jwks(_jwks, ENDPOINT_CONTEXT.issuer)
 
     _jwt = JWT(keyjar=client_keyjar, iss='client_1')
     res = _jwt.unpack(_token)

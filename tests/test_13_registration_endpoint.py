@@ -63,7 +63,6 @@ CLI_REQ = RegistrationRequest(**msg)
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
-        self.endpoint = Registration(KEYJAR)
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
@@ -106,32 +105,27 @@ class TestEndpoint(object):
             },
             'template_dir': 'template'
         }
-        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint = Registration(endpoint_context)
 
     def test_parse(self):
-        _req = self.endpoint.parse_request(self.endpoint_context,
-                                           CLI_REQ.to_json())
+        _req = self.endpoint.parse_request(CLI_REQ.to_json())
 
         assert isinstance(_req, RegistrationRequest)
         assert set(_req.keys()) == set(CLI_REQ.keys())
 
     def test_process_request(self):
-        _req = self.endpoint.parse_request(self.endpoint_context,
-                                           CLI_REQ.to_json())
-        _resp = self.endpoint.process_request(
-            endpoint_context=self.endpoint_context,
-            request=_req)
+        _req = self.endpoint.parse_request(CLI_REQ.to_json())
+        _resp = self.endpoint.process_request(request=_req)
         _reg_resp = _resp['response_args']
         assert isinstance(_reg_resp, RegistrationResponse)
         assert 'client_id' in _reg_resp and 'client_secret' in _reg_resp
 
     def test_do_response(self):
-        _req = self.endpoint.parse_request(self.endpoint_context,
-                                           CLI_REQ.to_json())
+        _req = self.endpoint.parse_request(CLI_REQ.to_json())
         _resp = self.endpoint.process_request(
-            endpoint_context=self.endpoint_context,
             request=_req)
-        msg = self.endpoint.do_response(self.endpoint_context, **_resp)
+        msg = self.endpoint.do_response(**_resp)
         assert isinstance(msg, dict)
         _msg = json.loads(msg['response'])
         assert _msg

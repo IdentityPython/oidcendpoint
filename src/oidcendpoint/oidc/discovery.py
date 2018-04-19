@@ -13,8 +13,7 @@ class Discovery(Endpoint):
     request_format = 'urlencoded'
     response_format = 'json'
 
-    def do_response(self, endpoint_context, response_args=None, request=None,
-                    **kwargs):
+    def do_response(self, response_args=None, request=None, **kwargs):
         """
         **Placeholder for the time being**
 
@@ -35,6 +34,6 @@ class Discovery(Endpoint):
 
         return info
 
-    def process_request(self, endpoint_context, request=None):
+    def process_request(self, request=None):
         return {'subject': request['resource'],
-                'hrefs': [endpoint_context.issuer]}
+                'hrefs': [self.endpoint_context.issuer]}

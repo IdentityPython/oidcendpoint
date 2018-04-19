@@ -130,23 +130,24 @@ class TestEndpoint(object):
             }],
             'template_dir': 'template'
         }
-        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
-        self.endpoint_context.cdb['client_1'] = {
+        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token']
         }
+        self.endpoint = userinfo.UserInfo(endpoint_context)
 
     def test_init(self):
-        assert self.endpoint_context
+        assert self.endpoint
 
     def test_parse(self):
-        session_id = setup_session(self.endpoint_context, AUTH_REQ)
-        _dic = self.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
+            key=session_id)
         _req = self.endpoint.parse_request(
-            self.endpoint_context, {},
-            auth="Bearer {}".format(_dic['access_token']))
+            {}, auth="Bearer {}".format(_dic['access_token']))
 
         assert set(_req.keys()) == {'client_id', 'access_token'}

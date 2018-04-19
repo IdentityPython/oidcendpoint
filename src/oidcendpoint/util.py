@@ -90,7 +90,7 @@ def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
     return args
 
 
-def build_endpoints(conf, keyjar, client_authn_method, issuer):
+def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
     """
     conf typically contains::
 
@@ -101,7 +101,7 @@ def build_endpoints(conf, keyjar, client_authn_method, issuer):
         },
 
     :param conf:
-    :param keyjar:
+    :param endpoint_context:
     :param client_authn_method:
     :param issuer:
     :return:
@@ -119,7 +119,7 @@ def build_endpoints(conf, keyjar, client_authn_method, issuer):
         except KeyError:
             kwargs = {}
 
-        _instance = spec['class'](keyjar=keyjar, **kwargs)
+        _instance = spec['class'](endpoint_context=endpoint_context, **kwargs)
         _instance.endpoint_path = spec['path'].format(_url)
 
         try:

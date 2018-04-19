@@ -24,10 +24,10 @@ class UserInfo(Endpoint):
     response_format = 'json'
     response_placement = 'body'
 
-    def do_response(self, endpoint_context, response_args=None, request=None,
-                    **kwargs):
+    def do_response(self, response_args=None, request=None, **kwargs):
+        _context = self.endpoint_context
         # Should I return a JSON or a JWT ?
-        _cinfo = endpoint_context.cdb[kwargs['client_id']]
+        _cinfo = _context.cdb[kwargs['client_id']]
 
         # default is not to sign or encrypt
         sign_encrypt = {'sign': False, 'encrypt': False}
@@ -38,14 +38,14 @@ class UserInfo(Endpoint):
 
         if sign_encrypt['sign'] or sign_encrypt['encrypt']:
             try:
-                jwt_args = get_sign_and_encrypt_algorithms(endpoint_context,
+                jwt_args = get_sign_and_encrypt_algorithms(_context,
                                                            _cinfo,
                                                            'userinfo',
                                                            **sign_encrypt)
             except UnknownAlgorithm as err:
                 raise OidcEndpointError('Configuration error: {}'.format(err))
 
-            _jwt = JWT(endpoint_context.keyjar, **jwt_args)
+            _jwt = JWT(_context.keyjar, **jwt_args)
 
             resp = _jwt.pack(payload=response_args)
             content_type = 'application/jwt'
@@ -61,8 +61,8 @@ class UserInfo(Endpoint):
 
         return {'response': resp, 'http_headers': http_headers}
 
-    def process_request(self, endpoint_context, request=None):
-        _sdb = endpoint_context.sdb
+    def process_request(self, request=None):
+        _sdb = self.endpoint_context.sdb
 
         # should be an access token
         if not _sdb.is_token_valid(request['access_token']):
@@ -72,15 +72,14 @@ class UserInfo(Endpoint):
         session = _sdb.read(request['access_token'])
 
         # Scope can translate to userinfo_claims
-        info = collect_user_info(endpoint_context, session)
+        info = collect_user_info(self.endpoint_context, session)
 
         return {'response_args': info, 'client_id': session['client_id']}
 
-    def parse_request(self, endpoint_context, request, auth=None, **kwargs):
+    def parse_request(self, request, auth=None, **kwargs):
         """
 
         :param request:
-        :param endpoint_context:
         :param auth:
         :param kwargs:
         :return:
@@ -90,8 +89,7 @@ class UserInfo(Endpoint):
             request = {}
 
         # Verify that the client is allowed to do this
-        auth_info = self.client_authentication(endpoint_context, {}, auth,
-                                               **kwargs)
+        auth_info = self.client_authentication({}, auth, **kwargs)
         if isinstance(auth_info, ResponseMessage):
             return auth_info
         else:

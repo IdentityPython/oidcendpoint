@@ -31,19 +31,20 @@ class AccessToken(Endpoint):
     response_format = 'json'
     response_placement = 'body'
 
-    def __init__(self, keyjar, **kwargs):
-        Endpoint.__init__(self, keyjar, **kwargs)
+    def __init__(self, endpoint_context, **kwargs):
+        Endpoint.__init__(self, endpoint_context, **kwargs)
         self.pre_construct.append(self._pre_construct)
         self.post_parse_request.append(self._post_parse_request)
 
-    def _pre_construct(self, endpoint_context, response_args, request, **kwargs):
+    def _pre_construct(self, response_args, request, **kwargs):
+        _context = self.endpoint_context
         _access_code = request["code"].replace(' ', '+')
-        _info = endpoint_context.sdb[_access_code]
+        _info = _context.sdb[_access_code]
 
         if "openid" in _info["scope"]:
-            userinfo = userinfo_in_id_token_claims(endpoint_context, _info)
+            userinfo = userinfo_in_id_token_claims(_context, _info)
             try:
-                _idtoken = sign_encrypt_id_token(endpoint_context, _info,
+                _idtoken = sign_encrypt_id_token(_context, _info,
                                                  str(request["client_id"]),
                                                  user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
@@ -52,14 +53,14 @@ class AccessToken(Endpoint):
                     error="invalid_request",
                     error_description="Could not sign/encrypt id_token")
 
-            endpoint_context.sdb.update_by_token(_access_code, id_token=_idtoken)
+            _context.sdb.update_by_token(_access_code, id_token=_idtoken)
             response_args['id_token'] = _idtoken
 
         return response_args
 
-    def _access_token(self, endpoint_context, req, **kwargs):
-
-        _sdb = endpoint_context.sdb
+    def _access_token(self, req, **kwargs):
+        _context = self.endpoint_context
+        _sdb = _context.sdb
         _log_debug = logger.debug
 
         if req["grant_type"] != "authorization_code":
@@ -80,7 +81,7 @@ class AccessToken(Endpoint):
                                   error_description="Code is invalid")
 
         # assert that the code is valid
-        if endpoint_context.sdb.is_session_revoked(_access_code):
+        if _context.sdb.is_session_revoked(_access_code):
             return self.error_cls(error="invalid_request",
                                   error_description="Session is revoked")
 
@@ -114,10 +115,10 @@ class AccessToken(Endpoint):
                                   error_description="Access Code already used")
 
         if "openid" in _info["scope"]:
-            userinfo = userinfo_in_id_token_claims(endpoint_context, _info)
-            client_info = endpoint_context.cdb[str(req["client_id"])]
+            userinfo = userinfo_in_id_token_claims(_context, _info)
+            client_info = _context.cdb[str(req["client_id"])]
             try:
-                _idtoken = sign_encrypt_id_token(endpoint_context,
+                _idtoken = sign_encrypt_id_token(_context,
                     _info, req["client_id"], sign=True, user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
@@ -130,8 +131,8 @@ class AccessToken(Endpoint):
 
         return by_schema(AccessTokenResponse, **_info)
 
-    def _refresh_access_token(self, endpoint_context, req, **kwargs):
-        _sdb = endpoint_context.sdb
+    def _refresh_access_token(self, req, **kwargs):
+        _sdb = self.endpoint_context.sdb
 
         client_id = str(req['client_id'])
 
@@ -148,9 +149,9 @@ class AccessToken(Endpoint):
 
         return by_schema(AccessTokenResponse, **_info)
 
-    def client_authentication(self, endpoint_context, request, auth=None, **kwargs):
+    def client_authentication(self, request, auth=None, **kwargs):
         try:
-            auth_info = verify_client(endpoint_context, request, auth)
+            auth_info = verify_client(self.endpoint_context, request, auth)
             msg = ''
         except Exception as err:
             msg = "Failed to verify client due to: {}".format(err)
@@ -165,7 +166,7 @@ class AccessToken(Endpoint):
 
         return auth_info
 
-    def _post_parse_request(self, endpoint_context, request, client_id='', **kwargs):
+    def _post_parse_request(self, request, client_id='', **kwargs):
         """
         This is where clients come to get their access tokens
 
@@ -176,7 +177,7 @@ class AccessToken(Endpoint):
 
         if 'state' in request:
             try:
-                state = endpoint_context.sdb[request['code']]['state']
+                state = self.endpoint_context.sdb[request['code']]['state']
             except KeyError:
                 logger.error('Code not present in SessionDB')
                 return self.error_cls(error="unauthorized_client")
@@ -189,7 +190,7 @@ class AccessToken(Endpoint):
             request = RefreshAccessTokenRequest(**request.to_dict())
 
             try:
-                keyjar = self.keyjar
+                keyjar = self.endpoint_context.keyjar
             except AttributeError:
                 keyjar = ""
 
@@ -202,25 +203,25 @@ class AccessToken(Endpoint):
 
         return request
 
-    def process_request(self, endpoint_context, request=None, **kwargs):
+    def process_request(self, request=None, **kwargs):
         """
 
-        :param endpoint_context:
         :param request:
         :param kwargs:
         :return: Dictionary with response information
         """
         if isinstance(request, AccessTokenRequest):
             try:
-                response_args = self._access_token(endpoint_context, request, **kwargs)
+                response_args = self._access_token(request, **kwargs)
             except JWEException as err:
                 return self.error_cls(error="invalid_request",
                                       error_description="%s" % err)
 
         else:
-            response_args = self._refresh_access_token(endpoint_context, request, **kwargs)
+            response_args = self._refresh_access_token(request, **kwargs)
 
         _access_code = request["code"].replace(' ', '+')
-        _headers = make_headers(endpoint_context, endpoint_context.sdb[_access_code]['sub'])
+        _headers = make_headers(self.endpoint_context,
+                                self.endpoint_context.sdb[_access_code]['sub'])
         _headers.append(('Content-type', 'application/json'))
         return {'response_args': response_args, 'http_headers': _headers}

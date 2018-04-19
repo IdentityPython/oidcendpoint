@@ -18,7 +18,6 @@ KEYJAR = build_keyjar(KEYDEFS)[1]
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
-        self.endpoint = Discovery(KEYJAR)
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
@@ -34,12 +33,13 @@ class TestEndpoint(object):
             }],
             'template_dir': 'template'
         }
-        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint = Discovery(endpoint_context)
 
     def test_do_response(self):
         args = self.endpoint.process_request(
-            self.endpoint_context, request={'resource': 'acct:foo@example.com'})
-        msg = self.endpoint.do_response(self.endpoint_context, **args)
+            {'resource': 'acct:foo@example.com'})
+        msg = self.endpoint.do_response(**args)
         _resp = json.loads(msg['response'])
         assert _resp == {"subject": "acct:foo@example.com", "links": [
             {"href": "https://example.com/",

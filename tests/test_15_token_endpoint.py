@@ -80,7 +80,6 @@ def setup_session(endpoint_context, areq):
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
-        self.endpoint = AccessToken(KEYJAR)
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
@@ -133,49 +132,51 @@ class TestEndpoint(object):
             'client_authn': verify_client,
             'template_dir': 'template'
         }
-        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
-        self.endpoint_context.cdb['client_1'] = {
+        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token']
         }
+        self.endpoint = AccessToken(endpoint_context)
 
     def test_init(self):
-        assert self.endpoint_context
+        assert self.endpoint
 
     def test_parse(self):
-        session_id = setup_session(self.endpoint_context, AUTH_REQ)
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request['code'] = self.endpoint_context.sdb[session_id]['code']
-        _req = self.endpoint.parse_request(self.endpoint_context, _token_request)
+        _token_request['code'] = self.endpoint.endpoint_context.sdb[
+            session_id]['code']
+        _req = self.endpoint.parse_request(_token_request)
 
         assert isinstance(_req, AccessTokenRequest)
         assert set(_req.keys()) == set(_token_request.keys())
 
     def test_process_request(self):
-        session_id = setup_session(self.endpoint_context, AUTH_REQ)
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request['code'] = self.endpoint_context.sdb[session_id]['code']
-        self.endpoint_context.sdb.update(session_id, user='diana')
-        _req = self.endpoint.parse_request(self.endpoint_context, _token_request)
+        _context = self.endpoint.endpoint_context
+        _token_request['code'] = _context.sdb[session_id]['code']
+        _context.sdb.update(session_id, user='diana')
+        _req = self.endpoint.parse_request(_token_request)
 
-        _resp = self.endpoint.process_request(endpoint_context=self.endpoint_context,
-                                              request=_req)
+        _resp = self.endpoint.process_request(request=_req)
 
         assert _resp
         assert set(_resp.keys()) == {'http_headers', 'response_args'}
 
     def test_do_response(self):
-        session_id = setup_session(self.endpoint_context, AUTH_REQ)
-        self.endpoint_context.sdb.update(session_id, user='diana')
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
+        self.endpoint.endpoint_context.sdb.update(session_id, user='diana')
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request['code'] = self.endpoint_context.sdb[session_id]['code']
-        _req = self.endpoint.parse_request(self.endpoint_context, _token_request)
+        _token_request['code'] = self.endpoint.endpoint_context.sdb[
+            session_id]['code']
+        _req = self.endpoint.parse_request(_token_request)
 
-        _resp = self.endpoint.process_request(endpoint_context=self.endpoint_context,
-                                              request=_req)
-        msg = self.endpoint.do_response(self.endpoint_context, request=_req, **_resp)
+        _resp = self.endpoint.process_request(request=_req)
+        msg = self.endpoint.do_response(request=_req, **_resp)
         assert isinstance(msg, dict)
 
