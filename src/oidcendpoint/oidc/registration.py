@@ -353,15 +353,13 @@ class Registration(Endpoint):
         client_secret = secret(_context.seed, client_id)
 
         _rat = rndstr(32)
-        reg_enp = _context.endpoint[
-            'registration'].endpoint_path.format(
-            _context.issuer)
 
         _context.cdb[client_id] = {
             "client_id": client_id,
             "client_secret": client_secret,
             "registration_access_token": _rat,
-            "registration_client_uri": "%s?client_id=%s" % (reg_enp, client_id),
+            "registration_client_uri": "%s?client_id=%s" % (self.endpoint_path,
+                                                            client_id),
             "client_secret_expires_at": client_secret_expiration_time(),
             "client_id_issued_at": utc_time_sans_frac(),
             "client_salt": rndstr(8)
