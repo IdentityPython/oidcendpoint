@@ -196,7 +196,7 @@ class Registration(Endpoint):
                      "userinfo_signed_response_alg"]:
             if item in request:
                 if request[item] in _context.provider_info[
-                    PREFERENCE2PROVIDER[item]]:
+                        PREFERENCE2PROVIDER[item]]:
                     ktyp = jws.alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
@@ -382,7 +382,7 @@ class Registration(Endpoint):
         self.comb_uri(args)
         response = RegistrationResponse(**args)
 
-        # Add the client_secret as a symmetric key to the keyjar
+        # Add the client_secret as a symmetric key to the key jar
         if client_secret:
             _context.keyjar.add_symmetric(client_id, str(client_secret))
 
