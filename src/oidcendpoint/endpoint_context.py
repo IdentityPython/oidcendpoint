@@ -126,8 +126,10 @@ class EndpointContext(object):
         except KeyError:
             self.jwks_uri = ''
 
-        self.endpoint = build_endpoints(conf['endpoint'], self.keyjar,
-                                        CLIENT_AUTHN_METHOD, conf['issuer'])
+        self.endpoint = build_endpoints(conf['endpoint'],
+                                        endpoint_context=self,
+                                        client_authn_method=CLIENT_AUTHN_METHOD,
+                                        issuer=conf['issuer'])
         try:
             _cap = conf['capabilities']
         except KeyError:
