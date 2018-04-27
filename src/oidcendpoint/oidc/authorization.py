@@ -283,6 +283,7 @@ class Authorization(Endpoint):
     request_format = 'urlencoded'
     response_format = 'urlencoded'
     response_placement = 'url'
+    endpoint_name = 'authorization_endpoint'
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)

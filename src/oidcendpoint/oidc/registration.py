@@ -98,6 +98,7 @@ class Registration(Endpoint):
     request_format = 'json'
     request_placement = 'body'
     response_format = 'json'
+    endpoint_name = 'registration_endpoint'
 
     # default
     # response_placement = 'body'

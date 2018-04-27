@@ -135,8 +135,14 @@ class EndpointContext(object):
         except KeyError:
             _cap = {}
 
-        for endpoint, endp_conf in self.endpoint.items():
-            _cap[endpoint] = endp_conf.endpoint_path
+        for endpoint in ['authorization', 'token', 'userinfo', 'registration']:
+            try:
+                endpoint_spec = self.endpoint[endpoint]
+            except KeyError:
+                pass
+            else:
+                _cap[endpoint_spec.endpoint_name] = self.endpoint[
+                    endpoint].endpoint_path
 
         try:
             authz_spec = conf['authz']

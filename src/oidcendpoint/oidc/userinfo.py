@@ -23,6 +23,7 @@ class UserInfo(Endpoint):
     request_format = 'json'
     response_format = 'json'
     response_placement = 'body'
+    endpoint_name = 'userinfo_endpoint'
 
     def do_response(self, response_args=None, request=None, **kwargs):
         _context = self.endpoint_context

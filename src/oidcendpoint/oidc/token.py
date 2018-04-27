@@ -30,6 +30,7 @@ class AccessToken(Endpoint):
     request_placement = 'body'
     response_format = 'json'
     response_placement = 'body'
+    endpoint_name = 'token_endpoint'
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
