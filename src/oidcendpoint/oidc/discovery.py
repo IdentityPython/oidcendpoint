@@ -12,6 +12,7 @@ class Discovery(Endpoint):
     response_cls = JRD
     request_format = 'urlencoded'
     response_format = 'json'
+    endpoint_name = 'discovery'
 
     def do_response(self, response_args=None, request=None, **kwargs):
         """
