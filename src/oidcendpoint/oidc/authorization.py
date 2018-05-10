@@ -166,7 +166,8 @@ def get_redirect_uri(endpoint_context, request):
 def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
     # gather information to be used by the authentication method
     authn_args = {"authn_class_ref": authn_class_ref,
-                  "query": request.to_urlencoded()}
+                  "query": request.to_urlencoded(),
+                  'return_uri': request['redirect_uri']}
 
     if "req_user" in kwargs:
         authn_args["as_user"] = kwargs["req_user"],
@@ -504,9 +505,9 @@ class Authorization(Endpoint):
         else:
             raise InvalidRequest("Unknown response_mode")
 
-    def post_authn(self, user, request, sid, **kwargs):
+    def post_authentication(self, user, request, sid, **kwargs):
         """
-        Things that are donw after a successful authentication.
+        Things that are done after a successful authentication.
 
         :param user:
         :param request:
@@ -571,7 +572,7 @@ class Authorization(Endpoint):
 
         return response_info
 
-    def authz_part2(self, user, request, sid, **kwargs):
+    def authz_part2(self, user, authn_event, request, **kwargs):
         """
         After the authentication this is where you should end up
 
@@ -581,7 +582,9 @@ class Authorization(Endpoint):
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """
-        resp_info = self.post_authn(user, request, sid, **kwargs)
+        sid = setup_session(self.endpoint_context, request, authn_event)
+
+        resp_info = self.post_authentication(user, request, sid, **kwargs)
         if isinstance(resp_info, ResponseMessage):
             return resp_info
 
@@ -613,14 +616,16 @@ class Authorization(Endpoint):
 
         try:
             # Run the authentication function
-            return {'http_response': info['function'](**info['args'])}
+            return {'http_response': info['function'](**info['args']),
+                    'return_uri': request["redirect_uri"]}
         except KeyError:  # already authenticated
             logger.debug("- authenticated -")
             logger.debug("AREQ keys: %s" % request.keys())
 
-            sid = setup_session(self.endpoint_context, request,
-                                info["authn_event"])
-
-            res = self.authz_part2(info["user"], request, sid, cookie=cookie)
+            res = self.authz_part2(info['user'], info['authn_event'], request,
+                                   cookie=cookie)
 
             return res
+        except Exception as err:
+            logger.exception(err)
+            return {'http_response': 'Internal error: {}'.format(err)}
