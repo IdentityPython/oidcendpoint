@@ -375,8 +375,9 @@ class UserPassJinja2(UserAuthnMethod):
 
     def __call__(self, **kwargs):
         template = self.template_env.get_template(self.template)
-        jws = create_signed_jwt('self', self.endpoint_context.keyjar, **kwargs)
-        return template.render(action=self.url_endpoint, state=jws,
+        _ec = self.endpoint_context
+        jws = create_signed_jwt(_ec.issuer, _ec.keyjar, **kwargs)
+        return template.render(action=self.url_endpoint, token=jws,
                                **self.kwargs)
 
     def verify(self, *args, **kwargs):
@@ -386,6 +387,10 @@ class UserPassJinja2(UserAuthnMethod):
             return username
         else:
             raise FailedAuthentication()
+
+    def unpack_token(self, token):
+        return verify_signed_jwt(token=token,
+                                 keyjar=self.endpoint_context.keyjar)
 
 
 class BasicAuthn(UserAuthnMethod):
