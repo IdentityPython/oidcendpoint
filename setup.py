@@ -63,6 +63,7 @@ setup(
         "oidcmsg",
         'oidcservice',
         "cryptojwt",
+        "jinja2"
     ],
     tests_require=[
         "pytest"
