@@ -18,10 +18,10 @@ class Discovery(Endpoint):
         """
         **Placeholder for the time being**
 
-        :param endpoint_context: :py:class:`oicsrv.endpoint_context.SrvInfo`
-        instance
+        :param endpoint_context:
+            :py:class:`oidcendpoint.endpoint_context.EndpointContext` instance
         :param kwargs: request arguments
-        :return:
+        :return: Response information
         """
 
         links = [Link(href=h, rel=OIC_ISSUER) for h in kwargs['hrefs']]

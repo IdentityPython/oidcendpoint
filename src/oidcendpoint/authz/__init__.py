@@ -3,9 +3,10 @@ import logging
 import time
 
 import sys
-from oic.utils.authn.user import ToOld
-from oic.utils.http_util import CookieDealer
-from oic.utils.sanitize import sanitize
+
+from oidcendpoint import sanitize
+from oidcendpoint.cookie import CookieDealer
+from oidcendpoint.exception import ToOld
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,8 @@ logger = logging.getLogger(__name__)
 class AuthzHandling(CookieDealer):
     """ Class that allow an entity to manage authorization """
 
-    def __init__(self):
+    def __init__(self, endpoint_context):
+        CookieDealer.__init__(self, endpoint_context=endpoint_context)
         self.permdb = {}
 
     def __call__(self, *args, **kwargs):
@@ -25,7 +27,8 @@ class AuthzHandling(CookieDealer):
         else:
             logger.debug("kwargs: %s" % sanitize(kwargs))
 
-            val = self.getCookieValue(cookie, self.srv.cookie_name)
+            val = self.get_cookie_value(cookie,
+                                        self.endpoint_context.cookie_name)
             if val is None:
                 return None
             else:
