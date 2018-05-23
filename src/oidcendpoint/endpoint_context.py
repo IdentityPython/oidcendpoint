@@ -147,13 +147,13 @@ class EndpointContext(object):
         try:
             authz_spec = conf['authz']
         except KeyError:
-            self.authz = authz.Implicit()
+            self.authz = authz.Implicit(self)
         else:
             if 'args' in authz_spec:
                 self.authz = authz.factory(authz_spec['name'],
                                            **authz_spec['args'])
             else:
-                self.authz = authz.factory(authz_spec['name'])
+                self.authz = authz.factory(self, authz_spec['name'])
 
         try:
             _authn = conf['authentication']

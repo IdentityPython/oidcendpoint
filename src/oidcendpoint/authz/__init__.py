@@ -57,15 +57,15 @@ class UserInfoConsent(AuthzHandling):
 
 
 class Implicit(AuthzHandling):
-    def __init__(self, permission="implicit"):
-        AuthzHandling.__init__(self)
+    def __init__(self, endpoint_context, permission="implicit"):
+        AuthzHandling.__init__(self, endpoint_context)
         self.permission = permission
 
     def permissions(self, cookie=None, **kwargs):
         return self.permission
 
 
-def factory(msgtype, **kwargs):
+def factory(msgtype, endpoint_context, **kwargs):
     """
     Factory method that can be used to easily instantiate a class instance
 
@@ -75,9 +75,9 @@ def factory(msgtype, **kwargs):
         known class.
     """
     for name, obj in inspect.getmembers(sys.modules[__name__]):
-        if inspect.isclass(obj) and issubclass(obj, CookieDealer):
+        if inspect.isclass(obj) and issubclass(obj, AuthzHandling):
             try:
                 if obj.__name__ == msgtype:
-                    return obj(**kwargs)
+                    return obj(endpoint_context, **kwargs)
             except AttributeError:
                 pass
