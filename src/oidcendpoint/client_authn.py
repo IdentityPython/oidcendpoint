@@ -1,9 +1,11 @@
 import base64
 import logging
 
+from cryptojwt.exception import Invalid
+from cryptojwt.exception import MissingKey
 from cryptojwt.jwt import utc_time_sans_frac
-from jwkest import Invalid, as_bytes, as_unicode
-from jwkest import MissingKey
+from cryptojwt import as_bytes
+from cryptojwt import as_unicode
 
 from oidcmsg.jwt import JWT
 from oidcmsg.oidc import AuthnToken
