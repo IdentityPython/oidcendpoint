@@ -100,7 +100,7 @@ def verify_redirect_uri(endpoint_context, request):
 
         match = False
         for regbase, rquery in endpoint_context.cdb[str(request["client_id"])][
-                "redirect_uris"]:
+            "redirect_uris"]:
 
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
@@ -165,9 +165,11 @@ def get_redirect_uri(endpoint_context, request):
 
 def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
     # gather information to be used by the authentication method
-    authn_args = {"authn_class_ref": authn_class_ref,
-                  "query": request.to_urlencoded(),
-                  'return_uri': request['redirect_uri']}
+    authn_args = {
+        "authn_class_ref": authn_class_ref,
+        "query": request.to_urlencoded(),
+        'return_uri': request['redirect_uri']
+    }
 
     if "req_user" in kwargs:
         authn_args["as_user"] = kwargs["req_user"],
@@ -408,6 +410,12 @@ class Authorization(Endpoint):
 
         return authn, authn_class_ref
 
+    def proposed_user(self, request):
+        try:
+            return request['verified_it_token_hint']['sub']
+        except KeyError:
+            return ''
+
     def setup_auth(self, request, redirect_uri, cinfo, cookie, **kwargs):
         """
 
@@ -452,9 +460,10 @@ class Authorization(Endpoint):
         if identity is None:  # No!
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
-                return AuthorizationErrorResponse(
-                    error="login_required", redirect_uri=redirect_uri,
-                    return_type=request["response_type"])
+                return {
+                    'error': "login_required", 'return_uri': redirect_uri,
+                    'return_type': request["response_type"]
+                }
             else:
                 return {'function': authn, 'args': authn_args}
         else:
@@ -473,9 +482,10 @@ class Authorization(Endpoint):
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
                             # Need to authenticate but not allowed
-                            return AuthorizationErrorResponse(
-                                error="login_required",
-                                redirect_uri=redirect_uri)
+                            return {
+                                'error': "login_required",
+                                'return_uri': redirect_uri
+                            }
                         else:
                             return {'function': authn, 'args': authn_args}
 
@@ -608,16 +618,22 @@ class Authorization(Endpoint):
         except KeyError:
             cookie = ''
 
+        proposed_user = self.proposed_user(request)
+        if proposed_user:
+            kwargs['req_user'] = proposed_user
+
         info = self.setup_auth(request, request["redirect_uri"], cinfo, cookie,
                                **kwargs)
 
-        if isinstance(info, ResponseMessage):
+        if 'error' in info:
             return info
 
         try:
             # Run the authentication function
-            return {'http_response': info['function'](**info['args']),
-                    'return_uri': request["redirect_uri"]}
+            return {
+                'http_response': info['function'](**info['args']),
+                'return_uri': request["redirect_uri"]
+            }
         except KeyError:  # already authenticated
             logger.debug("- authenticated -")
             logger.debug("AREQ keys: %s" % request.keys())

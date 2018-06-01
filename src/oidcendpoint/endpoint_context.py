@@ -42,7 +42,7 @@ CAPABILITIES = {
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True
-}
+    }
 
 SORT_ORDER = {'RS': 0, 'ES': 1, 'HS': 2, 'PS': 3, 'no': 4}
 
@@ -122,7 +122,8 @@ class EndpointContext(object):
 
         self.setup = {}
         try:
-            self.jwks_uri = conf['jwks']['url_path'].format(self.issuer)
+            self.jwks_uri = '{}{}'.format(self.issuer,
+                                          conf['jwks']['public_path'])
         except KeyError:
             self.jwks_uri = ''
 
@@ -141,8 +142,8 @@ class EndpointContext(object):
             except KeyError:
                 pass
             else:
-                _cap[endpoint_spec.endpoint_name] = self.endpoint[
-                    endpoint].endpoint_path
+                _cap[endpoint_spec.endpoint_name] = '{}{}'.format(
+                    self.issuer, self.endpoint[endpoint].endpoint_path)
 
         try:
             authz_spec = conf['authz']
@@ -297,8 +298,8 @@ class EndpointContext(object):
             _pinfo["jwks_uri"] = self.jwks_uri
 
         for name, instance in self.endpoint.items():
-            if name in ['registration','authorization', 'token', 'userinfo']:
-                _pinfo['{}_endpoint'.format(name)] = instance.endpoint_path
+            if name in ['registration', 'authorization', 'token', 'userinfo']:
+                _pinfo['{}_endpoint'.format(name)] = '{}{}'.format(
+                    self.issuer, instance.endpoint_path)
 
         return _pinfo
-

@@ -273,19 +273,27 @@ class TokenHandler(object):
     def keys(self):
         return self.handler.keys()
 
-    # def set_token_policy(self, cid, cinfo):
-    #     for ttyp in ['access_token', 'refresh_token']:
-    #         pol = {}
-    #         for rgtyp in ['response_type', 'grant_type']:
-    #             try:
-    #                 rtyp = cinfo[rgtyp]
-    #             except KeyError:
-    #                 pass
-    #             else:
-    #                 for typ in rtyp:
-    #                     try:
-    #                         pol[typ] = self.lifetime_policy[ttyp][typ]
-    #                     except KeyError:
-    #                         pass
-    #
-    #         self.token_policy[ttyp][cid] = pol
+
+def factory(password, token_expires_in=3600, grant_expires_in=600,
+            refresh_token_expires_in=86400):
+    """
+    Create a token handler
+
+    :param password:
+    :param token_expires_in:
+    :param grant_expires_in:
+    :param refresh_token_expires_in:
+    :return:
+    """
+    code_handler = DefaultToken(password, typ='A',
+                                lifetime=grant_expires_in)
+    access_token_handler = DefaultToken(password, typ='T',
+                                        lifetime=token_expires_in)
+    refresh_token_handler = DefaultToken(password, typ='R',
+                                         lifetime=refresh_token_expires_in)
+
+    return TokenHandler(
+        code_handler=code_handler,
+        access_token_handler=access_token_handler,
+        refresh_token_handler=refresh_token_handler,
+    )

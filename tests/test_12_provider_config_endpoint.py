@@ -42,7 +42,7 @@ class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
         conf = {
-            "issuer": "https://example.com",
+            "issuer": "https://example.com/",
             "password": "mycket hemligt",
             "token_expires_in": 600,
             "grant_expires_in": 300,
@@ -50,33 +50,33 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {
-                'url_path': '{}/jwks.json',
+                'public_path': 'jwks.json',
                 'local_path': 'static/jwks.json',
                 'private_path': 'own/jwks.json'
             },
             'endpoint': {
                 'provider_config': {
-                    'path': '{}/.well-known/openid-configuration',
+                    'path': '.well-known/openid-configuration',
                     'class': ProviderConfiguration,
                     'kwargs': {}
                 },
-                'registration_endpoint': {
-                    'path': '{}/registration',
+                'registration': {
+                    'path': 'registration',
                     'class': Registration,
                     'kwargs': {}
                 },
-                'authorization_endpoint': {
-                    'path': '{}/authorization',
+                'authorization': {
+                    'path': 'authorization',
                     'class': Authorization,
                     'kwargs': {}
                 },
-                'token_endpoint': {
-                    'path': '{}/token',
+                'token': {
+                    'path': 'token',
                     'class': AccessToken,
                     'kwargs': {}
                 },
-                'userinfo_endpoint': {
-                    'path': '{}/userinfo',
+                'userinfo': {
+                    'path': 'userinfo',
                     'class': userinfo.UserInfo,
                     'kwargs': {'db_file': 'users.json'}
                 }

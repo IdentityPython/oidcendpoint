@@ -12,7 +12,8 @@ class TestSessionDB(object):
         assert self.sso_db.get_sids_by_uid('Lizz') == ['session id 1']
 
     def test_missing_map(self):
-        assert self.sso_db.get_sids_by_uid('Lizz') is None
+        with pytest.raises(KeyError):
+            self.sso_db.get_sids_by_uid('Lizz')
 
     def test_multiple_map_sid2uid(self):
         self.sso_db.map_sid2uid('session id 1', 'Lizz')
@@ -26,7 +27,7 @@ class TestSessionDB(object):
         assert set(self.sso_db.get_sids_by_uid('Lizz')) == {
             'session id 1', 'session id 2'}
 
-        self.sso_db.remove_sid2uid('session id 1', 'Lizz')
+        self.sso_db.unmap_sid2uid('session id 1', 'Lizz')
         assert self.sso_db.get_sids_by_uid('Lizz') == ['session id 2']
 
     def test_get_uid_by_sid(self):
@@ -41,15 +42,16 @@ class TestSessionDB(object):
         self.sso_db.map_sid2uid('session id 2', 'Diana')
 
         self.sso_db.remove_uid('Lizz')
-        assert self.sso_db.get_uid_by_sid('session id 1') is None
-        assert self.sso_db.get_sids_by_uid('Lizz') is None
+        assert set(self.sso_db.uid2sid.keys()) == {'Diana'}
+        assert set(self.sso_db.uid2sid_rev.keys()) == {'session id 2'}
 
     def test_map_sid2sub(self):
         self.sso_db.map_sid2sub('session id 1', 'abcdefgh')
         assert self.sso_db.get_sids_by_sub('abcdefgh') == ['session id 1']
 
     def test_missing_sid2sub_map(self):
-        assert self.sso_db.get_sids_by_sub('abcdefgh') is None
+        with pytest.raises(KeyError):
+            self.sso_db.get_sids_by_sub('abcdefgh')
 
     def test_multiple_map_sid2sub(self):
         self.sso_db.map_sid2sub('session id 1', 'abcdefgh')
@@ -63,7 +65,7 @@ class TestSessionDB(object):
         assert set(self.sso_db.get_sids_by_sub('abcdefgh')) == {
             'session id 1', 'session id 2'}
 
-        self.sso_db.remove_sid2sub('session id 1', 'abcdefgh')
+        self.sso_db.unmap_sid2sub('session id 1', 'abcdefgh')
         assert self.sso_db.get_sids_by_sub('abcdefgh') == ['session id 2']
 
     def test_get_sub_by_sid(self):
@@ -77,12 +79,9 @@ class TestSessionDB(object):
         self.sso_db.map_sid2sub('session id 1', 'abcdefgh')
         self.sso_db.map_sid2sub('session id 2', '012346789')
 
-        self.sso_db.remove_sub('abcdefgh')
-        assert self.sso_db.get_sub_by_sid('session id 1') is None
-        assert self.sso_db.get_sids_by_sub('abcdefgh') is None
-        # have not touched the others
-        assert self.sso_db.get_sub_by_sid('session id 2') == '012346789'
-        assert self.sso_db.get_sids_by_sub('012346789') == ['session id 2']
+        self.sso_db.remove_sub('012346789')
+        assert set(self.sso_db.sub2sid.keys()) == {'abcdefgh'}
+        assert set(self.sso_db.sub2sid_rev.keys()) == {'session id 1'}
 
     def test_get_sub_by_uid_same_sub(self):
         self.sso_db.map_sid2sub('session id 1', 'abcdefgh')
@@ -91,9 +90,9 @@ class TestSessionDB(object):
         self.sso_db.map_sid2uid('session id 1', 'Lizz')
         self.sso_db.map_sid2uid('session id 2', 'Lizz')
 
-        res = self.sso_db.get_subs_by_uid('Lizz')
+        res = self.sso_db.get_sub_by_uid('Lizz')
 
-        assert set(res) == {'abcdefgh'}
+        assert res == {'abcdefgh'}
 
     def test_get_sub_by_uid_different_sub(self):
         self.sso_db.map_sid2sub('session id 1', 'abcdefgh')
@@ -102,6 +101,6 @@ class TestSessionDB(object):
         self.sso_db.map_sid2uid('session id 1', 'Lizz')
         self.sso_db.map_sid2uid('session id 2', 'Lizz')
 
-        res = self.sso_db.get_subs_by_uid('Lizz')
+        res = self.sso_db.get_sub_by_uid('Lizz')
 
-        assert set(res) == {'abcdefgh', '012346789'}
+        assert res == {'abcdefgh', '012346789'}

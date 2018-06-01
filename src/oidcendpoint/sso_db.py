@@ -1,37 +1,6 @@
-import logging
+from oidcendpoint.in_memory_db import InMemoryDataBase
 
-logger = logging.getLogger(__name__)
-
-
-class Map(object):
-    def __init__(self, db=None):
-        self._db = db or {}
-
-    def __getitem__(self, item):
-        return self._db[item]
-
-    def __setitem__(self, key, value):
-        try:
-            self._db[key].append(value)
-        except KeyError:
-            self._db[key] = [value]
-
-    def keys(self):
-        return self._db.keys()
-
-    def __delitem__(self, key):
-        del self._db[key]
-
-    def delete(self, key, value):
-        self._db[key].remove(value)
-        if len(self._db[key]) == 0:
-            del self._db[key]
-
-    def add(self, key, value):
-        try:
-            self._db[key].append(value)
-        except KeyError:
-            self._db[key] = [value]
+KEY_FORMAT = '__{}__{}'
 
 
 class SSODb(object):
@@ -43,28 +12,60 @@ class SSODb(object):
     So, we have chains like this:
         session id->subject id->user id
     """
+
     def __init__(self, db=None):
-        self._db = db or {}
-        self._db = {
-            'uid2sid': {}, 'sid2uid': {},
-            'sub2sid': {}, 'sid2sub': {}
-        }
+        self._db = db or InMemoryDataBase()
 
-        self.uid2sid = Map(self._db['uid2sid'])
-        self.uid2sid_rev = Map(self._db['sid2uid'])
+    def set(self, label, key, value):
+        _key = KEY_FORMAT.format(label, key)
+        _values = self._db.get(_key)
+        if not _values:
+            self._db.set(_key, [value])
+        else:
+            _values.append(value)
+            self._db.set(_key, _values)
 
-        self.sub2sid = Map(self._db['sub2sid'])
-        self.sub2sid_rev = Map(self._db['sid2sub'])
+    def get(self, label, key):
+        _key = KEY_FORMAT.format(label, key)
+        return self._db.get(_key)
+
+    def delete(self, label, key):
+        _key = KEY_FORMAT.format(label, key)
+        return self._db.delete(_key)
+
+    def remove(self, label, key, value):
+        _key = KEY_FORMAT.format(label, key)
+        _values = self._db.get(_key)
+        if _values:
+            try:
+                _values.remove(value)
+            except ValueError:
+                pass
+            else:
+                if _values:
+                    self._db.set(_key, _values)
+                else:
+                    self._db.delete(_key)
 
     def map_sid2uid(self, sid, uid):
         """
-        Store the connection between a Session ID and an uid.
+        Store the connection between a Session ID and a User ID
 
-        :param uid: subject ID
         :param sid: Session ID
+        :param uid: User ID
         """
-        self.uid2sid.add(uid, sid)
-        self.uid2sid_rev.add(sid, uid)
+        self.set('sid2uid', sid, uid)
+        self.set('uid2sid', uid, sid)
+
+    def map_sid2sub(self, sid, sub):
+        """
+        Store the connection between a Session ID and a subject ID.
+
+        :param sid: Session ID
+        :param sub: subject ID
+        """
+        self.set('sid2sub', sid, sub)
+        self.set('sub2sid', sub, sid)
 
     def get_sids_by_uid(self, uid):
         """
@@ -73,89 +74,86 @@ class SSODb(object):
         :param uid: The subject ID
         :return: list of session IDs
         """
-        return self.uid2sid[uid]
-
-    def unmap_sid2uid(self, sid, uid):
-        """
-        Remove the connection between a session ID and a User ID.
-        
-        :param sid: Session ID 
-        :param uid: User ID
-        """
-        self.uid2sid.delete(uid, sid)
-        self.uid2sid_rev.delete(sid, uid)
-
-    def map_sid2sub(self, sid, sub):
-        """
-        Store the connection between a Session ID and a subject identifier
-        
-        :param sid: Session ID 
-        :param sub: Subject identifier
-        """
-        self.sub2sid.add(sub, sid)
-        self.sub2sid_rev.add(sid, sub)
+        return self.get('uid2sid', uid)
 
     def get_sids_by_sub(self, sub):
-        """
-        Find all the Session IDs that are connected to this subject.
-        
-        :param sub: subject 
-        :return: List of Session IDs
-        """
-        return self.sub2sid[sub]
+        return self.get('sub2sid', sub)
 
-    def unmap_sid2sub(self, sid, sub):
+    def get_sub_by_sid(self, sid):
+        _subs =self.get('sid2sub', sid)
+        if _subs:
+            return _subs[0]
+        else:
+            return None
+
+    def get_uid_by_sid(self, sid):
+        """
+        Find the User ID that is connected to a Session ID.
+
+        :param sid: A Session ID
+        :return: A User ID, always just one
+        """
+        _uids = self.get('sid2uid', sid)
+        if _uids:
+            return _uids[0]
+        else:
+            return None
+
+    def get_subs_by_uid(self, uid):
+        """
+        Find all subject identifiers that is connected to a User ID.
+
+        :param uid: A User ID
+        :return: A set of subject identifiers
+        """
+        res = set()
+        for sid in self.get('uid2sid', uid):
+            res |= set(self.get('sid2sub', sid))
+        return res
+
+    def remove_sid2sub(self, sid, sub):
         """
         Remove the connection between a session ID and a Subject
-        
-        :param sid: Session ID 
+
+        :param sid: Session ID
         :param sub: Subject identifier
 ´        """
-        self.sub2sid.delete(sub, sid)
-        if len(self.sub2sid[sub]) == 0:
-            del self.sub2sid[sub]
+        self.remove('sub2sid', sub, sid)
+        self.remove('sid2sub', sid, sub)
 
-        self.sub2sid_rev[sid].append(sub)
-        if len(self.sub2sid_rev[sid]) == 0:
-            del self.sub2sid_rev[sid]
+    def remove_sid2uid(self, sid, uid):
+        """
+        Remove the connection between a session ID and a Subject
+
+        :param sid: Session ID
+        :param uid: User identifier
+´        """
+        self.remove('uid2sid', uid, sid)
+        self.remove('sid2uid', sid, uid)
 
     def remove_session_id(self, sid):
         """
         Remove all references to a specific Session ID
-        
-        :param sid: A Session ID 
-        """
-        try:
-            _uid = self.uid2sid_rev[sid]
-        except KeyError:
-            pass
-        else:
-            try:
-                self.uid2sid.delete(_uid, sid)
-            except (KeyError, ValueError):
-                pass
 
-        try:
-            sub = self.sub2sid_rev[sid]
-        except KeyError:
-            pass
-        else:
-            try:
-                self.sub2sid.delete(sub, sid)
-            except KeyError:
-                pass
+        :param sid: A Session ID
+        """
+        for uid in self.get('sid2uid', sid):
+            self.remove('uid2sid', uid, sid)
+        self.delete('sid2uid', sid)
+
+        for sub in self.get('sid2sub', sid):
+            self.remove('sub2sid', sub, sid)
+        self.delete('sid2uid', sid)
 
     def remove_uid(self, uid):
         """
         Remove all references to a specific User ID
-        
-        :param uid: A User ID 
+
+        :param uid: A User ID
         """
-
-        for _sid in self.uid2sid[uid]:
-            self.uid2sid_rev.delete(_sid, uid)
-
-        del self.uid2sid[uid]
+        for sid in self.get('uid2sid', uid):
+            self.remove('sid2uid', sid, uid)
+        self.delete('uid2sid', uid)
 
     def remove_sub(self, sub):
         """
@@ -163,27 +161,6 @@ class SSODb(object):
 
         :param sub: A Subject ID
         """
-        for _sid in self.sub2sid[sub]:
-            self.sub2sid_rev.delete(_sid, sub)
-        del self.sub2sid[sub]
-
-    def get_uid_by_sid(self, sid):
-        """
-        Find the User ID that is connected to a Session ID.
-        
-        :param sid: A Session ID 
-        :return: A User ID, always just one
-        """
-        return self.uid2sid_rev[sid][0]
-
-    def get_sub_by_uid(self, uid):
-        """
-        Find all subject identifiers that is connected to a User ID.
-        
-        :param uid: A User ID 
-        :return: A set of subject identifiers
-        """
-        res = set()
-        for sid in self.uid2sid[uid]:
-            res |= set(self.sub2sid_rev[sid])
-        return res
+        for _sid in self.get('sub2sid', sub):
+            self.remove('sid2sub', _sid, sub)
+        self.delete('sub2sid', sub)

@@ -193,13 +193,18 @@ class Endpoint(object):
     def response_info(self, response_args, request, **kwargs):
         return self.construct(response_args, request, **kwargs)
 
-    def do_response(self, response_args=None, request=None, **kwargs):
+    def do_response(self, response_args=None, request=None, error='', **kwargs):
         if response_args is None:
             response_args = {}
 
-        _response = self.response_info(response_args, request, **kwargs)
-        if 'error' in _response:
-            return _response
+        if error:
+            _response = ResponseMessage(error=error)
+            try:
+                _response['error_description'] = kwargs['error_description']
+            except KeyError:
+                pass
+        else:
+            _response = self.response_info(response_args, request, **kwargs)
 
         if self.response_placement == 'body':
             if self.response_format == 'json':
