@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 class AuthzHandling(object):
     """ Class that allow an entity to manage authorization """
 
-    def __init__(self, cookie_dealer):
-        self.cookie_dealer = cookie_dealer
+    def __init__(self, endpoint_context):
+        self.endpoint_context = endpoint_context
+        self.cookie_dealer = endpoint_context.cookie_dealer
         self.permdb = {}
 
     def __call__(self, *args, **kwargs):
@@ -56,15 +57,15 @@ class UserInfoConsent(AuthzHandling):
 
 
 class Implicit(AuthzHandling):
-    def __init__(self, cookie_handler, permission="implicit"):
-        AuthzHandling.__init__(self, cookie_handler)
+    def __init__(self, endpoint_context, permission="implicit"):
+        AuthzHandling.__init__(self, endpoint_context)
         self.permission = permission
 
     def permissions(self, cookie=None, **kwargs):
         return self.permission
 
 
-def factory(msgtype, cookie_handler, **kwargs):
+def factory(msgtype, endpoint_context, **kwargs):
     """
     Factory method that can be used to easily instantiate a class instance
 
@@ -77,6 +78,6 @@ def factory(msgtype, cookie_handler, **kwargs):
         if inspect.isclass(obj) and issubclass(obj, AuthzHandling):
             try:
                 if obj.__name__ == msgtype:
-                    return obj(cookie_handler, **kwargs)
+                    return obj(endpoint_context, **kwargs)
             except AttributeError:
                 pass

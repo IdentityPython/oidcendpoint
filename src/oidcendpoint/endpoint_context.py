@@ -105,12 +105,12 @@ class EndpointContext(object):
         self.verify_ssl = True
         self.jwks_uri = None
         self.sso_ttl = 14400  # 4h
-        self.cookie_name = 'oicsrc'
         self.symkey = rndstr(24)
         self.id_token_schema = IdToken
         self.endpoint_to_authn_method = {}
+        self.cookie_dealer = cookie_dealer
 
-        for param in ['verify_ssl', 'issuer', 'sso_ttl', 'cookie_name',
+        for param in ['verify_ssl', 'issuer', 'sso_ttl',
                       'symkey', 'client_authn', 'id_token_schema']:
             try:
                 setattr(self, param, conf[param])
@@ -172,17 +172,14 @@ class EndpointContext(object):
                 if 'template' in _args:
                     _args['template_env'] = jinja_env
 
+                _args['endpoint_context'] = self
                 authn_method = user.factory(authn_spec['name'], **_args)
-                authn_method.endpoint_context = self
                 args = {k: authn_spec[k] for k in
                         ['acr', 'level', 'authn_authority'] if k in authn_spec}
 
-                _args['endpoint_context'] = self
                 self.authn_broker.add(method=authn_method, **args)
                 self.endpoint_to_authn_method[
                     authn_method.url_endpoint] = authn_method
-
-            self.cookie_func = self.authn_broker[0][0].create_cookie
 
         try:
             _conf = conf['userinfo']

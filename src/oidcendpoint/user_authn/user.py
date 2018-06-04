@@ -1,7 +1,6 @@
 # coding=utf-8
 import base64
 import inspect
-import json
 import logging
 import time
 from urllib.parse import parse_qs
@@ -20,8 +19,6 @@ from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import ToOld
-from oidcendpoint.cookie import CookieDealer
-from oidcendpoint.cookie import InvalidCookieSign
 
 __author__ = 'Roland Hedberg'
 
@@ -44,16 +41,17 @@ LOC = {
 }
 
 
-class UserAuthnMethod(CookieDealer):
+class UserAuthnMethod(object):
     MULTI_AUTH_COOKIE = "rp_query_cookie"
 
     # override in subclass specifying suitable url endpoint to POST user input
     url_endpoint = '/verify'
     FAILED_AUTHN = (None, True)
 
-    def __init__(self, ttl=5, endpoint_context=None):
-        CookieDealer.__init__(self, endpoint_context, ttl)
+    def __init__(self, endpoint_context=None):
         self.query_param = "upm_answer"
+        self.endpoint_context = endpoint_context
+        self.cookie_dealer = self.endpoint_context.cookie_dealer
 
     def __call__(self, **kwargs):
         """
@@ -72,8 +70,7 @@ class UserAuthnMethod(CookieDealer):
             logger.debug("kwargs: %s" % sanitize(kwargs))
 
             try:
-                val = self.get_cookie_value(cookie,
-                                            self.endpoint_context.cookie_name)
+                val = self.cookie_dealer.get_cookie_value(cookie)
             except (InvalidCookieSign, AssertionError):
                 val = None
 
@@ -83,11 +80,12 @@ class UserAuthnMethod(CookieDealer):
                 uid, _ts, typ = val
 
             if typ == "uam":  # short lived
+                _ttl = self.cookie_dealer.ttl
                 _now = int(time.time())
-                if _now > (int(_ts) + int(self.cookie_ttl * 60)):
+                if _now > (int(_ts) + int(_ttl * 60)):
                     logger.debug("Authentication timed out")
                     raise ToOld("%d > (%d + %d)" % (_now, int(_ts),
-                                                    int(self.cookie_ttl * 60)))
+                                                    int(_ttl * 60)))
             else:
                 if "max_age" in kwargs and kwargs["max_age"]:
                     _now = int(time.time())
@@ -130,7 +128,7 @@ class UserAuthnMethod(CookieDealer):
         raise NotImplemented
 
     def get_multi_auth_cookie(self, cookie):
-        rp_query_cookie = self.get_cookie_value(
+        rp_query_cookie = self.cookie_dealer.get_cookie_value(
             cookie, UserAuthnMethod.MULTI_AUTH_COOKIE)
 
         if rp_query_cookie:
@@ -331,7 +329,7 @@ class UsernamePasswordMako(UserAuthnMethod):
         logger.debug("Password verification succeeded.")
         # if "cookie" not in kwargs or self.endpoint_context.cookie_name not in
         # kwargs["cookie"]:
-        headers = [self.create_cookie(_dict["login"], "upm")]
+        headers = [self.cookie_dealer.create_cookie(_dict["login"], "upm")]
         try:
             return_to = self.generate_return_url(kwargs["return_to"], _qp)
         except KeyError:

@@ -1,9 +1,12 @@
 import json
 import os
+from http.cookies import SimpleCookie
+
 import pytest
 
 from urllib.parse import parse_qs, urlparse
 
+from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg.key_jar import build_keyjar
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationRequest
@@ -20,7 +23,7 @@ from oidcendpoint.user_info import UserInfo
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
-]
+    ]
 
 KEYJAR = build_keyjar(KEYDEFS)[1]
 
@@ -42,7 +45,7 @@ CAPABILITIES = {
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True,
-}
+    }
 
 AUTH_REQ = AuthorizationRequest(client_id='client_1',
                                 redirect_uri='https://example.com/cb',
@@ -62,6 +65,23 @@ def full_path(local_file):
 USERINFO_db = json.loads(open(full_path('users.json')).read())
 
 
+class SimpleCookieDealer(object):
+    def __init__(self, name=''):
+        self.name = name
+
+    def create_cookie(self, value, typ, **kwargs):
+        cookie = SimpleCookie()
+        timestamp = str(utc_time_sans_frac())
+
+        _payload = "::".join([value, timestamp, typ])
+        bytes_load = _payload.encode("utf-8")
+        bytes_timestamp = timestamp.encode("utf-8")
+
+        cookie_payload = [bytes_load, bytes_timestamp]
+        cookie[self.name] = (b"|".join(cookie_payload)).decode('utf-8')
+        return cookie
+
+
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
@@ -77,53 +97,55 @@ class TestEndpoint(object):
                 'url_path': '{}/jwks.json',
                 'local_path': 'static/jwks.json',
                 'private_path': 'own/jwks.json'
-            },
+                },
             'endpoint': {
                 'provider_config': {
                     'path': '{}/.well-known/openid-configuration',
                     'class': ProviderConfiguration,
                     'kwargs': {}
-                },
+                    },
                 'registration': {
                     'path': '{}/registration',
                     'class': Registration,
                     'kwargs': {}
-                },
+                    },
                 'authorization': {
                     'path': '{}/authorization',
                     'class': Authorization,
                     'kwargs': {}
-                },
+                    },
                 'token': {
                     'path': '{}/token',
                     'class': AccessToken,
                     'kwargs': {}
-                },
+                    },
                 'userinfo': {
                     'path': '{}/userinfo',
                     'class': userinfo.UserInfo,
                     'kwargs': {'db_file': 'users.json'}
-                }
-            },
+                    }
+                },
             "authentication": [{
                 'acr': INTERNETPROTOCOLPASSWORD,
                 'name': 'NoAuthn',
                 'kwargs': {'user': 'diana'}
-            }],
+                }],
             "userinfo": {
                 'class': UserInfo,
                 'kwargs': {'db': USERINFO_db}
-            },
+                },
             'template_dir': 'template'
-        }
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+            }
+        endpoint_context = EndpointContext(conf, keyjar=KEYJAR,
+                                           cookie_dealer=SimpleCookieDealer(
+                                               'foo'))
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token']
-        }
+            }
         self.endpoint = Authorization(endpoint_context)
 
     def test_init(self):

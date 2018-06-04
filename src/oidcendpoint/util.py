@@ -32,13 +32,13 @@ def make_headers(endpoint_context, user, **kwargs):
                     headers.append(tuple(x.split(": ", 1)))
 
             if endpoint_context.cookie_name not in _kaka:  # Don't overwrite
-                header = endpoint_context.cookie_func(user, typ="sso",
-                                              ttl=endpoint_context.sso_ttl)
+                header = endpoint_context.cookie_dealer.create_cookie(
+                    user, typ="sso", ttl=endpoint_context.sso_ttl)
                 if header:
                     headers.append(header)
         else:
-            header = endpoint_context.cookie_func(user, typ="sso",
-                                          ttl=endpoint_context.sso_ttl)
+            header = endpoint_context.cookie_dealer.create_cookie(
+                user, typ="sso", ttl=endpoint_context.sso_ttl)
             if header:
                 headers.append(header)
     return headers
