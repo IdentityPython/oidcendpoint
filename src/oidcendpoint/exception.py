@@ -56,3 +56,7 @@ class UnknownClient(OidcEndpointError):
 
 class UnAuthorizedClient(OidcEndpointError):
     pass
+
+
+class InvalidCookieSign(Exception):
+    pass

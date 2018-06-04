@@ -62,7 +62,7 @@ class UserInfo(Endpoint):
 
         return {'response': resp, 'http_headers': http_headers}
 
-    def process_request(self, request=None):
+    def process_request(self, request=None, cookie=None):
         _sdb = self.endpoint_context.sdb
 
         # should be an access token
@@ -75,7 +75,8 @@ class UserInfo(Endpoint):
         # Scope can translate to userinfo_claims
         info = collect_user_info(self.endpoint_context, session)
 
-        return {'response_args': info, 'client_id': session['client_id']}
+        return {'response_args': info,
+                'client_id': session['authn_req']['client_id']}
 
     def parse_request(self, request, auth=None, **kwargs):
         """

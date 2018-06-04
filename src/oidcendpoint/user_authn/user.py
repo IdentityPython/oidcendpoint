@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from oidcmsg.jwt import JWT
 
 from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication
+from oidcendpoint.exception import FailedAuthentication, InvalidCookieSign
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import ToOld
@@ -358,8 +358,9 @@ class UsernamePasswordMako(UserAuthnMethod):
 class UserPassJinja2(UserAuthnMethod):
     url_endpoint = "/verify/user_pass_jinja"
 
-    def __init__(self, db, template_env, template="user_pass.jinja2", **kwargs):
-        super(UserPassJinja2, self).__init__()
+    def __init__(self, db, template_env, template="user_pass.jinja2",
+                 endpoint_context=None, **kwargs):
+        super(UserPassJinja2, self).__init__(endpoint_context=endpoint_context)
         self.template_env = template_env
         self.template = template
 
@@ -394,8 +395,9 @@ class UserPassJinja2(UserAuthnMethod):
 class BasicAuthn(UserAuthnMethod):
 
     def __init__(self, pwd, ttl=5, endpoint_context=None):
-        UserAuthnMethod.__init__(self, ttl, endpoint_context)
+        UserAuthnMethod.__init__(self, endpoint_context)
         self.passwd = pwd
+        self.ttl = ttl
 
     def verify_password(self, user, password):
         try:
@@ -424,12 +426,13 @@ class SymKeyAuthn(UserAuthnMethod):
     # user authentication using a token
 
     def __init__(self, ttl, symkey, endpoint_context=None):
-        UserAuthnMethod.__init__(self, ttl, endpoint_context)
+        UserAuthnMethod.__init__(self, endpoint_context)
 
         if symkey is not None and symkey == "":
             msg = "SymKeyAuthn.symkey cannot be an empty value"
             raise ImproperlyConfigured(msg)
         self.symkey = symkey
+        self.ttl = ttl
 
     def authenticated_as(self, cookie=None, authorization="", **kwargs):
         """

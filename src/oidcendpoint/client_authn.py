@@ -200,7 +200,7 @@ def verify_client(endpoint_context, request, authorization_info):
 
     :param endpoint_context: SrvInfo instance
     :param request: The request
-    :param http_args: HTTP headers
+    :param authorization_info: Client authentication information
     :return: dictionary containing client id, client authentication method and
         possibly access token.
     """
@@ -243,7 +243,7 @@ def verify_client(endpoint_context, request, authorization_info):
             logger.warning('Unknown client ID')
         else:
             sinfo = endpoint_context.sdb[_token]
-            auth_info['client_id'] = sinfo['client_id']
+            auth_info['client_id'] = sinfo['authn_req']['client_id']
     else:
         try:
             _cinfo = endpoint_context.cdb[client_id]

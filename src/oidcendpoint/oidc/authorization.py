@@ -620,6 +620,8 @@ class Authorization(Endpoint):
             cookie = kwargs['cookie']
         except KeyError:
             cookie = ''
+        else:
+            del kwargs['cookie']
 
         proposed_user = self.proposed_user(request)
         if proposed_user:
