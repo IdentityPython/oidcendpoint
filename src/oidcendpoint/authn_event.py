@@ -13,8 +13,17 @@ class AuthnEvent(Message):
         'valid_until': SINGLE_OPTIONAL_INT
         }
 
+    def valid(self, now=0):
+        if now:
+            return self['valid_until'] > time_sans_frac()
+        else:
+            return self['valid_until'] > time_sans_frac()
 
-def create_authn_event(uid, salt, authn_info, **kwargs):
+    def expires_in(self):
+        return self['valid_until'] - time_sans_frac()
+
+
+def create_authn_event(uid, salt, authn_info=None, **kwargs):
     """
 
     :param uid:

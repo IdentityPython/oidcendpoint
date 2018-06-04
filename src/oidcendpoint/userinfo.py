@@ -1,10 +1,8 @@
 import logging
 
 from oidcservice import sanitize
-from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import Claims
 from oidcmsg.oidc import scope2claims
-from oidcmsg.oidc import OpenIDRequest
 
 from oidcendpoint.exception import FailedAuthentication
 
@@ -18,17 +16,14 @@ def id_token_claims(session):
     :param session: Session information
     :return: The IdToken claims
     """
-    itc = {}
-    itc = update_claims(session, "authzreq", "id_token", itc)
-    itc = update_claims(session, "oidreq", "id_token", itc)
+    itc = update_claims(session, "id_token", {})
     return itc
 
 
-def update_claims(session, where, about, old_claims=None):
+def update_claims(session, about, old_claims=None):
     """
 
     :param session:
-    :param where: Which request
     :param about: userinfo or id_token
     :param old_claims:
     :return: claims or None
@@ -38,21 +33,12 @@ def update_claims(session, where, about, old_claims=None):
         old_claims = {}
 
     req = None
-    if where == "oidreq":
-        try:
-            req = OpenIDRequest().deserialize(session[where], "json")
-        except KeyError:
-            pass
-    elif where == "authzreq":
-        try:
-            req = AuthorizationRequest().deserialize(session[where], "json")
-        except KeyError:
-            pass
-    else:
-        raise ValueError('Unknown request specifier: {}'.format(where))
+    try:
+        req = session['authn_req']
+    except KeyError:
+        pass
 
     if req:
-        logger.debug("%s: %s" % (where, sanitize(req.to_dict())))
         try:
             _claims = req["claims"][about]
         except KeyError:
@@ -126,8 +112,10 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
     :param userinfo_claims: user info claims
     :return: User info
     """
+    authn_req = session['authn_req']
+
     if userinfo_claims is None:
-        uic = scope2claims(session["scope"])
+        uic = scope2claims(authn_req["scope"])
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session
@@ -135,12 +123,8 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
         if perm_set:
             uic = {key: uic[key] for key in uic if key in perm_set}
 
-        if "oidreq" in session:
-            uic = update_claims(session, "oidreq", "userinfo",
-                                uic)
-        else:
-            uic = update_claims(session, "authzreq", "userinfo",
-                                uic)
+        uic = update_claims(session, "userinfo", uic)
+
         if uic:
             userinfo_claims = Claims(**uic)
         else:
@@ -151,13 +135,14 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
 
     logger.debug("Session info: %s" % sanitize(session))
 
-    authn_event = session.get("authn_event")
+    authn_event = session['authn_event']
     if authn_event:
         uid = authn_event["uid"]
     else:
         uid = session['uid']
 
-    info = endpoint_context.userinfo(uid, session['client_id'], userinfo_claims)
+    info = endpoint_context.userinfo(uid, authn_req['client_id'],
+                                     userinfo_claims)
 
     if "sub" in userinfo_claims:
         if not claims_match(session["sub"], userinfo_claims["sub"]):

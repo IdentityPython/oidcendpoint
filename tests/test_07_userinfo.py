@@ -1,8 +1,8 @@
 import json
 import os
 
+from oidcendpoint.authn_event import create_authn_event
 from oidcmsg.message import Message
-from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
 from oidcmsg.oidc import OpenIDSchema
 from oidcendpoint.endpoint_context import EndpointContext
@@ -21,26 +21,16 @@ CLAIMS = {
         "email_verified": {"essential": True},
         "picture": None,
         "http://example.info/claims/groups": {'value': 'red'}
-    },
+        },
     "id_token": {
         "auth_time": {"essential": True},
         "acr": {"values": ["urn:mace:incommon:iap:silver"]}
+        }
     }
-}
-
-AREQO = AuthorizationRequest(response_type="code", client_id="client1",
-                             redirect_uri="http://example.com/authz",
-                             scope=["openid", "offlien_access"],
-                             state="state000", claims=CLAIMS)
 
 OIDR = OpenIDRequest(response_type="code", client_id="client1",
                      redirect_uri="http://example.com/authz", scope=["openid"],
                      state="state000", claims=CLAIMS)
-
-SESSION_INFO = {
-    'oidreq': OIDR.to_json(),
-    'authzreq': AREQO.to_json()
-}
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -52,25 +42,29 @@ def full_path(local_file):
 USERINFO_DB = json.loads(open(full_path('users.json')).read())
 
 
-def test_update_claims_oidreq_id_token():
-    claims = update_claims(SESSION_INFO, 'oidreq', 'id_token')
+def test_update_claims_authn_req_id_token():
+    _session_info = {'authn_req': OIDR}
+    claims = update_claims(_session_info, 'id_token')
     assert set(claims.keys()) == {'auth_time', 'acr'}
 
 
-def test_update_claims_oidreq_userinfo():
-    claims = update_claims(SESSION_INFO, 'oidreq', 'userinfo')
+def test_update_claims_authn_req_userinfo():
+    _session_info = {'authn_req': OIDR}
+    claims = update_claims(_session_info, 'userinfo')
     assert set(claims.keys()) == {'given_name', 'nickname', 'email',
                                   'email_verified', 'picture',
                                   'http://example.info/claims/groups'}
 
 
 def test_update_claims_authzreq_id_token():
-    claims = update_claims(SESSION_INFO, 'oidreq', 'id_token')
+    _session_info = {'authn_req': OIDR}
+    claims = update_claims(_session_info, 'id_token')
     assert set(claims.keys()) == {'auth_time', 'acr'}
 
 
 def test_update_claims_authzreq_userinfo():
-    claims = update_claims(SESSION_INFO, 'oidreq', 'userinfo')
+    _session_info = {'authn_req': OIDR}
+    claims = update_claims(_session_info, 'userinfo')
     assert set(claims.keys()) == {'given_name', 'nickname', 'email',
                                   'email_verified', 'picture',
                                   'http://example.info/claims/groups'}
@@ -101,31 +95,38 @@ def test_by_schema():
     assert by_schema(Message, sub='John') == {}
 
     assert by_schema(OpenIDSchema, sub='John', given_name='John', age=34) == {
-        'sub': 'John', 'given_name': 'John'}
+        'sub': 'John', 'given_name': 'John'
+        }
 
 
 def test_collect_user_info():
-    session = SESSION_INFO.copy()
-    session.update({'scope': ['openid', 'profile'], 'sub': 'doe',
-                    'uid': 'diana', 'client_id': 'client'})
+    _session_info = {'authn_req': OIDR}
+    session = _session_info.copy()
+    session['sub'] = 'doe'
+    session['uid'] = 'diana'
+    session['authn_event'] = create_authn_event('diana', 'salt')
 
-    endpoint_context = EndpointContext({'userinfo': {
-                            'class': UserInfo,
-                            'kwargs': {'db': USERINFO_DB}
-                        },
-                        'password': "we didn't start the fire",
-                        'issuer': 'https://example.com/op',
-                        'token_expires_in': 900, 'grant_expires_in': 600,
-                        'refresh_token_expires_in': 86400,
-                        "endpoint": {},
-                        "authentication": [{
-                            'acr': INTERNETPROTOCOLPASSWORD,
-                            'name': 'NoAuthn',
-                            'kwargs': {'user': 'diana'}}],
-                        'template_dir': 'template'})
+    endpoint_context = EndpointContext({
+        'userinfo': {
+            'class': UserInfo,
+            'kwargs': {'db': USERINFO_DB}
+            },
+        'password': "we didn't start the fire",
+        'issuer': 'https://example.com/op',
+        'token_expires_in': 900, 'grant_expires_in': 600,
+        'refresh_token_expires_in': 86400,
+        "endpoint": {},
+        "authentication": [{
+            'acr': INTERNETPROTOCOLPASSWORD,
+            'name': 'NoAuthn',
+            'kwargs': {'user': 'diana'}
+            }],
+        'template_dir': 'template'
+        })
 
     res = collect_user_info(endpoint_context, session)
 
-    assert res == {'given_name': 'Diana', 'nickname': 'Dina',
-                   'email': 'diana@example.org', 'email_verified': False,
-                   'sub': 'doe', 'name': 'Diana Krall', 'family_name': 'Krall'}
+    assert res == {
+        'given_name': 'Diana', 'nickname': 'Dina', 'sub': 'doe',
+        'email': 'diana@example.org', 'email_verified': False
+    }

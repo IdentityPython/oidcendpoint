@@ -8,6 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from cryptojwt import jwe
 from cryptojwt import jws
+from oidcendpoint.session import create_session_db
 from oidcmsg.key_jar import KeyJar
 from oidcmsg.oidc import IdToken
 from oidcmsg.oidc import SCOPE2CLAIMS
@@ -16,7 +17,6 @@ from oidcendpoint import rndstr
 from oidcendpoint import authz
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.exception import ConfigurationError
-from oidcendpoint.sdb import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.user_authn import user
 from oidcendpoint.user_authn.authn_context import AuthnBroker
@@ -85,7 +85,7 @@ class EndpointContext(object):
             self.sdb = session_db
         else:
             self.sdb = create_session_db(
-                conf['issuer'], conf['password'], db=None,
+                conf['password'], db=None,
                 token_expires_in=conf['token_expires_in'],
                 grant_expires_in=conf['grant_expires_in'],
                 refresh_token_expires_in=conf['refresh_token_expires_in'],

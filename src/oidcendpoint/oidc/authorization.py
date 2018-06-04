@@ -13,7 +13,8 @@ from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import UnSupported
 from oidcmsg.exception import URIError
-from oidcmsg.oauth2 import AuthorizationErrorResponse, ResponseMessage
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationResponse
 
 from oidcendpoint import sanitize
@@ -24,7 +25,7 @@ from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import sign_encrypt_id_token
-from oidcendpoint.sdb import AuthnEvent
+from oidcendpoint.authn_event import AuthnEvent, create_authn_event
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
 from oidcendpoint.userinfo import collect_user_info
@@ -73,8 +74,9 @@ def re_authenticate(request, authn):
     return False
 
 
-def setup_session(endpoint_context, request, authn_event):
-    sid = endpoint_context.sdb.create_authz_session(authn_event, request)
+def setup_session(endpoint_context, request, authn_event, client_id=''):
+    sid = endpoint_context.sdb.create_authz_session(authn_event, request,
+                                                    client_id=client_id)
     endpoint_context.sdb.do_sub(sid, '')
     return sid
 
@@ -489,9 +491,10 @@ class Authorization(Endpoint):
                         else:
                             return {'function': authn, 'args': authn_args}
 
-        authn_event = AuthnEvent(identity["uid"], identity.get('salt', ''),
-                                 authn_info=authn_class_ref,
-                                 time_stamp=_ts)
+        authn_event = create_authn_event(identity["uid"],
+                                         identity.get('salt', ''),
+                                         authn_info=authn_class_ref,
+                                         time_stamp=_ts)
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
@@ -629,11 +632,7 @@ class Authorization(Endpoint):
             return info
 
         try:
-            # Run the authentication function
-            return {
-                'http_response': info['function'](**info['args']),
-                'return_uri': request["redirect_uri"]
-            }
+            _function = info['function']
         except KeyError:  # already authenticated
             logger.debug("- authenticated -")
             logger.debug("AREQ keys: %s" % request.keys())
@@ -642,6 +641,11 @@ class Authorization(Endpoint):
                                    cookie=cookie)
 
             return res
-        except Exception as err:
-            logger.exception(err)
-            return {'http_response': 'Internal error: {}'.format(err)}
+        else:
+            try:
+                # Run the authentication function
+                return {'http_response': _function(**info['args']),
+                        'return_uri': request["redirect_uri"]}
+            except Exception as err:
+                logger.exception(err)
+                return {'http_response': 'Internal error: {}'.format(err)}

@@ -42,7 +42,7 @@ class AccessToken(Endpoint):
         _access_code = request["code"].replace(' ', '+')
         _info = _context.sdb[_access_code]
 
-        if "openid" in _info["scope"]:
+        if "openid" in _info['authn_req']["scope"]:
             userinfo = userinfo_in_id_token_claims(_context, _info)
             try:
                 _idtoken = sign_encrypt_id_token(_context, _info,
@@ -101,7 +101,8 @@ class AccessToken(Endpoint):
 
         permissions = _info.get('permission', ['offline_access']) or [
             'offline_access']
-        if 'offline_access' in _info[
+
+        if 'offline_access' in _info['authn_req'][
                 'scope'] and 'offline_access' in permissions:
             issue_refresh = True
 
@@ -115,7 +116,7 @@ class AccessToken(Endpoint):
             return self.error_cls(error="access_denied",
                                   error_description="Access Code already used")
 
-        if "openid" in _info["scope"]:
+        if "openid" in _info['authn_req']["scope"]:
             userinfo = userinfo_in_id_token_claims(_context, _info)
             client_info = _context.cdb[str(req["client_id"])]
             try:

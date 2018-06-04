@@ -40,11 +40,13 @@ def id_token_payload(session, loa="2", alg="RS256", code=None,
 
     :param session: Session information
     :param loa: Level of Assurance/Authentication context
-    :param issuer: My identifier
     :param alg: Which signing algorithm to use for the IdToken
     :param code: Access grant
     :param access_token: Access Token
     :param user_info: If user info are to be part of the IdToken
+    :param auth_time:
+    :param lifetime: Life time of the ID Token
+    :param extra_claims: extra claims to be added to the ID Token
     :return: IDToken instance
     """
 
@@ -98,10 +100,12 @@ def id_token_payload(session, loa="2", alg="RS256", code=None,
         _args["at_hash"] = jws.left_hash(access_token.encode("utf-8"),
                                          halg)
 
-    try:
-        _args["nonce"] = session["nonce"]
-    except KeyError:
-        pass
+    authn_req = session['authn_req']
+    if authn_req:
+        try:
+            _args["nonce"] = authn_req["nonce"]
+        except KeyError:
+            pass
 
     return {'payload': _args, 'lifetime': lifetime}
 
@@ -128,7 +132,7 @@ def sign_encrypt_id_token(endpoint_context, session_info, client_id, code=None,
                                                'id_token', sign=sign,
                                                encrypt=encrypt)
 
-    _authn_event = session_info["authn_event"]
+    _authn_event = session_info['authn_event']
 
     _idt_info = id_token_payload(session_info, loa=_authn_event["authn_info"],
                                  alg = alg_dict['sign_alg'], code=code,

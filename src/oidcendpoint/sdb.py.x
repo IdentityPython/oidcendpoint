@@ -206,14 +206,12 @@ class SessionDB(object):
 
         return sub
 
-    def create_authz_session(self, aevent, areq, id_token=None, oidreq=None,
-                             **kwargs):
+    def create_authz_session(self, aevent, areq, id_token=None, **kwargs):
         """
 
         :param aevent: An AuthnEvent instance
         :param areq: The AuthorizationRequest instance
         :param id_token: An IDToken instance
-        :param oidreq: An OpenIDRequest instance
         :return: The session identifier, which is the database key
         """
 
@@ -246,8 +244,6 @@ class SessionDB(object):
 
         if id_token:
             _dic["id_token"] = id_token
-        if oidreq:
-            _dic["oidreq"] = oidreq.to_json()
 
         # Add to SSO db
         self.sso_db.map_sid2uid(sid, aevent.uid)

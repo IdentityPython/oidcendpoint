@@ -14,7 +14,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.sdb import AuthnEvent
+from oidcendpoint.authn_event import AuthnEvent, create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
@@ -70,9 +70,11 @@ USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
 
 
 def setup_session(endpoint_context, areq):
-    authn_event = AuthnEvent("uid", 'salt', authn_info=INTERNETPROTOCOLPASSWORD,
+    authn_event = create_authn_event(uid="uid", salt='salt',
+                             authn_info=INTERNETPROTOCOLPASSWORD,
                              time_stamp=time.time())
-    sid = endpoint_context.sdb.create_authz_session(authn_event, areq)
+    sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
+                                                    client_id='client_id')
     endpoint_context.sdb.do_sub(sid, '')
     return sid
 
