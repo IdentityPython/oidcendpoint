@@ -5,17 +5,16 @@ import time
 import sys
 
 from oidcendpoint import sanitize
-from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.exception import ToOld
 
 logger = logging.getLogger(__name__)
 
 
-class AuthzHandling(CookieDealer):
+class AuthzHandling(object):
     """ Class that allow an entity to manage authorization """
 
-    def __init__(self, endpoint_context):
-        CookieDealer.__init__(self, endpoint_context=endpoint_context)
+    def __init__(self, cookie_dealer):
+        self.cookie_dealer = cookie_dealer
         self.permdb = {}
 
     def __call__(self, *args, **kwargs):
@@ -27,8 +26,7 @@ class AuthzHandling(CookieDealer):
         else:
             logger.debug("kwargs: %s" % sanitize(kwargs))
 
-            val = self.get_cookie_value(cookie,
-                                        self.endpoint_context.cookie_name)
+            val = self.cookie_dealer.get_cookie_value(cookie)
             if val is None:
                 return None
             else:
@@ -36,10 +34,11 @@ class AuthzHandling(CookieDealer):
 
             if typ == "uam":  # shortlived
                 _now = int(time.time())
-                if _now > (int(_ts) + int(self.cookie_ttl * 60)):
+                if _now > (int(_ts) + int(self.cookie_dealer.cookie_ttl * 60)):
                     logger.debug("Authentication timed out")
-                    raise ToOld("%d > (%d + %d)" % (_now, int(_ts),
-                                                    int(self.cookie_ttl * 60)))
+                    raise ToOld("%d > (%d + %d)" % (
+                        _now, int(_ts),
+                        int(self.cookie_dealer.cookie_ttl * 60)))
             else:
                 if "max_age" in kwargs and kwargs["max_age"]:
                     _now = int(time.time())
@@ -57,15 +56,15 @@ class UserInfoConsent(AuthzHandling):
 
 
 class Implicit(AuthzHandling):
-    def __init__(self, endpoint_context, permission="implicit"):
-        AuthzHandling.__init__(self, endpoint_context)
+    def __init__(self, cookie_handler, permission="implicit"):
+        AuthzHandling.__init__(self, cookie_handler)
         self.permission = permission
 
     def permissions(self, cookie=None, **kwargs):
         return self.permission
 
 
-def factory(msgtype, endpoint_context, **kwargs):
+def factory(msgtype, cookie_handler, **kwargs):
     """
     Factory method that can be used to easily instantiate a class instance
 
@@ -78,6 +77,6 @@ def factory(msgtype, endpoint_context, **kwargs):
         if inspect.isclass(obj) and issubclass(obj, AuthzHandling):
             try:
                 if obj.__name__ == msgtype:
-                    return obj(endpoint_context, **kwargs)
+                    return obj(cookie_handler, **kwargs)
             except AttributeError:
                 pass

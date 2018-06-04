@@ -76,7 +76,7 @@ def add_path(url, path):
 
 class EndpointContext(object):
     def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
-                 cwd=''):
+                 cwd='', cookie_dealer=None):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
