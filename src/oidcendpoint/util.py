@@ -16,7 +16,10 @@ def make_headers(endpoint_context, user, **kwargs):
     try:
         _kaka = kwargs["cookie"]
     except KeyError:
-        pass
+        header = endpoint_context.cookie_dealer.create_cookie(
+            user, typ="sso", ttl=endpoint_context.sso_ttl)
+        if header:
+            headers.append(header)
     else:
         if _kaka:
             if isinstance(_kaka, dict):

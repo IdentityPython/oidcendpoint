@@ -236,7 +236,10 @@ class Endpoint(object):
             except KeyError:
                 http_headers = [('Content-type', content_type)]
         else:
-            http_headers = []
+            try:
+                http_headers = kwargs['http_headers']
+            except KeyError:
+                http_headers = []
 
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 
