@@ -60,14 +60,14 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
-        "oidcmsg",
-        'oidcservice',
+        "oidcmsg>=0.3.5",
+        'oidcservice>=0.5.10',
         "cryptojwt",
         "jinja2"
-    ],
+        ],
     tests_require=[
         "pytest"
-    ],
+        ],
     zip_safe=False,
     cmdclass={'test': PyTest},
-)
+    )
