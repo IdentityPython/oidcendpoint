@@ -25,11 +25,11 @@ from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import sign_encrypt_id_token
-from oidcendpoint.authn_event import AuthnEvent, create_authn_event
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
 from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.util import add_cookie
+from oidcendpoint.util import new_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -568,7 +568,7 @@ class Authorization(Endpoint):
         if isinstance(info, ResponseMessage):
             return info
 
-        _cookie = add_cookie(self.endpoint_context, user, **kwargs)
+        _cookie = new_cookie(self.endpoint_context, user, **kwargs)
 
         # Now about the response_mode. Should not be set if it's obvious
         # from the response_type. Knows about 'query', 'fragment' and

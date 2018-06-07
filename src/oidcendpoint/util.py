@@ -11,30 +11,9 @@ OAUTH2_NOCACHE_HEADERS = [
 ]
 
 
-def add_cookie(endpoint_context, user, **kwargs):
-    try:
-        _kaka = kwargs["cookie"]
-    except KeyError:
-        cookie = endpoint_context.cookie_dealer.create_cookie(
-            user, typ="sso", ttl=endpoint_context.sso_ttl)
-    else:
-        if _kaka:
-            cookie = SimpleCookie()
-            if isinstance(_kaka, dict):
-                for name, val in _kaka.items():
-                    cookie[name] = val
-            else:
-                cookie.load(_kaka)
-
-            if endpoint_context.cookie_name not in _kaka:  # Don't overwrite
-                _c = endpoint_context.cookie_dealer.create_cookie(
-                    user, typ="sso", ttl=endpoint_context.sso_ttl)
-                for name, val in _c:
-                    cookie[name] = val
-        else:
-            cookie = endpoint_context.cookie_dealer.create_cookie(
-                user, typ="sso", ttl=endpoint_context.sso_ttl)
-    return cookie
+def new_cookie(endpoint_context, user, **kwargs):
+    return endpoint_context.cookie_dealer.create_cookie(
+        user, typ="sso", ttl=endpoint_context.sso_ttl)
 
 
 DEF_SIGN_ALG = {"id_token": "RS256",

@@ -16,7 +16,7 @@ from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
-from oidcendpoint.util import add_cookie
+from oidcendpoint.util import new_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,7 @@ class AccessToken(Endpoint):
             response_args = self._refresh_access_token(request, **kwargs)
 
         _access_code = request["code"].replace(' ', '+')
-        _cookie = add_cookie(self.endpoint_context,
+        _cookie = new_cookie(self.endpoint_context,
                              self.endpoint_context.sdb[_access_code]['sub'])
         _headers = [('Content-type', 'application/json')]
         return {'response_args': response_args, 'http_headers': _headers,

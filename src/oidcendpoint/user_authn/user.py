@@ -71,7 +71,8 @@ class UserAuthnMethod(object):
 
             try:
                 val = self.cookie_dealer.get_cookie_value(cookie)
-            except (InvalidCookieSign, AssertionError):
+            except (InvalidCookieSign, AssertionError) as err:
+                logger.warning(err)
                 val = None
 
             if val is None:
