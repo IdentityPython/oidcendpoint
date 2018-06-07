@@ -29,7 +29,7 @@ from oidcendpoint.authn_event import AuthnEvent, create_authn_event
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
 from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.util import make_headers
+from oidcendpoint.util import add_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -568,7 +568,7 @@ class Authorization(Endpoint):
         if isinstance(info, ResponseMessage):
             return info
 
-        headers = make_headers(self.endpoint_context, user, **kwargs)
+        _cookie = add_cookie(self.endpoint_context, user, **kwargs)
 
         # Now about the response_mode. Should not be set if it's obvious
         # from the response_type. Knows about 'query', 'fragment' and
@@ -581,7 +581,7 @@ class Authorization(Endpoint):
                 return AuthorizationErrorResponse(
                     error="invalid_request", error_description=str(err))
 
-        response_info['http_headers'] = headers
+        response_info['cookie'] = _cookie
 
         return response_info
 

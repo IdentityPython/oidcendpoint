@@ -2,7 +2,6 @@ import logging
 
 from cryptojwt.jwe import JWEException
 from cryptojwt.jws import NoSuitableSigningKeys
-
 from oidcmsg import oidc
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AccessTokenResponse
@@ -17,7 +16,7 @@ from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
-from oidcendpoint.util import make_headers
+from oidcendpoint.util import add_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -103,12 +102,12 @@ class AccessToken(Endpoint):
             'offline_access']
 
         if 'offline_access' in _info['authn_req'][
-                'scope'] and 'offline_access' in permissions:
+            'scope'] and 'offline_access' in permissions:
             issue_refresh = True
 
         try:
             _info = _sdb.upgrade_to_token(_access_code,
-                                           issue_refresh=issue_refresh)
+                                          issue_refresh=issue_refresh)
         except AccessCodeUsed as err:
             logger.error("%s" % err)
             # Should revoke the token issued to this access code
@@ -121,7 +120,8 @@ class AccessToken(Endpoint):
             client_info = _context.cdb[str(req["client_id"])]
             try:
                 _idtoken = sign_encrypt_id_token(_context,
-                    _info, req["client_id"], sign=True, user_info=userinfo)
+                                                 _info, req["client_id"], sign=True,
+                                                 user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 return self.error_cls(
@@ -223,7 +223,8 @@ class AccessToken(Endpoint):
             response_args = self._refresh_access_token(request, **kwargs)
 
         _access_code = request["code"].replace(' ', '+')
-        _headers = make_headers(self.endpoint_context,
-                                self.endpoint_context.sdb[_access_code]['sub'])
-        _headers.append(('Content-type', 'application/json'))
-        return {'response_args': response_args, 'http_headers': _headers}
+        _cookie = add_cookie(self.endpoint_context,
+                             self.endpoint_context.sdb[_access_code]['sub'])
+        _headers = [('Content-type', 'application/json')]
+        return {'response_args': response_args, 'http_headers': _headers,
+                'cookie': _cookie}

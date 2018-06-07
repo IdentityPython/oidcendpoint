@@ -243,4 +243,11 @@ class Endpoint(object):
 
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 
-        return {'response': resp, 'http_headers': http_headers}
+        _resp = {'response': resp, 'http_headers': http_headers}
+
+        try:
+            _resp['cookie'] = kwargs['cookie']
+        except KeyError:
+            pass
+
+        return _resp

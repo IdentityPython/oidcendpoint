@@ -11,40 +11,30 @@ OAUTH2_NOCACHE_HEADERS = [
 ]
 
 
-def make_headers(endpoint_context, user, **kwargs):
-    headers = []
+def add_cookie(endpoint_context, user, **kwargs):
     try:
         _kaka = kwargs["cookie"]
     except KeyError:
-        header = endpoint_context.cookie_dealer.create_cookie(
+        cookie = endpoint_context.cookie_dealer.create_cookie(
             user, typ="sso", ttl=endpoint_context.sso_ttl)
-        if header:
-            headers.append(header)
     else:
         if _kaka:
+            cookie = SimpleCookie()
             if isinstance(_kaka, dict):
                 for name, val in _kaka.items():
-                    _c = SimpleCookie()
-                    _c[name] = val
-                    _x = _c.output()
-                    headers.append(tuple(_x.split(": ", 1)))
+                    cookie[name] = val
             else:
-                _c = SimpleCookie()
-                _c.load(_kaka)
-                for x in _c.output().split('\r\n'):
-                    headers.append(tuple(x.split(": ", 1)))
+                cookie.load(_kaka)
 
             if endpoint_context.cookie_name not in _kaka:  # Don't overwrite
-                header = endpoint_context.cookie_dealer.create_cookie(
+                _c = endpoint_context.cookie_dealer.create_cookie(
                     user, typ="sso", ttl=endpoint_context.sso_ttl)
-                if header:
-                    headers.append(header)
+                for name, val in _c:
+                    cookie[name] = val
         else:
-            header = endpoint_context.cookie_dealer.create_cookie(
+            cookie = endpoint_context.cookie_dealer.create_cookie(
                 user, typ="sso", ttl=endpoint_context.sso_ttl)
-            if header:
-                headers.append(header)
-    return headers
+    return cookie
 
 
 DEF_SIGN_ALG = {"id_token": "RS256",
