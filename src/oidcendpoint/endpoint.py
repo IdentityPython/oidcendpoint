@@ -166,7 +166,7 @@ class Endpoint(object):
 
         return response_args
 
-    def process_request(self, request=None):
+    def process_request(self, request=None, **kwargs):
         """
 
         :param request: The request, can be in a number of formats

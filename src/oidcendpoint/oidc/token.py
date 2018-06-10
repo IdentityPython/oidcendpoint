@@ -3,6 +3,7 @@ import logging
 from cryptojwt.jwe import JWEException
 from cryptojwt.jws import NoSuitableSigningKeys
 from oidcmsg import oidc
+from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AccessTokenResponse
 from oidcmsg.oidc import RefreshAccessTokenRequest
@@ -221,6 +222,9 @@ class AccessToken(Endpoint):
 
         else:
             response_args = self._refresh_access_token(request, **kwargs)
+
+        if isinstance(response_args, ResponseMessage):
+            return response_args
 
         _access_code = request["code"].replace(' ', '+')
         _cookie = new_cookie(self.endpoint_context,
