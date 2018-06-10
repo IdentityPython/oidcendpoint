@@ -356,6 +356,11 @@ class UsernamePasswordMako(UserAuthnMethod):
             return False
 
 
+LABELS = {
+    'tos_uri': 'Terms of Service',
+    'policy_uri': 'Service policy',
+    'logo_uri': ''
+}
 class UserPassJinja2(UserAuthnMethod):
     url_endpoint = "/verify/user_pass_jinja"
 
@@ -372,13 +377,30 @@ class UserPassJinja2(UserAuthnMethod):
         self.kwargs.setdefault("user_label", "Username")
         self.kwargs.setdefault("passwd_label", "Password")
         self.kwargs.setdefault("submit_btn", "Log in")
+        self.kwargs.setdefault("tos_uri", "")
+        self.kwargs.setdefault("logo_uri", "")
+        self.kwargs.setdefault("policy_uri", "")
+        self.kwargs.setdefault("tos_label", "")
+        self.kwargs.setdefault("logo_label", "")
+        self.kwargs.setdefault("policy_label", "")
 
     def __call__(self, **kwargs):
         template = self.template_env.get_template(self.template)
         _ec = self.endpoint_context
         jws = create_signed_jwt(_ec.issuer, _ec.keyjar, **kwargs)
-        return template.render(action=self.url_endpoint, token=jws,
-                               **self.kwargs)
+
+        _kwargs = self.kwargs.copy()
+        for attr in ['policy', 'tos', 'logo']:
+            _uri = '{}_uri'.format(attr)
+            try:
+                _kwargs[_uri] = kwargs[_uri]
+            except KeyError:
+                pass
+            else:
+                _label = '{}_label'.format(attr)
+                _kwargs[_label] = LABELS[_uri]
+
+        return template.render(action=self.url_endpoint, token=jws, **_kwargs)
 
     def verify(self, *args, **kwargs):
         username = kwargs["username"]
