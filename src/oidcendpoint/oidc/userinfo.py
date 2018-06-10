@@ -26,6 +26,10 @@ class UserInfo(Endpoint):
     endpoint_name = 'userinfo_endpoint'
 
     def do_response(self, response_args=None, request=None, **kwargs):
+
+        if 'error' in kwargs:
+            return Endpoint.do_response(self, response_args, request, **kwargs)
+
         _context = self.endpoint_context
         # Should I return a JSON or a JWT ?
         _cinfo = _context.cdb[kwargs['client_id']]
@@ -62,7 +66,7 @@ class UserInfo(Endpoint):
 
         return {'response': resp, 'http_headers': http_headers}
 
-    def process_request(self, request=None, cookie=None):
+    def process_request(self, request=None, **kwargs):
         _sdb = self.endpoint_context.sdb
 
         # should be an access token
