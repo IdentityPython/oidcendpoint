@@ -91,7 +91,7 @@ class UserInfo(Endpoint):
             request = {}
 
         # Verify that the client is allowed to do this
-        auth_info = self.client_authentication({}, auth, **kwargs)
+        auth_info = self.client_authentication(request, auth, **kwargs)
         if isinstance(auth_info, ResponseMessage):
             return auth_info
         else:
