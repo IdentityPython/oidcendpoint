@@ -161,7 +161,7 @@ class TestEndpoint(object):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)
         _resp = self.endpoint.process_request(request=_req)
         assert set(_resp.keys()) == {'response_args', 'fragment_enc',
-                                     'return_uri', 'http_headers'}
+                                     'return_uri', 'cookie'}
 
     def test_do_response_code(self):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)

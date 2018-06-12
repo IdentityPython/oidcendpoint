@@ -12,8 +12,11 @@ OAUTH2_NOCACHE_HEADERS = [
 
 
 def new_cookie(endpoint_context, user, **kwargs):
-    return endpoint_context.cookie_dealer.create_cookie(
-        user, typ="sso", ttl=endpoint_context.sso_ttl)
+    if endpoint_context.cookie_dealer:
+        return endpoint_context.cookie_dealer.create_cookie(
+            user, typ="sso", ttl=endpoint_context.sso_ttl)
+    else:
+        return None
 
 
 DEF_SIGN_ALG = {"id_token": "RS256",

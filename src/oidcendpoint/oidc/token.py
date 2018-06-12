@@ -230,5 +230,7 @@ class AccessToken(Endpoint):
         _cookie = new_cookie(self.endpoint_context,
                              self.endpoint_context.sdb[_access_code]['sub'])
         _headers = [('Content-type', 'application/json')]
-        return {'response_args': response_args, 'http_headers': _headers,
-                'cookie': _cookie}
+        resp = {'response_args': response_args, 'http_headers': _headers}
+        if _cookie:
+            resp['cookie'] = _cookie
+        return resp
