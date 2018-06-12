@@ -45,6 +45,13 @@ def set_content_type(headers, content_type):
     return _headers
 
 
+def fragment_encoding(return_type):
+    if return_type == ['code']:
+        return False
+    else:
+        return True
+
+
 class Endpoint(object):
     request_cls = Message
     response_cls = Message
@@ -219,7 +226,7 @@ class Endpoint(object):
             try:
                 fragment_enc = kwargs['fragment_enc']
             except KeyError:
-                fragment_enc = False
+                fragment_enc = fragment_encoding(kwargs['return_type'])
 
             if fragment_enc:
                 resp = _response.request(kwargs['return_uri'], True)
