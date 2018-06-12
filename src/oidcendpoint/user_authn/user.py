@@ -361,6 +361,8 @@ LABELS = {
     'policy_uri': 'Service policy',
     'logo_uri': ''
 }
+
+
 class UserPassJinja2(UserAuthnMethod):
     url_endpoint = "/verify/user_pass_jinja"
 
@@ -413,6 +415,19 @@ class UserPassJinja2(UserAuthnMethod):
     def unpack_token(self, token):
         return verify_signed_jwt(token=token,
                                  keyjar=self.endpoint_context.keyjar)
+
+    def done(self, areq):
+        """
+
+        :param areq: Authentication request
+        :return: True if the 'query_parameter' doesn't appear in the request
+        """
+        try:
+            _ = areq[self.query_param]
+        except KeyError:
+            return True
+        else:
+            return False
 
 
 class BasicAuthn(UserAuthnMethod):
