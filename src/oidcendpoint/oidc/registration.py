@@ -397,5 +397,8 @@ class Registration(Endpoint):
         return response
 
     def process_request(self, request=None, **kwargs):
-        return {'response_args':
-                    self.client_registration_setup(request)}
+        reg_resp = self.client_registration_setup(request)
+        if isinstance(reg_resp, ResponseMessage):
+            return reg_resp
+        else:
+            return {'response_args': reg_resp}
