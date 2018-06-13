@@ -16,6 +16,7 @@ from oidcmsg.exception import URIError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import sanitize
 from oidcendpoint.endpoint import Endpoint
@@ -58,7 +59,7 @@ def inputs(form_args):
 
 def max_age(request):
     try:
-        return request["request"]["max_age"]
+        return request[verified_claim_name("request")]["max_age"]
     except KeyError:
         try:
             return request["max_age"]
@@ -414,7 +415,7 @@ class Authorization(Endpoint):
 
     def proposed_user(self, request):
         try:
-            return request['verified_it_token_hint']['sub']
+            return request[verified_claim_name('it_token_hint')]['sub']
         except KeyError:
             return ''
 
