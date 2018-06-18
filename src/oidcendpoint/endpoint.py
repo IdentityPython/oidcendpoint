@@ -201,6 +201,10 @@ class Endpoint(object):
         return self.construct(response_args, request, **kwargs)
 
     def do_response(self, response_args=None, request=None, error='', **kwargs):
+        do_placement = True
+        content_type = 'text/html'
+        _resp = {}
+
         if response_args is None:
             response_args = {}
 
@@ -210,31 +214,37 @@ class Endpoint(object):
                 _response['error_description'] = kwargs['error_description']
             except KeyError:
                 pass
+        elif 'response_msg' in kwargs:
+            resp = kwargs['response_msg']
+            do_placement = False
+            _response = ''
+            _resp['response_placement'] = 'body'
         else:
             _response = self.response_info(response_args, request, **kwargs)
 
-        if self.response_placement == 'body':
-            if self.response_format == 'json':
-                content_type = 'application/json'
-                resp = _response.to_json()
-            else:
-                content_type = 'application/x-www-form-urlencoded'
-                resp = _response.to_urlencoded()
-        elif self.response_placement == 'url':
-            # content_type = 'application/x-www-form-urlencoded'
-            content_type = ''
-            try:
-                fragment_enc = kwargs['fragment_enc']
-            except KeyError:
-                fragment_enc = fragment_encoding(kwargs['return_type'])
+        if do_placement:
+            if self.response_placement == 'body':
+                if self.response_format == 'json':
+                    content_type = 'application/json'
+                    resp = _response.to_json()
+                else:
+                    content_type = 'application/x-www-form-urlencoded'
+                    resp = _response.to_urlencoded()
+            elif self.response_placement == 'url':
+                # content_type = 'application/x-www-form-urlencoded'
+                content_type = ''
+                try:
+                    fragment_enc = kwargs['fragment_enc']
+                except KeyError:
+                    fragment_enc = fragment_encoding(kwargs['return_type'])
 
-            if fragment_enc:
-                resp = _response.request(kwargs['return_uri'], True)
+                if fragment_enc:
+                    resp = _response.request(kwargs['return_uri'], True)
+                else:
+                    resp = _response.request(kwargs['return_uri'])
             else:
-                resp = _response.request(kwargs['return_uri'])
-        else:
-            raise ValueError(
-                "Don't know where that is: '{}".format(self.response_placement))
+                raise ValueError(
+                    "Don't know where that is: '{}".format(self.response_placement))
 
         if content_type:
             try:
@@ -250,7 +260,7 @@ class Endpoint(object):
 
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 
-        _resp = {'response': resp, 'http_headers': http_headers}
+        _resp.update({'response': resp, 'http_headers': http_headers})
 
         try:
             _resp['cookie'] = kwargs['cookie']

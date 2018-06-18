@@ -507,8 +507,8 @@ class Authorization(Endpoint):
         if resp_mode == "form_post":
             msg = FORM_POST.format(
                 inputs=inputs(kwargs["response_args"].to_dict()),
-                action=kwargs["redirect_uri"])
-            kwargs['response_args'] = msg
+                action=kwargs["return_uri"])
+            kwargs['response_msg'] = msg
             return kwargs
         elif resp_mode == 'fragment' and not kwargs['fragment_enc']:
             # Can't be done
