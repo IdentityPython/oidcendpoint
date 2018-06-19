@@ -271,6 +271,9 @@ class SessionDB(object):
         if oidreq:
             session_info["oidreq"] = oidreq
 
+        if self.handler['access_token'].lifetime:
+            session_info['expires_in'] = self.handler['access_token'].lifetime
+
         if issue_refresh:
             session_info = self.replace_token(key, session_info,
                                               'refresh_token')
