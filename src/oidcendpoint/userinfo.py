@@ -174,7 +174,7 @@ def userinfo_in_id_token_claims(endpoint_context, session):
     _claims = by_schema(endpoint_context.id_token_schema, **itc)
 
     if _claims:
-        return collect_user_info(session, _claims)
+        return collect_user_info(endpoint_context, session, _claims)
     else:
         return None
 
