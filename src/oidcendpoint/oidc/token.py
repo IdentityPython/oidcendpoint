@@ -41,12 +41,17 @@ class AccessToken(Endpoint):
         _context = self.endpoint_context
         _access_code = request["code"].replace(' ', '+')
         _info = _context.sdb[_access_code]
+        _authn_req = _info['authn_req']
+        try:
+            _client_id = request['client_id']
+        except KeyError:
+            _client_id = _authn_req['client_id']
 
-        if "openid" in _info['authn_req']["scope"]:
+        if "openid" in _authn_req["scope"]:
             userinfo = userinfo_in_id_token_claims(_context, _info)
             try:
                 _idtoken = sign_encrypt_id_token(_context, _info,
-                                                 str(request["client_id"]),
+                                                 str(_client_id),
                                                  user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
@@ -81,6 +86,8 @@ class AccessToken(Endpoint):
             return self.error_cls(error="invalid_request",
                                   error_description="Code is invalid")
 
+        _authn_req = _info['authn_req']
+
         # assert that the code is valid
         if _context.sdb.is_session_revoked(_access_code):
             return self.error_cls(error="invalid_request",
@@ -88,8 +95,8 @@ class AccessToken(Endpoint):
 
         # If redirect_uri was in the initial authorization request
         # verify that the one given here is the correct one.
-        if "redirect_uri" in _info:
-            if req["redirect_uri"] != _info["redirect_uri"]:
+        if "redirect_uri" in _authn_req:
+            if req["redirect_uri"] != _authn_req["redirect_uri"]:
                 return self.error_cls(error="invalid_request",
                                       error_description="redirect_uri mismatch")
 
@@ -99,11 +106,10 @@ class AccessToken(Endpoint):
         if "issue_refresh" in kwargs:
             issue_refresh = kwargs["issue_refresh"]
 
-        permissions = _info.get('permission', ['offline_access']) or [
-            'offline_access']
+        # offline_access the default if nothing is specified
+        permissions = _info.get('permission', ['offline_access'])
 
-        if 'offline_access' in _info['authn_req'][
-            'scope'] and 'offline_access' in permissions:
+        if 'offline_access' in _authn_req['scope'] and 'offline_access' in permissions:
             issue_refresh = True
 
         try:
@@ -116,13 +122,17 @@ class AccessToken(Endpoint):
             return self.error_cls(error="access_denied",
                                   error_description="Access Code already used")
 
-        if "openid" in _info['authn_req']["scope"]:
+        if "openid" in _authn_req["scope"]:
             userinfo = userinfo_in_id_token_claims(_context, _info)
-            client_info = _context.cdb[str(req["client_id"])]
+
             try:
-                _idtoken = sign_encrypt_id_token(_context,
-                                                 _info, req["client_id"], sign=True,
-                                                 user_info=userinfo)
+                _client_id = req['client_id']
+            except KeyError:
+                _client_id = _authn_req['client_id']
+
+            try:
+                _idtoken = sign_encrypt_id_token(_context, _info, _client_id,
+                                                 sign=True, user_info=userinfo)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 return self.error_cls(
