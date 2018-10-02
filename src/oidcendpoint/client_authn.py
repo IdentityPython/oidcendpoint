@@ -4,10 +4,10 @@ import logging
 from cryptojwt.exception import Invalid
 from cryptojwt.exception import MissingKey
 from cryptojwt.jwt import utc_time_sans_frac
-from cryptojwt import as_bytes
-from cryptojwt import as_unicode
+from cryptojwt.utils import as_bytes
+from cryptojwt.utils import as_unicode
 
-from oidcmsg.jwt import JWT
+from cryptojwt.jwt import JWT
 from oidcmsg.oidc import AuthnToken
 
 from oidcendpoint import JWT_BEARER

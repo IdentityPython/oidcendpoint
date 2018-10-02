@@ -11,7 +11,7 @@ from urllib.parse import splitquery
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
-from cryptojwt import jws
+from cryptojwt.jws.utils import alg2keytype
 
 from oidcservice import sanitize
 from oidcservice.exception import CapabilitiesMisMatch
@@ -198,7 +198,7 @@ class Registration(Endpoint):
             if item in request:
                 if request[item] in _context.provider_info[
                         PREFERENCE2PROVIDER[item]]:
-                    ktyp = jws.alg2keytype(request[item])
+                    ktyp = alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
                         _k = _context.keyjar.get_signing_key(ktyp,

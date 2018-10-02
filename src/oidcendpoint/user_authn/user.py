@@ -12,7 +12,7 @@ from urllib.parse import urlunsplit
 import sys
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from oidcmsg.jwt import JWT
+from cryptojwt.jwt import JWT
 
 from oidcendpoint import sanitize
 from oidcendpoint.exception import FailedAuthentication, InvalidCookieSign

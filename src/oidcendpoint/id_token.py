@@ -1,8 +1,8 @@
 import logging
 
-from cryptojwt import jws
+from cryptojwt.jws.utils import left_hash
 
-from oidcmsg.jwt import JWT
+from cryptojwt.jwt import JWT
 
 from oidcservice.exception import AccessDenied
 
@@ -95,9 +95,9 @@ def id_token_payload(session, loa="2", alg="RS256", code=None,
     # Left hashes of code and/or access_token
     halg = "HS%s" % alg[-3:]
     if code:
-        _args["c_hash"] = jws.left_hash(code.encode("utf-8"), halg)
+        _args["c_hash"] = left_hash(code.encode("utf-8"), halg)
     if access_token:
-        _args["at_hash"] = jws.left_hash(access_token.encode("utf-8"),
+        _args["at_hash"] = left_hash(access_token.encode("utf-8"),
                                          halg)
 
     authn_req = session['authn_req']

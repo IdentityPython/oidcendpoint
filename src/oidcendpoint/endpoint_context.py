@@ -7,9 +7,9 @@ import os
 from jinja2 import Environment, FileSystemLoader
 
 from cryptojwt import jwe
-from cryptojwt import jws
+from cryptojwt.jws import jws
 from oidcendpoint.session import create_session_db
-from oidcmsg.key_jar import KeyJar
+from cryptojwt.key_jar import KeyJar
 from oidcmsg.oidc import IdToken
 from oidcmsg.oidc import SCOPE2CLAIMS
 
