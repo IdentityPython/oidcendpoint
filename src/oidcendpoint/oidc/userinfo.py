@@ -4,7 +4,7 @@ import logging
 from cryptojwt.exception import UnknownAlgorithm
 
 from oidcmsg import oidc
-from oidcmsg.jwt import JWT
+from cryptojwt.jwt import JWT
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 

@@ -1,7 +1,7 @@
 import logging
 
-from cryptojwt.jwe import JWEException
-from cryptojwt.jws import NoSuitableSigningKeys
+from cryptojwt.jwe.exception import JWEException
+from cryptojwt.jws.exception import NoSuitableSigningKeys
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AccessTokenRequest

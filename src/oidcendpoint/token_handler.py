@@ -5,8 +5,8 @@ import logging
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
 
-from cryptojwt import as_bytes
-from cryptojwt import as_unicode
+from cryptojwt.utils import as_bytes
+from cryptojwt.utils import as_unicode
 
 from oidcmsg.time_util import time_sans_frac
 

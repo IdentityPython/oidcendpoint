@@ -5,8 +5,8 @@ from urllib.parse import splitquery
 from urllib.parse import unquote
 from urllib.parse import urlparse
 
-from cryptojwt.jwe import JWEException
-from cryptojwt.jws import NoSuitableSigningKeys
+from cryptojwt.jwe.exception import JWEException
+from cryptojwt.jws.exception import NoSuitableSigningKeys
 
 from oidcservice.exception import InvalidRequest
 from oidcmsg import oidc
