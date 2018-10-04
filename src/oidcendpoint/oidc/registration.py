@@ -206,8 +206,18 @@ class Registration(Endpoint):
                         if not _k:
                             del _cinfo[item]
 
+        t = {}
+        t['jwks_uri'] = ''
+        t['jwks'] = None
+
+        for item in ['jwks_uri', 'jwks']:
+            if item in request:
+                t[item] = request[item]
+
         try:
-            _context.keyjar.load_keys(request, client_id)
+            _context.keyjar.load_keys(client_id,
+                                      jwks_uri=t['jwks_uri'],
+                                      jwks=t['jwks'])
             try:
                 n_keys = len(_context.keyjar[client_id])
                 msg = "found {} keys for client_id={}"
