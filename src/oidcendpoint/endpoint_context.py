@@ -122,7 +122,7 @@ class EndpointContext(object):
 
         self.setup = {}
         try:
-            self.jwks_uri = '{}{}'.format(self.issuer,
+            self.jwks_uri = '{}/{}'.format(self.issuer,
                                           conf['jwks']['public_path'])
         except KeyError:
             self.jwks_uri = ''
@@ -142,8 +142,8 @@ class EndpointContext(object):
             except KeyError:
                 pass
             else:
-                _cap[endpoint_spec.endpoint_name] = '{}{}'.format(
-                    self.issuer, self.endpoint[endpoint].endpoint_path)
+                _cap[endpoint_spec.endpoint_name] = '{}'.format(
+                    self.endpoint[endpoint].endpoint_path)
 
         try:
             authz_spec = conf['authz']
@@ -296,7 +296,7 @@ class EndpointContext(object):
 
         for name, instance in self.endpoint.items():
             if name in ['registration', 'authorization', 'token', 'userinfo']:
-                _pinfo['{}_endpoint'.format(name)] = '{}{}'.format(
-                    self.issuer, instance.endpoint_path)
+                _pinfo['{}_endpoint'.format(name)] = '{}'.format(
+                    instance.endpoint_path)
 
         return _pinfo
