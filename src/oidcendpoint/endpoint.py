@@ -107,7 +107,10 @@ class Endpoint(object):
             auth_info = self.client_authentication(req, auth, **kwargs)
         except UnknownOrNoAuthnMethod:
             if not self.client_auth_method:
-                pass
+                try:
+                    _client_id = req['client_id']
+                except KeyError:
+                    _client_id = ''
             else:
                 raise UnAuthorizedClient()
         else:
@@ -222,11 +225,15 @@ class Endpoint(object):
         else:
             _response = self.response_info(response_args, request, **kwargs)
 
+        resp = None
         if do_placement:
             if self.response_placement == 'body':
                 if self.response_format == 'json':
                     content_type = 'application/json'
                     resp = _response.to_json()
+                elif self.request_format in ['jws','jwe','json']:
+                    content_type = 'application/jose'
+                    resp = _response
                 else:
                     content_type = 'application/x-www-form-urlencoded'
                     resp = _response.to_urlencoded()

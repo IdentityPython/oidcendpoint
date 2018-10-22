@@ -1,24 +1,22 @@
 import logging
-
 from urllib.parse import parse_qs
 from urllib.parse import splitquery
 from urllib.parse import unquote
 from urllib.parse import urlparse
 
-from cryptojwt.jwe import JWEException
-from cryptojwt.jws import NoSuitableSigningKeys
+from cryptojwt.jwe.exception import JWEException
+from cryptojwt.jws.exception import NoSuitableSigningKeys
 
-from oidcservice.exception import InvalidRequest
 from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
-from oidcmsg.exception import UnSupported
 from oidcmsg.exception import URIError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
+from oidcservice.exception import InvalidRequest
 
 from oidcendpoint import sanitize
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
@@ -26,10 +24,9 @@ from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import sign_encrypt_id_token
-from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.user_authn.authn_context import pick_auth
-from oidcendpoint.userinfo import userinfo_in_id_token_claims
 from oidcendpoint.userinfo import collect_user_info
+from oidcendpoint.userinfo import userinfo_in_id_token_claims
 from oidcendpoint.util import new_cookie
 
 logger = logging.getLogger(__name__)
@@ -193,6 +190,13 @@ def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
 
 
 def create_authn_response(endpoint_context, request, sid):
+    """
+
+    :param endpoint_context:
+    :param request:
+    :param sid:
+    :return:
+    """
     # create the response
     aresp = AuthorizationResponse()
     try:
@@ -268,9 +272,10 @@ def create_authn_response(endpoint_context, request, sid):
                                                  sign=True, **hargs)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
-                return AuthorizationErrorResponse(
+                resp = AuthorizationErrorResponse(
                     error="invalid_request",
                     error_description="Could not sign/encrypt id_token")
+                return {'response_args': resp, 'fragment_enc': fragment_enc}
 
             aresp["id_token"] = id_token
             _sinfo["id_token"] = id_token
@@ -278,7 +283,10 @@ def create_authn_response(endpoint_context, request, sid):
 
         not_handled = rtype.difference(handled_response_type)
         if not_handled:
-            raise UnSupported("unsupported_response_type", list(not_handled))
+            resp = AuthorizationErrorResponse(
+                error="invalid_request",
+                error_description="unsupported_response_type")
+            return {'response_args': resp, 'fragment_enc': fragment_enc}
 
     return {'response_args': aresp, 'fragment_enc': fragment_enc}
 
@@ -519,6 +527,12 @@ class Authorization(Endpoint):
         else:
             raise InvalidRequest("Unknown response_mode")
 
+    def error_response(self, response_info, error, error_description):
+        resp = AuthorizationErrorResponse(
+            error=error, error_description=error_description)
+        response_info['response_args'] = resp
+        return response_info
+
     def post_authentication(self, user, request, sid, **kwargs):
         """
         Things that are done after a successful authentication.
@@ -527,47 +541,51 @@ class Authorization(Endpoint):
         :param request:
         :param sid:
         :param kwargs:
-        :return:
+        :return: A dictionary with 'response_args'
         """
+
+        response_info = {}
 
         # Do the authorization
         try:
             permission = self.endpoint_context.authz(
                 user, client_id=request['client_id'])
-            self.endpoint_context.sdb.update(sid, permission=permission)
-        except Exception:
-            raise
+        except ToOld as err:
+            return self.error_response(
+                response_info, 'access_denied',
+                'Authentication to old {}'.format(err.args))
+        except Exception as err:
+            return self.error_response(response_info, 'access_denied',
+                                       '{}'.format(err.args))
+        else:
+            try:
+                self.endpoint_context.sdb.update(sid, permission=permission)
+            except Exception as err:
+                return self.error_response(response_info, 'server_error',
+                                           '{}'.format(err.args))
 
         logger.debug("response type: %s" % request["response_type"])
 
         if self.endpoint_context.sdb.is_session_revoked(sid):
-            return AuthorizationErrorResponse(
-                error="access_denied", error_description="Session is revoked")
+            return self.error_response(response_info, "access_denied",
+                                       "Session is revoked")
 
-        try:
-            response_info = create_authn_response(self.endpoint_context,
-                                                  request, sid)
-        except UnSupported as err:
-            return AuthorizationErrorResponse(
-                error='unsupported_response_type',
-                error_description='{}'.format(err.args))
-
-        if isinstance(response_info, AuthorizationErrorResponse):
-            return response_info
+        response_info = create_authn_response(self.endpoint_context,
+                                              request, sid)
 
         try:
             redirect_uri = get_redirect_uri(self.endpoint_context, request)
         except (RedirectURIError, ParameterError) as err:
-            return AuthorizationErrorResponse(
-                error='invalid_request', error_description="{}".format(err))
+            return self.error_response(response_info,
+                                       'invalid_request',
+                                       '{}'.format(err.args))
         else:
             response_info['return_uri'] = redirect_uri
 
         # Must not use HTTP unless implicit grant type and native application
-
-        info = self.aresp_check(response_info['response_args'], request)
-        if isinstance(info, ResponseMessage):
-            return info
+        # info = self.aresp_check(response_info['response_args'], request)
+        # if isinstance(info, ResponseMessage):
+        #     return info
 
         _cookie = new_cookie(self.endpoint_context, user, **kwargs)
 
@@ -579,8 +597,9 @@ class Authorization(Endpoint):
             try:
                 response_info = self.response_mode(request, **response_info)
             except InvalidRequest as err:
-                return AuthorizationErrorResponse(
-                    error="invalid_request", error_description=str(err))
+                return self.error_response(response_info,
+                                           'invalid_request',
+                                           '{}'.format(err.args))
 
         response_info['cookie'] = _cookie
 
@@ -598,9 +617,10 @@ class Authorization(Endpoint):
         """
         sid = setup_session(self.endpoint_context, request, authn_event)
 
-        resp_info = self.post_authentication(user, request, sid, **kwargs)
-        if isinstance(resp_info, ResponseMessage):
-            return resp_info
+        try:
+            resp_info = self.post_authentication(user, request, sid, **kwargs)
+        except Exception as err:
+            return self.error_response({}, 'server_error', err)
 
         # Mix-Up mitigation
         resp_info['response_args']['iss'] = self.endpoint_context.issuer
@@ -647,8 +667,10 @@ class Authorization(Endpoint):
         else:
             try:
                 # Run the authentication function
-                return {'http_response': _function(**info['args']),
-                        'return_uri': request["redirect_uri"]}
+                return {
+                    'http_response': _function(**info['args']),
+                    'return_uri': request["redirect_uri"]
+                }
             except Exception as err:
                 logger.exception(err)
                 return {'http_response': 'Internal error: {}'.format(err)}

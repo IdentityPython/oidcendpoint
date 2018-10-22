@@ -7,9 +7,9 @@ import os
 from jinja2 import Environment, FileSystemLoader
 
 from cryptojwt import jwe
-from cryptojwt import jws
+from cryptojwt.key_jar import KeyJar
+from cryptojwt.jws.jws import SIGNER_ALGS
 from oidcendpoint.session import create_session_db
-from oidcmsg.key_jar import KeyJar
 from oidcmsg.oidc import IdToken
 from oidcmsg.oidc import SCOPE2CLAIMS
 
@@ -218,7 +218,7 @@ class EndpointContext(object):
         _provider_info["scopes_supported"] = _scopes
 
         # Sort order RS, ES, HS, PS
-        sign_algs = list(jws.SIGNER_ALGS.keys())
+        sign_algs = list(SIGNER_ALGS.keys())
         sign_algs = sorted(sign_algs, key=cmp_to_key(sort_sign_alg))
 
         for typ in ["userinfo", "id_token", "request_object"]:

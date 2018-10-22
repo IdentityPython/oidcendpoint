@@ -1,8 +1,7 @@
 import logging
 
 from cryptojwt import jws
-
-from oidcmsg.jwt import JWT
+from cryptojwt.jwt import JWT
 
 from oidcservice.exception import AccessDenied
 
