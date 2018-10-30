@@ -1,22 +1,21 @@
 import copy
 import logging
+import os
 from functools import cmp_to_key
 
-import os
-
-from jinja2 import Environment, FileSystemLoader
-
 from cryptojwt import jwe
-from cryptojwt.key_jar import KeyJar
 from cryptojwt.jws.jws import SIGNER_ALGS
-from oidcendpoint.session import create_session_db
+from cryptojwt.key_jar import KeyJar
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
 from oidcmsg.oidc import IdToken
 from oidcmsg.oidc import SCOPE2CLAIMS
 
-from oidcendpoint import rndstr
 from oidcendpoint import authz
+from oidcendpoint import rndstr
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.exception import ConfigurationError
+from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.user_authn import user
 from oidcendpoint.user_authn.authn_context import AuthnBroker
@@ -42,7 +41,7 @@ CAPABILITIES = {
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True
-    }
+}
 
 SORT_ORDER = {'RS': 0, 'ES': 1, 'HS': 2, 'PS': 3, 'no': 4}
 
@@ -122,8 +121,13 @@ class EndpointContext(object):
 
         self.setup = {}
         try:
-            self.jwks_uri = '{}/{}'.format(self.issuer,
-                                          conf['jwks']['public_path'])
+            if self.issuer.endswith('/'):
+                self.jwks_uri = '{}{}'.format(self.issuer,
+                                              conf['jwks']['public_path'])
+            else:
+                self.jwks_uri = '{}/{}'.format(self.issuer,
+                                               conf['jwks']['public_path'])
+
         except KeyError:
             self.jwks_uri = ''
 
@@ -295,7 +299,7 @@ class EndpointContext(object):
             _pinfo["jwks_uri"] = self.jwks_uri
 
         for name, instance in self.endpoint.items():
-            if name in ['registration', 'authorization', 'token', 'userinfo']:
+            if name not in ['webfinger', 'provider_info']:
                 _pinfo['{}_endpoint'.format(name)] = '{}'.format(
                     instance.endpoint_path)
 
