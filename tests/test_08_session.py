@@ -29,7 +29,7 @@ AREQN = AuthorizationRequest(response_type="code", client_id="client1",
 
 AREQO = AuthorizationRequest(response_type="code", client_id="client1",
                              redirect_uri="http://example.com/authz",
-                             scope=["openid", "offlien_access"],
+                             scope=["openid", "offline_access"],
                              prompt="consent", state="state000")
 
 OIDR = OpenIDRequest(response_type="code", client_id="client1",
