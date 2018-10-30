@@ -58,8 +58,22 @@ logger = logging.getLogger(__name__)
 
 
 def match_sp_sep(first, second):
-    one = [set(v.split(" ")) for v in first]
-    other = [set(v.split(" ")) for v in second]
+    """
+
+    :param first:
+    :param second:
+    :return:
+    """
+    if isinstance(first, list):
+        one = [set(v.split(" ")) for v in first]
+    else:
+        one = [{v} for v in first.split(" ")]
+
+    if isinstance(second, list):
+        other = [set(v.split(" ")) for v in second]
+    else:
+        other = [{v} for v in second.split(" ")]
+
     if not any(rt in one for rt in other):
         return False
     return True
@@ -107,7 +121,7 @@ class Registration(Endpoint):
         _context = self.endpoint_context
         for _pref, _prov in PREFERENCE2PROVIDER.items():
             if _pref in request:
-                if _pref == "response_types":
+                if _pref in ["response_types", 'default_acr_values']:
                     if not match_sp_sep(
                             request[_pref], _context.provider_info[_prov]):
                         raise CapabilitiesMisMatch(_pref)
