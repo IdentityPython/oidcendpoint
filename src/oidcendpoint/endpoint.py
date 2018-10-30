@@ -231,7 +231,7 @@ class Endpoint(object):
                 if self.response_format == 'json':
                     content_type = 'application/json'
                     resp = _response.to_json()
-                elif self.request_format in ['jws','jwe','json']:
+                elif self.request_format in ['jws','jwe','jose']:
                     content_type = 'application/jose'
                     resp = _response
                 else:
