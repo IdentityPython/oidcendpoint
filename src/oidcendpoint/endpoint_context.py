@@ -147,7 +147,7 @@ class EndpointContext(object):
                 pass
             else:
                 _cap[endpoint_spec.endpoint_name] = '{}'.format(
-                    self.endpoint[endpoint].endpoint_path)
+                    endpoint_spec.endpoint_path)
 
         try:
             authz_spec = conf['authz']
@@ -300,7 +300,7 @@ class EndpointContext(object):
 
         for name, instance in self.endpoint.items():
             if name not in ['webfinger', 'provider_info']:
-                _pinfo['{}_endpoint'.format(name)] = '{}'.format(
-                    instance.endpoint_path)
+                _pinfo['{}_endpoint'.format(name)] = '{}{}'.format(
+                    self.issuer, instance.endpoint_path)
 
         return _pinfo
