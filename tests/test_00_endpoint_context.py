@@ -1,7 +1,7 @@
 import pytest
 from copy import copy
 
-from oidcmsg.key_jar import build_keyjar
+from cryptojwt.key_jar import build_keyjar
 
 from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.oidc.authorization import Authorization
@@ -17,7 +17,7 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)[1]
+KEYJAR = build_keyjar(KEYDEFS)
 
 conf = {
     "issuer": "https://example.com/",

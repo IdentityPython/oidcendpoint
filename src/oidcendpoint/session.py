@@ -41,7 +41,7 @@ def authn_event_deser(val, sformat="urlencoded"):
 
 
 SINGLE_REQUIRED_AUTHN_EVENT = (Message, True, msg_ser,
-                                authn_event_deser, False)
+                               authn_event_deser, False)
 
 
 class SessionInfo(Message):
@@ -142,6 +142,7 @@ class SessionDB(object):
             _info.update(kwargs)
 
         self[sid] = _info
+        self.map_kv2sid('state', areq['state'], sid)
         return sid
 
     def update(self, sid, **kwargs):
@@ -360,16 +361,24 @@ class SessionDB(object):
             except KeyError:
                 pass
 
-    def revoke_session(self, token):
+    def revoke_session(self, sid='', token=''):
         """
         Mark session as revoked but also explicitly revoke all issued tokens
 
-        :param token: any token connectd to the session
+        :param token: any token connected to the session
+        :param sid: Session identifier
         """
-        sid = self.handler.sid(token)
+        if not sid:
+            if token:
+                sid = self.handler.sid(token)
+            else:
+                raise ValueError('Need one of "sid" or "token"')
 
         for typ in ['access_token', 'refresh_token', 'code']:
-            self.revoke_token(self[sid][typ], typ)
+            try:
+                self.revoke_token(self[sid][typ], typ)
+            except KeyError:  # If no such token has been issued
+                pass
 
         self.update(sid, revoked=True)
 

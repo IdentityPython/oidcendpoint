@@ -18,6 +18,10 @@ HTTP_ARGS = ["headers", "redirections", "connection_type"]
 
 JWT_BEARER = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
 
+URL_ENCODED = 'application/x-www-form-urlencoded'
+JSON_ENCODED = "application/json"
+JOSE_ENCODED = "application/jose"
+
 
 def sanitize(str):
     return str

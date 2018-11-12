@@ -1,8 +1,9 @@
 import json
+import pytest
 from urllib.parse import urlparse
 
-import pytest
-from oidcmsg.key_jar import build_keyjar
+from cryptojwt.key_jar import build_keyjar
+
 from oidcmsg.message import Message
 
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -14,7 +15,7 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)[1]
+KEYJAR = build_keyjar(KEYDEFS)
 
 REQ = Message(foo='bar', hej='hopp')
 

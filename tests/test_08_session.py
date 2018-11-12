@@ -1,20 +1,18 @@
 import time
-
 import pytest
-from oidcendpoint.authn_event import create_authn_event
-
-from oidcendpoint.session import SessionDB
 
 from oidcendpoint import token_handler
-from oidcendpoint.sso_db import SSODb
-
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.in_memory_db import InMemoryDataBase
+from oidcendpoint.session import SessionDB
+from oidcendpoint.sso_db import SSODb
+from oidcendpoint.token_handler import AccessCodeUsed
+from oidcendpoint.token_handler import ExpiredToken
+from oidcendpoint.token_handler import WrongTokenType
 
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
 
-from oidcendpoint.token_handler import AccessCodeUsed, WrongTokenType, \
-    ExpiredToken
 
 __author__ = 'rohe0002'
 
@@ -112,7 +110,7 @@ class TestSessionDB(object):
         print(_dict.keys())
         assert set(_dict.keys()) == {
             'authn_event', 'code', 'authn_req', 'access_token', 'token_type',
-            'client_id', 'oauth_state'}
+            'client_id', 'oauth_state', 'expires_in'}
 
         # can't update again
         with pytest.raises(AccessCodeUsed):
@@ -130,7 +128,8 @@ class TestSessionDB(object):
         print(_dict.keys())
         assert set(_dict.keys()) == {
             'authn_event', 'code', 'authn_req', 'access_token', 'sub',
-            'token_type', 'client_id', 'oauth_state', 'refresh_token'}
+            'token_type', 'client_id', 'oauth_state', 'refresh_token',
+            'expires_in'}
 
         # can't get another access token using the same code
         with pytest.raises(AccessCodeUsed):
@@ -155,7 +154,7 @@ class TestSessionDB(object):
         print(_dict.keys())
         assert set(_dict.keys()) == {
             'authn_event', 'code', 'authn_req', 'oidreq', 'access_token',
-            'id_token', 'token_type', 'client_id', 'oauth_state'}
+            'id_token', 'token_type', 'client_id', 'oauth_state', 'expires_in'}
 
         assert _dict["id_token"] == "id_token"
         assert isinstance(_dict["oidreq"], OpenIDRequest)
@@ -166,9 +165,6 @@ class TestSessionDB(object):
         self.sdb[sid]['sub'] = 'sub'
         grant = self.sdb[sid]["code"]
 
-        # with mock.patch("time.gmtime", side_effect=[
-        #     time.struct_time((1970, 1, 1, 10, 39, 0, 0, 0, 0)),
-        #     time.struct_time((1970, 1, 1, 10, 40, 0, 0, 0, 0))]):
         dict1 = self.sdb.upgrade_to_token(grant, issue_refresh=True).copy()
         rtoken = dict1["refresh_token"]
         dict2 = self.sdb.refresh_token(rtoken, AREQ['client_id'])

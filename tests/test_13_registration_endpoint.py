@@ -1,7 +1,8 @@
 import json
 import pytest
 
-from oidcmsg.key_jar import build_keyjar
+from cryptojwt.key_jar import build_keyjar
+
 from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import RegistrationResponse
 
@@ -17,7 +18,7 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)[1]
+KEYJAR = build_keyjar(KEYDEFS)
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],

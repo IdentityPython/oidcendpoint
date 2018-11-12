@@ -1,7 +1,10 @@
+import json
 import logging
-from http.cookies import SimpleCookie
 
 from cryptojwt.exception import UnknownAlgorithm
+from cryptojwt.utils import as_bytes
+from cryptojwt.utils import as_unicode
+from cryptojwt.utils import b64e
 
 logger = logging.getLogger(__name__)
 
@@ -11,10 +14,11 @@ OAUTH2_NOCACHE_HEADERS = [
 ]
 
 
-def new_cookie(endpoint_context, user, **kwargs):
+def new_cookie(endpoint_context, **kwargs):
     if endpoint_context.cookie_dealer:
+        _val = as_unicode(b64e(as_bytes(json.dumps(kwargs))))
         return endpoint_context.cookie_dealer.create_cookie(
-            user, typ="sso", ttl=endpoint_context.sso_ttl)
+            _val, typ="sso", ttl=endpoint_context.sso_ttl)
     else:
         return None
 

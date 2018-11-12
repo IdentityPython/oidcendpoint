@@ -190,10 +190,12 @@ class AccessToken(Endpoint):
 
         if 'state' in request:
             try:
-                state = self.endpoint_context.sdb[request['code']]['state']
+                sinfo = self.endpoint_context.sdb[request['code']]
             except KeyError:
                 logger.error('Code not present in SessionDB')
                 return self.error_cls(error="unauthorized_client")
+            else:
+                state = sinfo['authn_req']['state']
 
             if state != request['state']:
                 logger.error('State value mismatch')
@@ -238,7 +240,7 @@ class AccessToken(Endpoint):
 
         _access_code = request["code"].replace(' ', '+')
         _cookie = new_cookie(self.endpoint_context,
-                             self.endpoint_context.sdb[_access_code]['sub'])
+                             sub=self.endpoint_context.sdb[_access_code]['sub'])
         _headers = [('Content-type', 'application/json')]
         resp = {'response_args': response_args, 'http_headers': _headers}
         if _cookie:

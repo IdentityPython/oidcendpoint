@@ -139,8 +139,7 @@ class Endpoint(object):
         logger.info("Parsed and verified request: %s" % sanitize(req))
 
         # Do any endpoint specific parsing
-        self.do_post_parse_request(req, _client_id, **kwargs)
-        return req
+        return self.do_post_parse_request(req, _client_id, **kwargs)
 
     def client_authentication(self, request, auth=None, **kwargs):
         """

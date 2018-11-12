@@ -4,7 +4,8 @@ import os
 import pytest
 import time
 
-from oidcmsg.key_jar import build_keyjar
+from cryptojwt.key_jar import build_keyjar
+
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 
@@ -24,7 +25,7 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)[1]
+KEYJAR = build_keyjar(KEYDEFS)
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],

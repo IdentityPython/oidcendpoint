@@ -99,8 +99,8 @@ def verify_redirect_uri(endpoint_context, request):
             _query = parse_qs(_query)
 
         match = False
-        for regbase, rquery in endpoint_context.cdb[str(request["client_id"])][
-            "redirect_uris"]:
+        for regbase, rquery in endpoint_context.cdb[
+                str(request["client_id"])]["redirect_uris"]:
 
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
@@ -317,7 +317,7 @@ class Authorization(Endpoint):
             _registered = [{'code'}]
 
         # Is the asked for response_type among those that are permitted
-        return set(request["response_type"]) not in _registered
+        return set(request["response_type"]) in _registered
 
     def _post_parse_request(self, request, client_id, endpoint_context,
                             **kwargs):
@@ -587,7 +587,8 @@ class Authorization(Endpoint):
         # if isinstance(info, ResponseMessage):
         #     return info
 
-        _cookie = new_cookie(self.endpoint_context, user, **kwargs)
+        _cookie = new_cookie(self.endpoint_context, sub=user, sid=sid,
+                             state=request['state'])
 
         # Now about the response_mode. Should not be set if it's obvious
         # from the response_type. Knows about 'query', 'fragment' and

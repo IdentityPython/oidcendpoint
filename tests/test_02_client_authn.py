@@ -1,9 +1,10 @@
 import base64
 
-from cryptojwt import as_bytes, as_unicode
+from cryptojwt.utils import as_bytes
+from cryptojwt.utils import as_unicode
 
-from oidcmsg.jwt import JWT
-from oidcmsg.key_jar import build_keyjar, KeyJar
+from cryptojwt.jwt import JWT
+from cryptojwt.key_jar import build_keyjar, KeyJar
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import ClientSecretBasic
@@ -11,14 +12,13 @@ from oidcendpoint.client_authn import ClientSecretJWT
 from oidcendpoint.client_authn import ClientSecretPost
 from oidcendpoint.client_authn import PrivateKeyJWT
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)[1]
+KEYJAR = build_keyjar(KEYDEFS)
 
 conf = {
     "issuer": "https://example.com/",
@@ -31,7 +31,7 @@ conf = {
     'template_dir': 'template'
 }
 client_id = 'client_id'
-client_secret = 'client_secret'
+client_secret = 'a_longer_client_secret'
 # Need to add the client_secret as a symmetric key bound to the client_id
 KEYJAR.add_symmetric(client_id, client_secret, ['sig'])
 
@@ -78,7 +78,7 @@ def test_client_secret_jwt():
 
 def test_private_key_jwt():
     # Own dynamic keys
-    client_keyjar = build_keyjar(KEYDEFS)[1]
+    client_keyjar = build_keyjar(KEYDEFS)
     # The servers keys
     client_keyjar[conf['issuer']] = KEYJAR.issuer_keys['']
 

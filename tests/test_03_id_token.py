@@ -2,10 +2,10 @@ import json
 import os
 import time
 
-from cryptojwt import jws
-from oidcmsg.jwt import JWT
-from oidcmsg.key_jar import build_keyjar
-from oidcmsg.key_jar import KeyJar
+from cryptojwt.jws import jws
+from cryptojwt.jwt import JWT
+from cryptojwt.key_jar import build_keyjar
+from cryptojwt.key_jar import KeyJar
 from oidcmsg.oidc import JsonWebToken, AuthorizationRequest
 from oidcmsg.oidc import RegistrationResponse
 
@@ -24,7 +24,7 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
     ]
 
-KEYJAR = build_keyjar(KEYDEFS)[1]
+KEYJAR = build_keyjar(KEYDEFS)
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -192,7 +192,7 @@ def test_sign_encrypt_id_token():
     _jwks = KEYJAR.export_jwks()
     client_keyjar.import_jwks(_jwks, ENDPOINT_CONTEXT.issuer)
 
-    _jwt = JWT(keyjar=client_keyjar, iss='client_1')
+    _jwt = JWT(key_jar=client_keyjar, iss='client_1')
     res = _jwt.unpack(_token)
-    assert isinstance(res, JsonWebToken)
+    assert isinstance(res, dict)
     assert res['aud'] == ['client_1']
