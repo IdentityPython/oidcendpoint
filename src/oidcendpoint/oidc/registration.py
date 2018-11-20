@@ -27,6 +27,7 @@ from oidcendpoint import rndstr
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
+from oidcendpoint.util import new_cookie
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",
@@ -52,7 +53,7 @@ PREFERENCE2PROVIDER = {
         "token_endpoint_auth_signing_alg_values_supported",
     "response_types": "response_types_supported",
     'grant_types': 'grant_types_supported'
-}
+    }
 
 logger = logging.getLogger(__name__)
 
@@ -215,14 +216,17 @@ class Registration(Endpoint):
                     ktyp = alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
-                        _k = _context.keyjar.get_signing_key(ktyp,
-                                                             alg=request[item])
+                        _k = []
+                        for iss in ['', _context.issuer]:
+                            _k.extend(_context.keyjar.get_signing_key(
+                                ktyp, alg=request[item], owner=iss))
                         if not _k:
+                            logger.warning(
+                                'Lacking support for "{}"'. format(
+                                    request[item]))
                             del _cinfo[item]
 
-        t = {}
-        t['jwks_uri'] = ''
-        t['jwks'] = None
+        t = {'jwks_uri': '', 'jwks': None}
 
         for item in ['jwks_uri', 'jwks']:
             if item in request:
@@ -388,7 +392,7 @@ class Registration(Endpoint):
             "client_secret_expires_at": client_secret_expiration_time(),
             "client_id_issued_at": utc_time_sans_frac(),
             "client_salt": rndstr(8)
-        }
+            }
 
         _context.cdb[_rat] = client_id
 
@@ -422,7 +426,12 @@ class Registration(Endpoint):
 
     def process_request(self, request=None, **kwargs):
         reg_resp = self.client_registration_setup(request)
+
         if 'error' in reg_resp:
             return reg_resp
         else:
-            return {'response_args': reg_resp}
+            _cookie = new_cookie(self.endpoint_context,
+                                 cookie_name='oidc_op_rp',
+                                 client_id=reg_resp['client_id'])
+
+            return {'response_args': reg_resp, 'cookie': _cookie}
