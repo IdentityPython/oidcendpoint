@@ -1,3 +1,4 @@
+import json
 import logging
 from urllib.parse import parse_qs
 from urllib.parse import splitquery
@@ -6,6 +7,9 @@ from urllib.parse import urlparse
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
+from cryptojwt.utils import as_bytes
+from cryptojwt.utils import as_unicode
+from cryptojwt.utils import b64d
 
 from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
@@ -462,13 +466,24 @@ class Authorization(Endpoint):
             identity = None
             _ts = 0
         else:
-            logger.info("No active authentication")
+            if identity:
+                _info = json.loads(as_unicode(b64d(as_bytes(identity['uid']))))
+                try:
+                    session = self.endpoint_context.sdb[_info['sid']]
+                except KeyError:
+                    identity = None
+                else:
+                    if session is None:
+                        identity = None
+                    elif 'revoked' in session:
+                        identity = None
 
         authn_args = authn_args_gather(request, authn_class_ref, cinfo,
                                        **kwargs)
 
         # To authenticate or Not
         if identity is None:  # No!
+            logger.info("No active authentication")
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
                 return {
@@ -478,6 +493,7 @@ class Authorization(Endpoint):
             else:
                 return {'function': authn, 'args': authn_args}
         else:
+            logger.info("Active authentication")
             if re_authenticate(request, authn):
                 # demand re-authentication
                 return {'function': authn, 'args': authn_args}
