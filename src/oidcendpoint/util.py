@@ -11,23 +11,26 @@ logger = logging.getLogger(__name__)
 OAUTH2_NOCACHE_HEADERS = [
     ('Pragma', 'no-cache'),
     ('Cache-Control', 'no-store'),
-]
+    ]
 
 
-def new_cookie(endpoint_context, **kwargs):
+def new_cookie(endpoint_context, cookie_name=None, **kwargs):
     if endpoint_context.cookie_dealer:
         _val = as_unicode(b64e(as_bytes(json.dumps(kwargs))))
         return endpoint_context.cookie_dealer.create_cookie(
-            _val, typ="sso", ttl=endpoint_context.sso_ttl)
+            _val, typ="sso", cookie_name=cookie_name,
+            ttl=endpoint_context.sso_ttl)
     else:
         return None
 
 
-DEF_SIGN_ALG = {"id_token": "RS256",
-                "userinfo": "RS256",
-                "request_object": "RS256",
-                "client_secret_jwt": "HS256",
-                "private_key_jwt": "RS256"}
+DEF_SIGN_ALG = {
+    "id_token": "RS256",
+    "userinfo": "RS256",
+    "request_object": "RS256",
+    "client_secret_jwt": "HS256",
+    "private_key_jwt": "RS256"
+}
 
 
 def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
@@ -39,9 +42,17 @@ def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
                 "{}_signed_response_alg".format(payload_type)]
         except KeyError:  # Fall back to default
             try:
-                args['sign_alg'] = endpoint_context.jwx_def["signing_alg"][payload_type]
+                args['sign_alg'] = endpoint_context.jwx_def["signing_alg"][
+                    payload_type]
             except KeyError:
-                args['sign_alg'] = DEF_SIGN_ALG[payload_type]
+                _def_sign_alg = DEF_SIGN_ALG[payload_type]
+                _supported = endpoint_context.provider_info[
+                    "{}_signing_alg_values_supported".format(payload_type)]
+
+                if _def_sign_alg in _supported:
+                    args['sign_alg'] = _def_sign_alg
+                else:
+                    args['sign_alg'] = _supported[0]
 
     if encrypt:
         try:
@@ -52,8 +63,9 @@ def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
                 args['enc_alg'] = endpoint_context.jwx_def["encryption_alg"][
                     payload_type]
             except KeyError:
-                raise UnknownAlgorithm(
-                    "Don't know which encryption algorithm to use")
+                _supported = endpoint_context.provider_info[
+                    "{}_encryption_alg_values_supported".format(payload_type)]
+                args['enc_alg'] = _supported[0]
 
         try:
             args['enc_enc'] = client_info[
@@ -63,8 +75,9 @@ def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
                 args['enc_enc'] = endpoint_context.jwx_def["encryption_enc"][
                     payload_type]
             except KeyError:
-                raise UnknownAlgorithm(
-                    "Don't know which encryption algorithm to use")
+                _supported = endpoint_context.provider_info[
+                    "{}_encryption_enc_values_supported".format(payload_type)]
+                args['enc_enc'] = _supported[0]
 
     return args
 
@@ -111,5 +124,3 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
         endpoint[name] = _instance
 
     return endpoint
-
-

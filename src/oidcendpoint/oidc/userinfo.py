@@ -1,17 +1,13 @@
 import json
 import logging
 
-from cryptojwt.exception import UnknownAlgorithm
-
 from oidcmsg import oidc
 from cryptojwt.jwt import JWT
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.exception import OidcEndpointError
 from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.util import get_sign_and_encrypt_algorithms
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -27,7 +23,7 @@ class UserInfo(Endpoint):
 
     def do_response(self, response_args=None, request=None, **kwargs):
 
-        if 'error' in kwargs:
+        if 'error' in kwargs and kwargs['error']:
             return Endpoint.do_response(self, response_args, request, **kwargs)
 
         _context = self.endpoint_context
@@ -35,24 +31,29 @@ class UserInfo(Endpoint):
         _cinfo = _context.cdb[kwargs['client_id']]
 
         # default is not to sign or encrypt
-        sign_encrypt = {'sign': False, 'encrypt': False}
-        if "userinfo_signed_response_alg" in _cinfo:
-            sign_encrypt['sign'] = True
-        if "userinfo_encrypted_response_alg" in _cinfo:
-            sign_encrypt['encrypt'] = True
+        try:
+            sign_alg = _cinfo['userinfo_signed_response_alg']
+            sign = True
+        except KeyError:
+            sign_alg = ''
+            sign = False
 
-        if sign_encrypt['sign'] or sign_encrypt['encrypt']:
-            try:
-                jwt_args = get_sign_and_encrypt_algorithms(_context,
-                                                           _cinfo,
-                                                           'userinfo',
-                                                           **sign_encrypt)
-            except UnknownAlgorithm as err:
-                raise OidcEndpointError('Configuration error: {}'.format(err))
+        try:
+            enc_enc = _cinfo['userinfo_encrypted_response_enc']
+            enc_alg = _cinfo['userinfo_encrypted_response_alg']
+            encrypt = True
+        except KeyError:
+            encrypt = False
+            enc_alg = enc_enc = ''
 
-            _jwt = JWT(_context.keyjar, **jwt_args)
+        if encrypt or sign:
+            _jwt = JWT(self.endpoint_context.keyjar,
+                       iss=self.endpoint_context.issuer,
+                       sign=sign, sign_alg=sign_alg, encrypt=encrypt,
+                       enc_enc=enc_enc, enc_alg=enc_alg)
 
-            resp = _jwt.pack(payload=response_args)
+            resp = _jwt.pack(response_args['response'],
+                             recv=kwargs['client_id'])
             content_type = 'application/jwt'
         else:
             if isinstance(response_args, dict):
@@ -79,7 +80,7 @@ class UserInfo(Endpoint):
         # Scope can translate to userinfo_claims
         info = collect_user_info(self.endpoint_context, session)
 
-        return {'response_args': info,
+        return {'response_args': {'response': info},
                 'client_id': session['authn_req']['client_id']}
 
     def parse_request(self, request, auth=None, **kwargs):

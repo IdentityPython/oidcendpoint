@@ -1,6 +1,6 @@
 import json
 import logging
-from urllib.parse import urlencode
+from urllib.parse import urlencode, splitquery
 
 from cryptojwt import b64d, as_unicode
 from jwkest import as_bytes
@@ -36,7 +36,7 @@ class Session(Endpoint):
         :param kwargs: Extra keyword arguments
         :return: A dictionary with 2 keys 'response' and ' http_headers'
         """
-        if 'error' in kwargs:
+        if 'error' in kwargs and kwargs['error']:
             return Endpoint.do_response(self, response_args, request, **kwargs)
 
         http_headers = [('Content-type', URL_ENCODED)]
@@ -57,39 +57,42 @@ class Session(Endpoint):
 
         try:
             part = self.endpoint_context.cookie_dealer.get_cookie_value(
-                cookie)
+                cookie, cookie_name='oidc_op')
         except IndexError:
             raise InvalidRequest('Cookie error')
 
-        # value is a base64 encoded JSON document
-        _cookie_info = json.loads(as_unicode(b64d(as_bytes(part[0]))))
+        if part:
+            # value is a base64 encoded JSON document
+            _cookie_info = json.loads(as_unicode(b64d(as_bytes(part[0]))))
+            _sid = _cookie_info['sid']
+        else:
+            _sid = ''
 
-        # if id_token_hint
         if 'id_token_hint' in request:
-            # check 'sub'
-            if _cookie_info['sub'] != request[
-                    verified_claim_name("id_token_hint")]['sub']:
-                raise ValueError("Sub in IdToken doesn't match")
+            _ith_sid = _sdb.sso_db.get_sids_by_sub(
+                request[verified_claim_name("id_token_hint")]['sub'])[0]
+            if _ith_sid != _sid:  # someone's messing with me
+                raise ValueError('Wrong ID Token hint')
 
-        if 'state' in request:
-            if _cookie_info['state'] != request['state']:
-                raise ValueError("Sub in request doesn't match")
-
-        session = _sdb[_cookie_info['sid']]
+        session = _sdb[_sid]
 
         client_id = session['authn_req']['client_id']
+
         _cinfo = self.endpoint_context.cdb[client_id]
 
         # verify that the post_logout_redirect_uri if present are among the ones
         # registered
 
-        if 'post_logout_redirect_uri' in request:
-            if not request['post_logout_redirect_uri'] in _cinfo[
-                    'post_logout_redirect_uris']:
+        try:
+            _url_q = splitquery(request['post_logout_redirect_uri'])
+        except KeyError:
+            pass
+        else:
+            if not _url_q in _cinfo['post_logout_redirect_uris']:
                 raise ValueError('Wrong post_logout_redirect_uri')
 
         # Kill the session
-        _sdb.revoke_session(sid=_cookie_info['sid'])
+        _sdb.revoke_session(sid=_sid)
 
         if 'post_logout_redirect_uri' in request:
             _ruri = request["post_logout_redirect_uri"]
