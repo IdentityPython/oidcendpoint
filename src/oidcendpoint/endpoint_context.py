@@ -41,7 +41,7 @@ CAPABILITIES = {
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True
-}
+    }
 
 SORT_ORDER = {'RS': 0, 'ES': 1, 'HS': 2, 'PS': 3, 'no': 4}
 
@@ -140,14 +140,17 @@ class EndpointContext(object):
         except KeyError:
             _cap = {}
 
-        for endpoint in ['authorization', 'token', 'userinfo', 'registration']:
-            try:
-                endpoint_spec = self.endpoint[endpoint]
-            except KeyError:
-                pass
-            else:
-                _cap[endpoint_spec.endpoint_name] = '{}'.format(
-                    endpoint_spec.endpoint_path)
+        for endpoint in self.endpoint:
+            endpoint_instance = self.endpoint[endpoint]
+
+            if endpoint_instance.provider_info:
+                _cap.update(endpoint_instance.provider_info)
+
+            if endpoint in ['webfinger', 'provider_info']:
+                continue
+
+            _cap[endpoint_instance.endpoint_name] = '{}'.format(
+                endpoint_instance.endpoint_path)
 
         try:
             authz_spec = conf['authz']
