@@ -3,6 +3,7 @@ import logging
 from urllib.parse import urlencode, splitquery
 
 from cryptojwt import b64d, as_unicode
+from cryptojwt.jws.exception import JWSException
 from jwkest import as_bytes
 from oidcmsg.exception import InvalidRequest
 
@@ -101,7 +102,7 @@ class Session(Endpoint):
                     _ruri, urlencode({'state': request['state']}))
         else:  # To  my own logout-done page
             try:
-                _ruri = self.endpoint_context.conf['logout_done_page']
+                _ruri = self.endpoint_context.conf['post_logout_page']
             except KeyError:
                 _ruri = self.endpoint_context.issuer
 
@@ -138,5 +139,11 @@ class Session(Endpoint):
             if not request.verify(keyjar=self.endpoint_context.keyjar,
                                   sigalg=''):
                 raise InvalidRequest("Didn't verify")
+            # id_token_signing_alg_values_supported
+            _ith = request[verified_claim_name("id_token_hint")]
+            if _ith.jws_header['alg'] not in \
+                    self.endpoint_context.provider_info[
+                        'id_token_signing_alg_values_supported']:
+                raise JWSException('Unsupported signing algorithm')
 
         return request

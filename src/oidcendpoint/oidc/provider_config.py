@@ -17,7 +17,6 @@ class ProviderConfiguration(Endpoint):
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
-        # self.pre_construct.append(self._pre_construct)
         self.pre_construct.append(self.add_endpoints)
 
     def add_endpoints(self, request, client_id, endpoint_context, **kwargs):
