@@ -1,7 +1,6 @@
 import json
 import logging
 
-from cryptojwt.exception import UnknownAlgorithm
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64e
@@ -112,7 +111,10 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
             kwargs = {}
 
         _instance = spec['class'](endpoint_context=endpoint_context, **kwargs)
-        _instance.endpoint_path = spec['path'].format(_url)
+        _instance.endpoint_path = spec['path']
+        _instance.full_path = '{}/{}'.format(_url, spec['path'])
+        if 'provider_info' in spec:
+            _instance.provider_info = spec['provider_info']
 
         try:
             _client_authn_method = kwargs['client_authn_method']
