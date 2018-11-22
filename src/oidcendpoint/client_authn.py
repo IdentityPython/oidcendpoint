@@ -152,7 +152,7 @@ class JWSAuthnMethod(ClientAuthnMethod):
         # could be either my issuer id or the token endpoint
         if self.endpoint_context.issuer in ca_jwt["aud"]:
             pass
-        elif self.endpoint_context.endpoint['token'].endpoint_path in ca_jwt['aud']:
+        elif self.endpoint_context.endpoint['token'].full_path in ca_jwt['aud']:
             pass
         else:
             raise NotForMe("Not for me!")

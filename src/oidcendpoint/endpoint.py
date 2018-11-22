@@ -70,6 +70,8 @@ class Endpoint(object):
         self.post_construct = []
         self.post_parse_request = []
         self.kwargs = kwargs
+        self.full_path = ''
+        self.provider_info = None
 
     def parse_request(self, request, auth=None, **kwargs):
         """
