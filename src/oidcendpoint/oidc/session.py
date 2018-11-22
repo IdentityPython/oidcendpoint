@@ -90,7 +90,7 @@ class Session(Endpoint):
             pass
         else:
             if not _url_q in _cinfo['post_logout_redirect_uris']:
-                raise ValueError('Wrong post_logout_redirect_uri')
+                raise ValueError('Unregistered post_logout_redirect_uri')
 
         # Kill the session
         _sdb.revoke_session(sid=_sid)
