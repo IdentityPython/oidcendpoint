@@ -169,7 +169,8 @@ class TestEndpoint(object):
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
             'token_endpoint_auth_method': 'client_secret_post',
-            'response_types': ['code', 'token', 'code id_token', 'id_token']
+            'response_types': ['code', 'token', 'code id_token', 'id_token',
+                               'code id_token token']
             }
         self.endpoint = Authorization(endpoint_context)
 
@@ -183,14 +184,14 @@ class TestEndpoint(object):
         assert set(_req.keys()) == set(AUTH_REQ.keys())
 
     def test_process_request(self):
-        _req = self.endpoint.parse_request(AUTH_REQ_DICT)
-        _resp = self.endpoint.process_request(request=_req)
+        _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
+        _resp = self.endpoint.process_request(_pr_resp)
         assert set(_resp.keys()) == {'response_args', 'fragment_enc',
                                      'return_uri', 'cookie'}
 
     def test_do_response_code(self):
-        _req = self.endpoint.parse_request(AUTH_REQ_DICT)
-        _resp = self.endpoint.process_request(request=_req)
+        _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
+        _resp = self.endpoint.process_request(_pr_resp)
         msg = self.endpoint.do_response(**_resp)
         assert isinstance(msg, dict)
         _msg = parse_qs(msg['response'])
@@ -205,16 +206,16 @@ class TestEndpoint(object):
     def test_do_response_id_token_no_nonce(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'id_token'
-        _req = self.endpoint.parse_request(_orig_req)
+        _pr_resp = self.endpoint.parse_request(_orig_req)
         # Missing nonce
-        assert isinstance(_req, ResponseMessage)
+        assert isinstance(_pr_resp, ResponseMessage)
 
     def test_do_response_id_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'id_token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(request=_req)
+        _pr_resp = self.endpoint.parse_request(_orig_req)
+        _resp = self.endpoint.process_request(_pr_resp)
         msg = self.endpoint.do_response(**_resp)
         assert isinstance(msg, dict)
         part = urlparse(msg['response'])
@@ -230,41 +231,27 @@ class TestEndpoint(object):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'id_token token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(request=_req)
-        msg = self.endpoint.do_response(**_resp)
+        _pr_resp = self.endpoint.parse_request(_orig_req)
+        _resp = self.endpoint.process_request(_pr_resp)
+        msg = self.endpoint.do_response(response_msg=_resp)
         assert isinstance(msg, dict)
-        part = urlparse(msg['response'])
-        assert part.query == ''
-        assert part.fragment
-        _frag_msg = parse_qs(part.fragment)
-        assert _frag_msg
-        assert 'id_token' in _frag_msg
-        assert 'code' not in _frag_msg
-        assert 'access_token' in _frag_msg
+        assert msg['response']['error'] == 'invalid_request'
 
     def test_do_response_code_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'code token'
-        _req = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(request=_req)
-        msg = self.endpoint.do_response(**_resp)
+        _pr_resp = self.endpoint.parse_request(_orig_req)
+        _resp = self.endpoint.process_request(_pr_resp)
+        msg = self.endpoint.do_response(response_msg=_resp)
         assert isinstance(msg, dict)
-        part = urlparse(msg['response'])
-        assert part.query == ''
-        assert part.fragment
-        _frag_msg = parse_qs(part.fragment)
-        assert _frag_msg
-        assert 'id_token' not in _frag_msg
-        assert 'code' in _frag_msg
-        assert 'access_token' in _frag_msg
+        assert msg['response']['error'] == 'invalid_request'
 
     def test_do_response_code_id_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'code id_token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(request=_req)
+        _pr_resp = self.endpoint.parse_request(_orig_req)
+        _resp = self.endpoint.process_request(_pr_resp)
         msg = self.endpoint.do_response(**_resp)
         assert isinstance(msg, dict)
         part = urlparse(msg['response'])
@@ -280,8 +267,8 @@ class TestEndpoint(object):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req['response_type'] = 'code id_token token'
         _orig_req['nonce'] = 'rnd_nonce'
-        _req = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(request=_req)
+        _pr_resp = self.endpoint.parse_request(_orig_req)
+        _resp = self.endpoint.process_request(_pr_resp)
         msg = self.endpoint.do_response(**_resp)
         assert isinstance(msg, dict)
         part = urlparse(msg['response'])

@@ -74,10 +74,11 @@ def test_get_sign_algorithm():
 def test_no_default_encrypt_algorithms():
     client_info = RegistrationResponse()
     endpoint_context = EndpointContext(conf)
-    with pytest.raises(UnknownAlgorithm):
-        get_sign_and_encrypt_algorithms(endpoint_context, client_info,
-                                        'id_token',
-                                        sign=True, encrypt=True)
+    args = get_sign_and_encrypt_algorithms(endpoint_context, client_info,
+                                           'id_token', sign=True, encrypt=True)
+    assert args['sign_alg'] == 'RS256'
+    assert args['enc_enc'] == 'A128CBC-HS256'
+    assert args['enc_alg'] == 'RSA1_5'
 
 
 def test_get_sign_algorithm_2():

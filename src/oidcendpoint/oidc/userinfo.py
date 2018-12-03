@@ -5,6 +5,7 @@ from oidcmsg import oidc
 from cryptojwt.jwt import JWT
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.userinfo import collect_user_info
@@ -77,8 +78,22 @@ class UserInfo(Endpoint):
 
         session = _sdb.read(request['access_token'])
 
-        # Scope can translate to userinfo_claims
-        info = collect_user_info(self.endpoint_context, session)
+        allowed = True
+        # if the authenticate is still active or offline_access is granted.
+        if session['authn_event']['valid_util'] > time_sans_frac():
+            pass
+        else:
+            if 'offline_access' in session['authn_req']['scope']:
+                pass
+            else:
+                allowed = False
+
+        if allowed:
+            # Scope can translate to userinfo_claims
+            info = collect_user_info(self.endpoint_context, session)
+        else:
+            info = {'error': 'invalid_request',
+                    'error_description': 'Offline access not granted'}
 
         return {'response_args': {'response': info},
                 'client_id': session['authn_req']['client_id']}

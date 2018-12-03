@@ -5,6 +5,7 @@ from urllib.parse import splitquery
 from urllib.parse import unquote
 from urllib.parse import urlparse
 
+from cryptojwt import BadSyntax
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.utils import as_bytes
@@ -467,16 +468,22 @@ class Authorization(Endpoint):
             _ts = 0
         else:
             if identity:
-                _info = json.loads(as_unicode(b64d(as_bytes(identity['uid']))))
                 try:
-                    session = self.endpoint_context.sdb[_info['sid']]
-                except KeyError:
-                    identity = None
+                    _id = b64d(as_bytes(identity['uid']))
+                except BadSyntax:
+                    pass
                 else:
-                    if session is None:
+                    _info = json.loads(as_unicode(_id))
+
+                    try:
+                        session = self.endpoint_context.sdb[_info['sid']]
+                    except KeyError:
                         identity = None
-                    elif 'revoked' in session:
-                        identity = None
+                    else:
+                        if session is None:
+                            identity = None
+                        elif 'revoked' in session:
+                            identity = None
 
         authn_args = authn_args_gather(request, authn_class_ref, cinfo,
                                        **kwargs)
@@ -645,14 +652,18 @@ class Authorization(Endpoint):
 
         return resp_info
 
-    def process_request(self, request=None, **kwargs):
+    def process_request(self, request_info=None, **kwargs):
         """ The AuthorizationRequest endpoint
 
-        :param request: The client request as a dictionary
+        :param request_info: The client request as a dictionary or an error
+            response produced by parse_request()
         :return: res
         """
 
-        _cid = request["client_id"]
+        if isinstance(request_info, AuthorizationErrorResponse):
+            return request_info
+
+        _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
         try:
             cookie = kwargs['cookie']
@@ -661,12 +672,12 @@ class Authorization(Endpoint):
         else:
             del kwargs['cookie']
 
-        proposed_user = self.proposed_user(request)
+        proposed_user = self.proposed_user(request_info)
         if proposed_user:
             kwargs['req_user'] = proposed_user
 
-        info = self.setup_auth(request, request["redirect_uri"], cinfo, cookie,
-                               **kwargs)
+        info = self.setup_auth(request_info, request_info["redirect_uri"],
+                               cinfo, cookie, **kwargs)
 
         if 'error' in info:
             return info
@@ -675,10 +686,10 @@ class Authorization(Endpoint):
             _function = info['function']
         except KeyError:  # already authenticated
             logger.debug("- authenticated -")
-            logger.debug("AREQ keys: %s" % request.keys())
+            logger.debug("AREQ keys: %s" % request_info.keys())
 
-            res = self.authz_part2(info['user'], info['authn_event'], request,
-                                   cookie=cookie)
+            res = self.authz_part2(info['user'], info['authn_event'],
+                                   request_info, cookie=cookie)
 
             return res
         else:
@@ -686,7 +697,7 @@ class Authorization(Endpoint):
                 # Run the authentication function
                 return {
                     'http_response': _function(**info['args']),
-                    'return_uri': request["redirect_uri"]
+                    'return_uri': request_info["redirect_uri"]
                 }
             except Exception as err:
                 logger.exception(err)

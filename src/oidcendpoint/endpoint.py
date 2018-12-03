@@ -212,6 +212,7 @@ class Endpoint(object):
         if response_args is None:
             response_args = {}
 
+        resp = None
         if error:
             _response = ResponseMessage(error=error)
             try:
@@ -221,12 +222,16 @@ class Endpoint(object):
         elif 'response_msg' in kwargs:
             resp = kwargs['response_msg']
             do_placement = False
-            _response = ''
-            _resp['response_placement'] = 'body'
+            _response = ''  # This is just for my IDE
+            if self.response_format == 'json':
+                content_type = 'application/json'
+            elif self.request_format in ['jws', 'jwe', 'jose']:
+                content_type = 'application/jose'
+            else:
+                content_type = 'application/x-www-form-urlencoded'
         else:
             _response = self.response_info(response_args, request, **kwargs)
 
-        resp = None
         if do_placement:
             if self.response_placement == 'body':
                 if self.response_format == 'json':
