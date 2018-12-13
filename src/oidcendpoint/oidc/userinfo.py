@@ -80,7 +80,7 @@ class UserInfo(Endpoint):
         # Scope can translate to userinfo_claims
         info = collect_user_info(self.endpoint_context, session)
 
-        return {'response_args': {'response': info},
+        return {'response_args': info,
                 'client_id': session['authn_req']['client_id']}
 
     def parse_request(self, request, auth=None, **kwargs):
