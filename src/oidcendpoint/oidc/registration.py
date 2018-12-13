@@ -3,25 +3,21 @@ import hmac
 import json
 import logging
 import time
-
 from random import random
-
 from urllib.parse import parse_qs
 from urllib.parse import splitquery
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
 from cryptojwt.jws.utils import alg2keytype
-
-from oidcservice import sanitize
-from oidcservice.exception import CapabilitiesMisMatch
-
 from oidcmsg.exception import MessageException
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import ClientRegistrationErrorResponse
 from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import RegistrationResponse
 from oidcmsg.time_util import utc_time_sans_frac
+from oidcservice import sanitize
+from oidcservice.exception import CapabilitiesMisMatch
 
 from oidcendpoint import rndstr
 from oidcendpoint.endpoint import Endpoint
@@ -53,7 +49,7 @@ PREFERENCE2PROVIDER = {
         "token_endpoint_auth_signing_alg_values_supported",
     "response_types": "response_types_supported",
     'grant_types': 'grant_types_supported'
-    }
+}
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +208,7 @@ class Registration(Endpoint):
                      "userinfo_signed_response_alg"]:
             if item in request:
                 if request[item] in _context.provider_info[
-                        PREFERENCE2PROVIDER[item]]:
+                    PREFERENCE2PROVIDER[item]]:
                     ktyp = alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
@@ -222,7 +218,7 @@ class Registration(Endpoint):
                                 ktyp, alg=request[item], owner=iss))
                         if not _k:
                             logger.warning(
-                                'Lacking support for "{}"'. format(
+                                'Lacking support for "{}"'.format(
                                     request[item]))
                             del _cinfo[item]
 
@@ -354,7 +350,7 @@ class Registration(Endpoint):
 
             args[param] = val
 
-    def client_registration_setup(self, request):
+    def client_registration_setup(self, request, new_id=True, set_secret=True):
         try:
             request.verify()
         except MessageException as err:
@@ -374,26 +370,40 @@ class Registration(Endpoint):
                 error_description="Don't support proposed %s" % err)
 
         _context = self.endpoint_context
-        # create new id och secret
-        client_id = rndstr(12)
-        while client_id in _context.cdb:
+        if new_id:
+            # create new id och secret
             client_id = rndstr(12)
-
-        client_secret = secret(_context.seed, client_id)
+            while client_id in _context.cdb:
+                client_id = rndstr(12)
+        else:
+            try:
+                client_id = request['client_id']
+            except KeyError:
+                raise ValueError('Missing client_id')
 
         _rat = rndstr(32)
 
-        _context.cdb[client_id] = {
+        _cinfo = {
             "client_id": client_id,
-            "client_secret": client_secret,
             "registration_access_token": _rat,
             "registration_client_uri": "%s?client_id=%s" % (self.endpoint_path,
                                                             client_id),
-            "client_secret_expires_at": client_secret_expiration_time(),
-            "client_id_issued_at": utc_time_sans_frac(),
             "client_salt": rndstr(8)
-            }
+        }
 
+        if new_id:
+            _cinfo["client_id_issued_at"] = utc_time_sans_frac()
+
+        if set_secret:
+            client_secret = secret(_context.seed, client_id)
+            _cinfo.update({
+                "client_secret": client_secret,
+                "client_secret_expires_at": client_secret_expiration_time()
+            })
+        else:
+            client_secret = ''
+
+        _context.cdb[client_id] = _cinfo
         _context.cdb[_rat] = client_id
 
         _cinfo = self.do_client_registration(request, client_id,
@@ -424,8 +434,9 @@ class Registration(Endpoint):
 
         return response
 
-    def process_request(self, request=None, **kwargs):
-        reg_resp = self.client_registration_setup(request)
+    def process_request(self, request=None, new_id=True, set_secret=True,
+                        **kwargs):
+        reg_resp = self.client_registration_setup(request, new_id, set_secret)
 
         if 'error' in reg_resp:
             return reg_resp
