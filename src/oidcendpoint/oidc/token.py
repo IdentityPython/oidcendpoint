@@ -34,25 +34,33 @@ class AccessToken(Endpoint):
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
-        self.pre_construct.append(self._pre_construct)
+        self.pre_construct.append(self._add_idtoken)
         self.post_parse_request.append(self._post_parse_request)
 
-    def _pre_construct(self, response_args, request, **kwargs):
+    def _add_idtoken(self, response_args, request, **kwargs):
         _context = self.endpoint_context
         _access_code = request["code"].replace(' ', '+')
         _info = _context.sdb[_access_code]
         _authn_req = _info['authn_req']
-        try:
-            _client_id = request['client_id']
-        except KeyError:
-            _client_id = _authn_req['client_id']
 
         if "openid" in _authn_req["scope"]:
             userinfo = userinfo_in_id_token_claims(_context, _info)
+
             try:
-                _idtoken = sign_encrypt_id_token(_context, _info,
-                                                 str(_client_id),
-                                                 user_info=userinfo)
+                _client_id = request['client_id']
+            except KeyError:
+                _client_id = _authn_req['client_id']
+
+            _cinfo = self.endpoint_context.cdb[_client_id]
+            if 'id_token_encrypted_response_alg' in _cinfo:
+                encrypt=True
+            else:
+                encrypt=False
+
+            try:
+                _idtoken = sign_encrypt_id_token(_context, _info, _client_id,
+                                                 sign=True, user_info=userinfo,
+                                                 encrypt=encrypt)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 return self.error_cls(
@@ -122,25 +130,32 @@ class AccessToken(Endpoint):
             return self.error_cls(error="access_denied",
                                   error_description="Access Code already used")
 
-        if "openid" in _authn_req["scope"]:
-            userinfo = userinfo_in_id_token_claims(_context, _info)
-
-            try:
-                _client_id = req['client_id']
-            except KeyError:
-                _client_id = _authn_req['client_id']
-
-            try:
-                _idtoken = sign_encrypt_id_token(_context, _info, _client_id,
-                                                 sign=True, user_info=userinfo)
-            except (JWEException, NoSuitableSigningKeys) as err:
-                logger.warning(str(err))
-                return self.error_cls(
-                    error="invalid_request",
-                    error_description="Could not sign/encrypt id_token")
-
-            _sdb.update_by_token(_access_code, id_token=_idtoken)
-            _info = _sdb[_access_code]
+        # if "openid" in _authn_req["scope"]:
+        #     userinfo = userinfo_in_id_token_claims(_context, _info)
+        #
+        #     try:
+        #         _client_id = req['client_id']
+        #     except KeyError:
+        #         _client_id = _authn_req['client_id']
+        #
+        #     _cinfo = self.endpoint_context.cdb[_client_id]
+        #     if 'id_token_encrypted_response_alg' in _cinfo:
+        #         encrypt=True
+        #     else:
+        #         encrypt=False
+        #
+        #     try:
+        #         _idtoken = sign_encrypt_id_token(_context, _info, _client_id,
+        #                                          sign=True, user_info=userinfo,
+        #                                          encrypt=encrypt)
+        #     except (JWEException, NoSuitableSigningKeys) as err:
+        #         logger.warning(str(err))
+        #         return self.error_cls(
+        #             error="invalid_request",
+        #             error_description="Could not sign/encrypt id_token")
+        #
+        #     _sdb.update_by_token(_access_code, id_token=_idtoken)
+        #     _info = _sdb[_access_code]
 
         return by_schema(AccessTokenResponse, **_info)
 
