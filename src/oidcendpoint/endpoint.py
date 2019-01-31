@@ -1,5 +1,5 @@
 import logging
-# noinspection PyCompatibility
+
 from urllib.parse import urlparse
 
 from oidcmsg.exception import MissingRequiredAttribute

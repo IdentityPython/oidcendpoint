@@ -250,6 +250,12 @@ def verify_client(endpoint_context, request, authorization_info):
         except KeyError:
             raise ValueError('Unknown Client ID')
         else:
+            if isinstance(_cinfo,str):
+                try:
+                    _cinfo = endpoint_context.cdb[_cinfo]
+                except KeyError:
+                    raise ValueError('Unknown Client ID')
+
             try:
                 valid_client_info(_cinfo)
             except KeyError:

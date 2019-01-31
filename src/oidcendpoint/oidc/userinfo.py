@@ -95,7 +95,7 @@ class UserInfo(Endpoint):
             info = {'error': 'invalid_request',
                     'error_description': 'Offline access not granted'}
 
-        return {'response_args': {'response': info},
+        return {'response_args': info,
                 'client_id': session['authn_req']['client_id']}
 
     def parse_request(self, request, auth=None, **kwargs):
