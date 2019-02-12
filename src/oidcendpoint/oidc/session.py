@@ -188,11 +188,14 @@ class Session(Endpoint):
         _cntx = self.endpoint_context
         _sdb = _cntx.sdb
 
+        _cookie_name = self.endpoint_context.cookie_dealer.name
         try:
-            part = _cntx.cookie_dealer.get_cookie_value(
-                cookie, cookie_name='oidc_op')
+            part = self.endpoint_context.cookie_dealer.get_cookie_value(
+                cookie, cookie_name=_cookie_name)
         except IndexError:
             raise InvalidRequest('Cookie error')
+        except KeyError:
+            part = None
 
         if part:
             # value is a base64 encoded JSON document
@@ -210,7 +213,10 @@ class Session(Endpoint):
             else:
                 _sid = _ith_sid
 
-        session = _sdb[_sid]
+        try:
+            session = _sdb[_sid]
+        except KeyError:
+            raise ValueError("Can't find any corresponding session")
 
         client_id = session['authn_req']['client_id']
 
@@ -291,11 +297,15 @@ class Session(Endpoint):
                                   sigalg=''):
                 raise InvalidRequest("Didn't verify")
             # id_token_signing_alg_values_supported
-            _ith = request[verified_claim_name("id_token_hint")]
-            if _ith.jws_header['alg'] not in \
-                    self.endpoint_context.provider_info[
-                        'id_token_signing_alg_values_supported']:
-                raise JWSException('Unsupported signing algorithm')
+            try:
+                _ith = request[verified_claim_name("id_token_hint")]
+            except KeyError:
+                pass
+            else:
+                if _ith.jws_header['alg'] not in \
+                        self.endpoint_context.provider_info[
+                            'id_token_signing_alg_values_supported']:
+                    raise JWSException('Unsupported signing algorithm')
 
         return request
 

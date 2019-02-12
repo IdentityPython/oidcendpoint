@@ -174,14 +174,14 @@ class TestEndpoint(object):
             }
         endpoint_context = EndpointContext(conf, keyjar=KEYJAR,
                                            cookie_dealer=SimpleCookieDealer(
-                                               'foo'))
+                                               'oidc_op'))
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("{}cb".format(ISS), None)],
             "client_salt": "salted",
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token'],
-            'post_logout_redirect_uris': ['{}logout_cb'.format(ISS)]
+            'post_logout_redirect_uris': [('{}logout_cb'.format(ISS), None)]
             }
         self.authn_endpoint = Authorization(endpoint_context)
         self.session_endpoint = Session(endpoint_context)
@@ -189,17 +189,18 @@ class TestEndpoint(object):
 
     def test_authn_then_end_with_state(self):
         _req = self.authn_endpoint.parse_request(AUTH_REQ_DICT)
-        _authn_resp = self.authn_endpoint.process_request(request=_req)
+        _authn_resp = self.authn_endpoint.process_request(_req)
         msg = self.authn_endpoint.do_response(**_authn_resp)
         assert isinstance(msg, dict)
         _req = self.session_endpoint.parse_request({
             'state': 'STATE',
             'post_logout_redirect_uri': '{}logout_cb'.format(ISS)
             })
-        _resp = self.session_endpoint.process_request(request=_req,
+
+        _resp = self.session_endpoint.process_request(_req,
                                                       cookie=msg['cookie'])
         assert _resp['response_args'] == '{}logout_cb?state=STATE'.format(ISS)
-        _resp = self.session_endpoint.do_response(**_resp, request=_req)
+        _resp = self.session_endpoint.do_response(request=_req, **_resp)
         assert _resp
         # Trying to use 'code' after logout
         _code = _authn_resp['response_args']['code']
@@ -212,17 +213,20 @@ class TestEndpoint(object):
             'code': _code
         }
         _req = self.token_endpoint.parse_request(_token_request)
-        _resp = self.token_endpoint.process_request(request=_req)
+        _resp = self.token_endpoint.process_request(_req)
         assert isinstance(_resp, TokenErrorResponse)
         assert _resp['error'] == 'invalid_request'
 
     def test_authn_then_end_with_id_token(self):
         _req = self.authn_endpoint.parse_request(AUTH_REQ_DICT)
-        _authn_resp = self.authn_endpoint.process_request(request=_req)
+        _authn_resp = self.authn_endpoint.process_request(_req)
         msg = self.authn_endpoint.do_response(**_authn_resp)
         assert isinstance(msg, dict)
+        _sid = self.authn_endpoint.endpoint_context.sdb.get_sid_by_kv(
+            'state', 'STATE')
+        session = self.authn_endpoint.endpoint_context.sdb[_sid]
         # Create ID Token
-        _id_info = {'sub': 'diana'}
+        _id_info = {'sub': session['sub']}
         _jwt = JWT(key_jar=self.authn_endpoint.endpoint_context.keyjar,
                    iss=self.authn_endpoint.endpoint_context.issuer,
                    lifetime=3600)
@@ -233,10 +237,10 @@ class TestEndpoint(object):
             'id_token_hint': _id_token,
             'post_logout_redirect_uri': '{}logout_cb'.format(ISS)
             })
-        _resp = self.session_endpoint.process_request(request=_req,
+        _resp = self.session_endpoint.process_request(_req,
                                                       cookie=msg['cookie'])
         assert _resp['response_args'] == '{}logout_cb'.format(ISS)
-        _resp = self.session_endpoint.do_response(**_resp, request=_req)
+        _resp = self.session_endpoint.do_response(request=_req, **_resp)
         assert _resp
         # Trying to use 'code' after logout
         _code = _authn_resp['response_args']['code']
