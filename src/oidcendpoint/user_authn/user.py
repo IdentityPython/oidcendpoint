@@ -2,6 +2,7 @@
 import base64
 import inspect
 import logging
+import sys
 import time
 from urllib.parse import parse_qs
 from urllib.parse import unquote
@@ -9,15 +10,14 @@ from urllib.parse import urlencode
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
-import sys
-
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT
 
 from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication, InvalidCookieSign
+from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InstantiationError
+from oidcendpoint.exception import InvalidCookieSign
 from oidcendpoint.exception import ToOld
 
 __author__ = 'Roland Hedberg'
@@ -30,7 +30,8 @@ LOC = {
         "login_title": "Username",
         "passwd_title": "Password",
         "submit_text": "Submit",
-        "client_policy_title": "Client Policy"},
+        "client_policy_title": "Client Policy"
+    },
     "se": {
         "title": "Logga in",
         "login_title": u"Användarnamn",
@@ -136,6 +137,23 @@ class UserAuthnMethod(object):
             return rp_query_cookie[0]
         return ""
 
+    def unpack_token(self, token):
+        return verify_signed_jwt(token=token,
+                                 keyjar=self.endpoint_context.keyjar)
+
+    def done(self, areq):
+        """
+
+        :param areq: Authentication request
+        :return: True if the 'query_parameter' doesn't appear in the request
+        """
+        try:
+            _ = areq[self.query_param]
+        except KeyError:
+            return True
+        else:
+            return False
+
 
 def url_encode_params(params=None):
     if not isinstance(params, dict):
@@ -201,161 +219,6 @@ def verify_signed_jwt(token, keyjar):
     return verifier.unpack(token)
 
 
-class UsernamePasswordMako(UserAuthnMethod):
-    """Do user authentication using the normal username password form in a
-    WSGI environment using Mako as template system"""
-
-    url_endpoint = "/verify/user_pass_mako"
-    param_map = {"as_user": "login", "acr_values": "acr",
-                 "policy_uri": "policy_uri", "logo_uri": "logo_uri",
-                 "tos_uri": "tos_uri", "query": "query"}
-
-    def __init__(self, mako_template, template_lookup, pwd,
-                 return_to="", templ_arg_func=None,
-                 verification_endpoints=None, endpoint_context=None):
-        """
-        :param endpoint_context: The endpoint context
-        :param mako_template: Which Mako template to use
-        :param pwd: Username/password dictionary like database
-        :param return_to: Where to send the user after authentication
-        :return:
-        """
-        UserAuthnMethod.__init__(self, endpoint_context)
-        self.mako_template = mako_template
-        self.template_lookup = template_lookup
-        self.passwd = pwd
-        self.return_to = return_to
-        self.verification_endpoints = verification_endpoints or ["verify"]
-        if templ_arg_func:
-            self.templ_arg_func = templ_arg_func
-        else:
-            self.templ_arg_func = self.template_args
-
-    def template_args(self, end_point_index=0, **kwargs):
-        """
-        Method to override if necessary, dependent on the page layout
-        and context
-
-        :param end_point_index: An index into the list of verification endpoints
-        :param kwargs: Extra keyword arguments
-        :return: dictionary of parameters used to build the Authn page
-        """
-
-        try:
-            action = kwargs["action"]
-        except KeyError:
-            action = self.verification_endpoints[end_point_index]
-
-        argv = {"password": "", "action": action}
-
-        for fro, to in self.param_map.items():
-            try:
-                argv[to] = kwargs[fro]
-            except KeyError:
-                argv[to] = ""
-
-        if "extra" in kwargs:
-            for param in kwargs["extra"]:
-                try:
-                    argv[param] = kwargs[param]
-                except KeyError:
-                    argv[param] = ""
-
-        try:
-            _locs = kwargs["ui_locales"]
-        except KeyError:
-            argv.update(LOC["en"])
-        else:
-            for loc in _locs:
-                try:
-                    argv.update(LOC[loc])
-                except KeyError:
-                    pass
-                else:
-                    break
-
-        return argv
-
-    def __call__(self, cookie=None, end_point_index=0, **kwargs):
-        """
-        Put up the login form
-        """
-
-        argv = self.templ_arg_func(end_point_index, **kwargs)
-        logger.info("do_authentication argv: %s" % sanitize(argv))
-        mte = self.template_lookup.get_template(self.mako_template)
-        return {'response', mte.render(**argv).decode("utf-8")}
-
-    def _verify(self, pwd, user):
-        if pwd != self.passwd[user]:
-            raise ValueError("Passwords don't match.")
-
-    def verify(self, request, **kwargs):
-        """
-        Verifies that the given username and password was correct
-        :param request: Either the query part of a URL a urlencoded
-        body of a HTTP message or a parse such.
-        :param kwargs: Catch whatever else is sent.
-        :return: redirect back to where ever the base applications
-        wants the user after authentication.
-        """
-
-        logger.debug("verify(%s)" % sanitize(request))
-        _dict = request
-
-        logger.debug("dict: %s" % sanitize(_dict))
-        # verify username and password
-        try:
-            self._verify(_dict["password"], _dict["login"])  # dict origin
-        except TypeError:
-            try:
-                self._verify(_dict["password"][0], _dict["login"][0])
-            except (AssertionError, KeyError) as err:
-                logger.debug("Password verification failed: {}".format(err))
-                return {'response', b"Unknown user or wrong password"}
-            else:
-                try:
-                    _qp = _dict["query"]
-                except KeyError:
-                    _qp = self.get_multi_auth_cookie(kwargs['cookie'])
-        except (AssertionError, KeyError) as err:
-            logger.debug("Password verification failed: {}".format(err))
-            return {'response': b"Unknown user or wrong password"}
-        else:
-            try:
-                _qp = _dict["query"]
-            except KeyError:
-                _qp = self.get_multi_auth_cookie(kwargs['cookie'])
-
-        logger.debug("Password verification succeeded.")
-        # if "cookie" not in kwargs or self.endpoint_context.cookie_name not in
-        # kwargs["cookie"]:
-        headers = [self.cookie_dealer.create_cookie(_dict["login"], "upm")]
-        try:
-            return_to = self.generate_return_url(kwargs["return_to"], _qp)
-        except KeyError:
-            try:
-                return_to = self.generate_return_url(self.return_to, _qp,
-                                                     kwargs["path"])
-            except KeyError:
-                return_to = self.generate_return_url(self.return_to, _qp)
-
-        return {'redirect': return_to, 'headers': headers}
-
-    def done(self, areq):
-        """
-
-        :param areq: Authentication request
-        :return: True if the 'query_parameter' doesn't appear in the request
-        """
-        try:
-            _ = areq[self.query_param]
-        except KeyError:
-            return True
-        else:
-            return False
-
-
 LABELS = {
     'tos_uri': 'Terms of Service',
     'policy_uri': 'Service policy',
@@ -411,23 +274,6 @@ class UserPassJinja2(UserAuthnMethod):
             return username
         else:
             raise FailedAuthentication()
-
-    def unpack_token(self, token):
-        return verify_signed_jwt(token=token,
-                                 keyjar=self.endpoint_context.keyjar)
-
-    def done(self, areq):
-        """
-
-        :param areq: Authentication request
-        :return: True if the 'query_parameter' doesn't appear in the request
-        """
-        try:
-            _ = areq[self.query_param]
-        except KeyError:
-            return True
-        else:
-            return False
 
 
 class BasicAuthn(UserAuthnMethod):
