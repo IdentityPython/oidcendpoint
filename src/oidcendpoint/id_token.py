@@ -1,6 +1,5 @@
 import logging
 
-from cryptojwt import jws
 from cryptojwt.jwt import JWT
 from cryptojwt.jws.utils import left_hash
 
@@ -112,7 +111,7 @@ def id_token_payload(session, loa="2", alg="RS256", code=None,
 
 def sign_encrypt_id_token(endpoint_context, session_info, client_id, code=None,
                           access_token=None, user_info=None, sign=True,
-                          encrypt=False):
+                          encrypt=False, extra_claims=None):
     """
     Signed and or encrypt a IDToken
 
@@ -124,6 +123,7 @@ def sign_encrypt_id_token(endpoint_context, session_info, client_id, code=None,
     :param user_info: User information
     :param sign: If the JWT should be signed
     :param encrypt: If the JWT should be encrypted
+    :param extra_claims: Extra claims to be added to the ID Token
     :return: IDToken as a signed and/or encrypted JWT
     """
 
@@ -137,7 +137,8 @@ def sign_encrypt_id_token(endpoint_context, session_info, client_id, code=None,
     _idt_info = id_token_payload(session_info, loa=_authn_event["authn_info"],
                                  alg = alg_dict['sign_alg'], code=code,
                                  access_token=access_token, user_info=user_info,
-                                 auth_time=_authn_event["authn_time"])
+                                 auth_time=_authn_event["authn_time"],
+                                 extra_claims=extra_claims)
 
     _jwt = JWT(endpoint_context.keyjar, iss=endpoint_context.issuer,
                lifetime=_idt_info['lifetime'], **alg_dict)
