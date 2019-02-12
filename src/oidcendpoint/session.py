@@ -200,6 +200,12 @@ class SessionDB(object):
     def get_sids_by_sub(self, sub):
         return self.sso_db.get_sids_by_sub(sub)
 
+    def get_sid_by_sub_and_client_id(self, sub, client_id):
+        for sid in self.sso_db.get_sids_by_sub(sub):
+            if self[sid]['authn_req']['client_id'] == client_id:
+                return sid
+        return None
+
     def replace_token(self, sid, sinfo, token_type):
         """
         Replace an old refresh_token with a new one
