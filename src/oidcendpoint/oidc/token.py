@@ -2,6 +2,7 @@ import logging
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
+
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AccessTokenRequest
@@ -12,11 +13,10 @@ from oidcmsg.oidc import TokenErrorResponse
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.id_token import sign_encrypt_id_token
+from oidcendpoint.oidc.util import make_idtoken
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
-from oidcendpoint.userinfo import userinfo_in_id_token_claims
 from oidcendpoint.util import new_cookie
 
 logger = logging.getLogger(__name__)
@@ -34,35 +34,7 @@ class AccessToken(Endpoint):
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
-        self.pre_construct.append(self._pre_construct)
         self.post_parse_request.append(self._post_parse_request)
-
-    def _pre_construct(self, response_args, request, **kwargs):
-        _context = self.endpoint_context
-        _access_code = request["code"].replace(' ', '+')
-        _info = _context.sdb[_access_code]
-        _authn_req = _info['authn_req']
-        try:
-            _client_id = request['client_id']
-        except KeyError:
-            _client_id = _authn_req['client_id']
-
-        if "openid" in _authn_req["scope"]:
-            userinfo = userinfo_in_id_token_claims(_context, _info)
-            try:
-                _idtoken = sign_encrypt_id_token(_context, _info,
-                                                 str(_client_id),
-                                                 user_info=userinfo)
-            except (JWEException, NoSuitableSigningKeys) as err:
-                logger.warning(str(err))
-                return self.error_cls(
-                    error="invalid_request",
-                    error_description="Could not sign/encrypt id_token")
-
-            _context.sdb.update_by_token(_access_code, id_token=_idtoken)
-            response_args['id_token'] = _idtoken
-
-        return response_args
 
     def _access_token(self, req, **kwargs):
         _context = self.endpoint_context
@@ -123,21 +95,14 @@ class AccessToken(Endpoint):
                                   error_description="Access Code already used")
 
         if "openid" in _authn_req["scope"]:
-            userinfo = userinfo_in_id_token_claims(_context, _info)
-
             try:
-                _client_id = req['client_id']
-            except KeyError:
-                _client_id = _authn_req['client_id']
-
-            try:
-                _idtoken = sign_encrypt_id_token(_context, _info, _client_id,
-                                                 sign=True, user_info=userinfo)
+                _idtoken = make_idtoken(self, req, _authn_req, _info)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
-                return self.error_cls(
+                resp = TokenErrorResponse(
                     error="invalid_request",
                     error_description="Could not sign/encrypt id_token")
+                return resp
 
             _sdb.update_by_token(_access_code, id_token=_idtoken)
             _info = _sdb[_access_code]

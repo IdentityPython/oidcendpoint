@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from urllib.parse import parse_qs
@@ -19,7 +20,7 @@ from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 from oidcservice.exception import InvalidRequest
 
-from oidcendpoint import sanitize
+from oidcendpoint import sanitize, rndstr
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import NoSuchAuthentication
@@ -28,6 +29,7 @@ from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import sign_encrypt_id_token
+from oidcendpoint.oidc.util import make_idtoken
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
@@ -193,10 +195,10 @@ def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
     return authn_args
 
 
-def create_authn_response(endpoint_context, request, sid):
+def create_authn_response(endpoint, request, sid):
     """
 
-    :param endpoint_context:
+    :param endpoint:
     :param request:
     :param sid:
     :return:
@@ -211,7 +213,8 @@ def create_authn_response(endpoint_context, request, sid):
     if "response_type" in request and request["response_type"] == ["none"]:
         fragment_enc = False
     else:
-        _sinfo = endpoint_context.sdb[sid]
+        _context = endpoint.endpoint_context
+        _sinfo = _context.sdb[sid]
 
         try:
             aresp["scope"] = request["scope"]
@@ -226,14 +229,14 @@ def create_authn_response(endpoint_context, request, sid):
             fragment_enc = True
 
         if "code" in request["response_type"]:
-            _code = aresp["code"] = endpoint_context.sdb[sid]["code"]
+            _code = aresp["code"] = _context.sdb[sid]["code"]
             handled_response_type.append("code")
         else:
-            endpoint_context.sdb.update(sid, code=None)
+            _context.sdb.update(sid, code=None)
             _code = None
 
         if "token" in rtype:
-            _dic = endpoint_context.sdb.upgrade_to_token(issue_refresh=False,
+            _dic = _context.sdb.upgrade_to_token(issue_refresh=False,
                                                          key=sid)
 
             logger.debug("_dic: %s" % sanitize(_dic))
@@ -249,31 +252,19 @@ def create_authn_response(endpoint_context, request, sid):
             _access_token = None
 
         if "id_token" in request["response_type"]:
-            user_info = userinfo_in_id_token_claims(endpoint_context, _sinfo)
-            if request["response_type"] == ["id_token"]:
-                #  scopes should be returned here
-                info = collect_user_info(endpoint_context, _sinfo)
-                if user_info is None:
-                    user_info = info
-                else:
-                    user_info.update(info)
-
-            # client_info = endpoint_context.cdb[str(request["client_id"])]
-
-            hargs = {}
+            kwargs = {}
             if {'code', 'id_token', 'token'}.issubset(rtype):
-                hargs = {"code": _code, "access_token": _access_token}
+                kwargs = {"code": _code, "access_token": _access_token}
             elif {'code', 'id_token'}.issubset(rtype):
-                hargs = {"code": _code}
+                kwargs = {"code": _code}
             elif {'id_token', 'token'}.issubset(rtype):
-                hargs = {"access_token": _access_token}
+                kwargs = {"access_token": _access_token}
 
-            # or 'code id_token'
+            if request["response_type"] == ["id_token"]:
+                kwargs['user_claims'] = True
+
             try:
-                id_token = sign_encrypt_id_token(endpoint_context, _sinfo,
-                                                 str(request["client_id"]),
-                                                 user_info=user_info,
-                                                 sign=True, **hargs)
+                id_token = make_idtoken(endpoint, request, _sinfo, **kwargs)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 resp = AuthorizationErrorResponse(
@@ -618,7 +609,7 @@ class Authorization(Endpoint):
                                            'invalid_request',
                                            '{}'.format(err.args))
 
-        response_info['cookie'] = _cookie
+        response_info['cookie'] = [_cookie]
 
         return response_info
 
@@ -639,6 +630,24 @@ class Authorization(Endpoint):
         except Exception as err:
             return self.error_response({}, 'server_error', err)
 
+        if "check_session_iframe" in self.endpoint_context.provider_info:
+            ec = self.endpoint_context
+            salt = rndstr()
+            authn_event = ec.sdb.get_authentication_event(sid)  # use the last session
+            state = str(authn_event.authn_time)
+            _session_state = self._compute_session_state(
+                state, salt, request["client_id"], resp_info['return_uri'])
+
+            if 'cookie' in resp_info:
+                resp_info['cookie'] = ec.cookie_dealer.append_cookie(
+                    resp_info['cookie'], state, typ="session",
+                    cookie_name='pyoidc_sessiom')
+            else:
+                resp_info['cookie'] = ec.cookie_dealer.create_cookie(
+                    state, typ="session", cookie_name='pyoidc_sessiom')
+
+            resp_info['response_args']['session_state'] = _session_state
+
         # Mix-Up mitigation
         resp_info['response_args']['iss'] = self.endpoint_context.issuer
         resp_info['response_args']['client_id'] = request['client_id']
@@ -648,7 +657,7 @@ class Authorization(Endpoint):
     def process_request(self, request=None, **kwargs):
         """ The AuthorizationRequest endpoint
 
-        :param request: The client request as a dictionary
+        :param request: The authorization request as a dictionary
         :return: res
         """
 
@@ -691,3 +700,10 @@ class Authorization(Endpoint):
             except Exception as err:
                 logger.exception(err)
                 return {'http_response': 'Internal error: {}'.format(err)}
+
+    def _compute_session_state(self, state, salt, client_id, redirect_uri):
+        parsed_uri = urlparse(redirect_uri)
+        rp_origin_url = "{uri.scheme}://{uri.netloc}".format(uri=parsed_uri)
+        session_str = client_id + " " + rp_origin_url + " " + state + " " + salt
+        return hashlib.sha256(
+            session_str.encode("utf-8")).hexdigest() + "." + salt
