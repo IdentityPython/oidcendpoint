@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+import requests
 from functools import cmp_to_key
 
 from cryptojwt import jwe
@@ -17,6 +18,7 @@ from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
+from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn import user
 from oidcendpoint.user_authn.authn_context import AuthnBroker
 from oidcendpoint.util import build_endpoints
@@ -75,7 +77,7 @@ def add_path(url, path):
 
 class EndpointContext(object):
     def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
-                 cwd='', cookie_dealer=None):
+                 cwd='', cookie_dealer=None, httpc=None):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
@@ -101,6 +103,7 @@ class EndpointContext(object):
         # Default values, to be changed below depending on configuration
         self.endpoint = {}
         self.issuer = ''
+        self.httpc = httpc or requests
         self.verify_ssl = True
         self.jwks_uri = None
         self.sso_ttl = 14400  # 4h
@@ -118,6 +121,8 @@ class EndpointContext(object):
 
         template_dir = conf["template_dir"]
         jinja_env = Environment(loader=FileSystemLoader(template_dir))
+
+        self.template_handler = Jinja2TemplateHandler(jinja_env)
 
         self.setup = {}
         try:
@@ -303,7 +308,6 @@ class EndpointContext(object):
 
         for name, instance in self.endpoint.items():
             if name not in ['webfinger', 'provider_info']:
-                _pinfo['{}_endpoint'.format(name)] = '{}{}'.format(
-                    self.issuer, instance.endpoint_path)
+                _pinfo['{}_endpoint'.format(name)] = instance.full_path
 
         return _pinfo
