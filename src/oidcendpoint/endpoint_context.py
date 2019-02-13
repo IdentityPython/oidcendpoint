@@ -226,7 +226,6 @@ class EndpointContext(object):
         _provider_info["claims_supported"] = list(set(_claims))
 
         _scopes = list(SCOPE2CLAIMS.keys())
-        _scopes.append("openid")
         _provider_info["scopes_supported"] = _scopes
 
         # Sort order RS, ES, HS, PS
