@@ -5,10 +5,10 @@ from urllib.parse import urlencode
 
 from cryptojwt import as_unicode, b64d
 from cryptojwt.jws.exception import JWSException
-from cryptojwt.jws.jws import JWS, factory
+from cryptojwt.jws.jws import factory
 from cryptojwt.jwt import JWT
-from jwkest import as_bytes
-from jwkest.jws import alg2keytype
+from cryptojwt.utils import as_bytes
+from cryptojwt.jws.utils import alg2keytype
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
