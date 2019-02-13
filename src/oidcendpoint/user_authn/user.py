@@ -252,6 +252,8 @@ class UserPassJinja2(UserAuthnMethod):
     def __call__(self, **kwargs):
         template = self.template_env.get_template(self.template)
         _ec = self.endpoint_context
+        # Stores information need afterwards in a signed JWT that then
+        # appears as a hidden input in the form
         jws = create_signed_jwt(_ec.issuer, _ec.keyjar, **kwargs)
 
         _kwargs = self.kwargs.copy()
