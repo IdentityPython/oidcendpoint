@@ -96,7 +96,7 @@ class AccessToken(Endpoint):
 
         if "openid" in _authn_req["scope"]:
             try:
-                _idtoken = make_idtoken(self, req, _authn_req, _info)
+                _idtoken = make_idtoken(self, req, _info, _authn_req)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 resp = TokenErrorResponse(
