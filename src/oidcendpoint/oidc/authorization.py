@@ -584,8 +584,7 @@ class Authorization(Endpoint):
             return self.error_response(response_info, "access_denied",
                                        "Session is revoked")
 
-        response_info = create_authn_response(self.endpoint_context,
-                                              request, sid)
+        response_info = create_authn_response(self, request, sid)
 
         try:
             redirect_uri = get_redirect_uri(self.endpoint_context, request)
