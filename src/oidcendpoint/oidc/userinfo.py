@@ -80,7 +80,7 @@ class UserInfo(Endpoint):
 
         allowed = True
         # if the authenticate is still active or offline_access is granted.
-        if session['authn_event']['valid_util'] > time_sans_frac():
+        if session['authn_event']['valid_until'] > time_sans_frac():
             pass
         else:
             if 'offline_access' in session['authn_req']['scope']:
