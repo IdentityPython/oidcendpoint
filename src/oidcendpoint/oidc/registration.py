@@ -87,13 +87,13 @@ def verify_url(url, urlset):
     return False
 
 
-def client_secret_expiration_time():
+def client_secret_expiration_time(delta=86400):
     '''
     Returns client_secret expiration time.
 
     Split for easy customization.
     '''
-    return utc_time_sans_frac() + 86400
+    return utc_time_sans_frac() + delta
 
 
 def secret(seed, sid):
@@ -208,7 +208,7 @@ class Registration(Endpoint):
                      "userinfo_signed_response_alg"]:
             if item in request:
                 if request[item] in _context.provider_info[
-                    PREFERENCE2PROVIDER[item]]:
+                        PREFERENCE2PROVIDER[item]]:
                     ktyp = alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
@@ -395,10 +395,15 @@ class Registration(Endpoint):
             _cinfo["client_id_issued_at"] = utc_time_sans_frac()
 
         if set_secret:
+            try:
+                args = {'delta': self.kwargs['client_secret_expiration_time']}
+            except KeyError:
+                args = {}
+
             client_secret = secret(_context.seed, client_id)
             _cinfo.update({
                 "client_secret": client_secret,
-                "client_secret_expires_at": client_secret_expiration_time()
+                "client_secret_expires_at": client_secret_expiration_time(**args)
             })
         else:
             client_secret = ''
