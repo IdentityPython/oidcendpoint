@@ -4,6 +4,7 @@ import inspect
 import logging
 import sys
 import time
+import warnings
 from urllib.parse import parse_qs
 from urllib.parse import unquote
 from urllib.parse import urlencode
@@ -14,7 +15,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT
 
 from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication
+from oidcendpoint.exception import FailedAuthentication, OnlyForTestingWarning
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import InvalidCookieSign
@@ -250,6 +251,11 @@ class UserPassJinja2(UserAuthnMethod):
         self.kwargs.setdefault("policy_label", "")
 
     def __call__(self, **kwargs):
+        warnings.warn(
+            ('Do not use the "UserPassJinja2" authentication method in a '
+             'production environment'),
+            OnlyForTestingWarning)
+
         template = self.template_env.get_template(self.template)
         _ec = self.endpoint_context
         # Stores information need afterwards in a signed JWT that then
