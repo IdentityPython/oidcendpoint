@@ -60,3 +60,8 @@ class UnAuthorizedClient(OidcEndpointError):
 
 class InvalidCookieSign(Exception):
     pass
+
+
+class OnlyForTestingWarning(Warning):
+    "Warned when using a feature that only should be used for testing."
+    pass
