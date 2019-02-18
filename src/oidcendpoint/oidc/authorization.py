@@ -29,11 +29,8 @@ from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.id_token import sign_encrypt_id_token
 from oidcendpoint.oidc.util import make_idtoken
 from oidcendpoint.user_authn.authn_context import pick_auth
-from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.userinfo import userinfo_in_id_token_claims
 from oidcendpoint.util import new_cookie
 
 logger = logging.getLogger(__name__)
@@ -647,10 +644,10 @@ class Authorization(Endpoint):
             if 'cookie' in resp_info:
                 resp_info['cookie'] = ec.cookie_dealer.append_cookie(
                     resp_info['cookie'], state, typ="session",
-                    cookie_name='pyoidc_sessiom')
+                    cookie_name=ec.cookie_name['session'])
             else:
                 resp_info['cookie'] = ec.cookie_dealer.create_cookie(
-                    state, typ="session", cookie_name='pyoidc_sessiom')
+                    state, typ="session", cookie_name=ec.cookie_name['session'])
 
             resp_info['response_args']['session_state'] = _session_state
 
