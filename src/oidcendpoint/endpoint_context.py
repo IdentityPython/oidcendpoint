@@ -111,6 +111,7 @@ class EndpointContext(object):
         self.id_token_schema = IdToken
         self.endpoint_to_authn_method = {}
         self.cookie_dealer = cookie_dealer
+        self.cookie_name = {'session': "oidcop"}
 
         for param in ['verify_ssl', 'issuer', 'sso_ttl',
                       'symkey', 'client_authn', 'id_token_schema']:
@@ -163,8 +164,7 @@ class EndpointContext(object):
             self.authz = authz.Implicit(self)
         else:
             if 'args' in authz_spec:
-                self.authz = authz.factory(authz_spec['name'],
-                                           **authz_spec['args'])
+                self.authz = authz_spec['class'](**authz_spec['args'])
             else:
                 self.authz = authz.factory(self, authz_spec['name'])
 
@@ -185,7 +185,7 @@ class EndpointContext(object):
                     _args['template_env'] = jinja_env
 
                 _args['endpoint_context'] = self
-                authn_method = user.factory(authn_spec['name'], **_args)
+                authn_method = authn_spec['class'](**_args)
                 args = {k: authn_spec[k] for k in
                         ['acr', 'level', 'authn_authority'] if k in authn_spec}
 
