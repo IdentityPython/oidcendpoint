@@ -12,6 +12,7 @@ from cryptojwt.jws.utils import alg2keytype
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc.session import BACK_CHANNEL_LOGOUT_EVENT
 from oidcmsg.oidc.session import EndSessionRequest
 
@@ -109,21 +110,12 @@ class Session(Endpoint):
 
         return back_channel_logout_uri, sjwt
 
-    def logout_all_clients(self, sid):
-        """
-        The user chose to logout from all RPs
-
-        :param sid:
-        :return:
-        """
+    def logout_all_clients(self, sid, client_id):
         _sdb = self.endpoint_context.sdb
         _sso_db = self.endpoint_context.sdb.sso_db
 
         # Find all RPs this user has logged it from
-        # User ID is the key to find all the sessions
         uid = _sso_db.get_uid_by_sid(sid)
-
-        # Map client ID to session ID
         _client_sid = {}
         for usid in _sso_db.get_sids_by_uid(uid):
             _client_sid[_sdb[usid]['authn_req']['client_id']] = usid
@@ -157,9 +149,6 @@ class Session(Endpoint):
             elif res.status_code >= 400:
                 logger.info('failed to logout from {}'.format(_cid))
 
-        # The front channel logout is handled when displaying the logout
-        # page to the user. *Note* the logout page will eventually
-        # redirect to the post_logout_redirect_uri
         return fc_iframes
 
     def unpack_signed_jwt(self, sjwt):
@@ -179,16 +168,7 @@ class Session(Endpoint):
 
         if 'backchannel_logout_uri' in _cdb[client_id]:
             _sub = _sso_db.get_sub_by_sid(sid)
-            _url, sjwt = self.do_back_channel_logout(_cdb[client_id], _sub, sid)
-            res = self.endpoint_context.httpc.post(
-                _url, data="logout_token={}".format(sjwt),
-                verify=self.endpoint_context.verify_ssl)
-
-            if res.status_code < 300:
-                logger.info('Logged out from {}'.format(client_id))
-            elif res.status_code >= 400:
-                logger.info('failed to logout from {}'.format(client_id))
-
+            bc_logout = self.do_back_channel_logout(_cdb[client_id], _sub, sid)
             return []
         elif 'frontchannel_logout_uri' in _cdb[client_id]:
             # Construct an IFrame
@@ -198,17 +178,17 @@ class Session(Endpoint):
 
     def process_request(self, request=None, cookie=None, **kwargs):
         """
-        Perform RP initiated logout
+        Perform user logout
 
-        :param request: RP logout request
-        :param cookie: Whatever cookie came with the request
+        :param request:
+        :param cookie:
         :param kwargs:
         :return:
         """
         _cntx = self.endpoint_context
         _sdb = _cntx.sdb
 
-        _cookie_name = self.endpoint_context.cookie_name['session']
+        _cookie_name = self.endpoint_context.cookie_dealer.name
         try:
             part = self.endpoint_context.cookie_dealer.get_cookie_value(
                 cookie, cookie_name=_cookie_name)
@@ -226,7 +206,7 @@ class Session(Endpoint):
 
         if 'id_token_hint' in request:
             _ith_sid = _sdb.sso_db.get_sids_by_sub(
-                request["id_token_hint"]['sub'])[0]
+                request[verified_claim_name("id_token_hint")]['sub'])[0]
             if _sid:
                 if _ith_sid != _sid:  # someone's messing with me
                     raise ValueError('Wrong ID Token hint')
@@ -318,7 +298,7 @@ class Session(Endpoint):
                 raise InvalidRequest("Didn't verify")
             # id_token_signing_alg_values_supported
             try:
-                _ith = request["id_token_hint"]
+                _ith = request[verified_claim_name("id_token_hint")]
             except KeyError:
                 pass
             else:
@@ -331,7 +311,7 @@ class Session(Endpoint):
 
     def do_verified_logout(self, sid, client_id, alla=False, **kwargs):
         if alla:
-            _iframes = self.logout_all_clients(sid=sid)
+            _iframes = self.logout_all_clients(sid=sid, client_id=client_id)
         else:
             _iframes = self.logout_from_client(sid=sid, client_id=client_id)
 

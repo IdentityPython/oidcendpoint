@@ -18,6 +18,7 @@ from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import verified_claim_name
 from oidcservice.exception import InvalidRequest
 
 from oidcendpoint import sanitize, rndstr
@@ -59,7 +60,7 @@ def inputs(form_args):
 
 def max_age(request):
     try:
-        return request["request"]["max_age"]
+        return request[verified_claim_name("request")]["max_age"]
     except KeyError:
         try:
             return request["max_age"]
@@ -415,7 +416,7 @@ class Authorization(Endpoint):
 
     def proposed_user(self, request):
         try:
-            return request['it_token_hint']['sub']
+            return request[verified_claim_name('it_token_hint')]['sub']
         except KeyError:
             return ''
 
@@ -596,10 +597,8 @@ class Authorization(Endpoint):
         # if isinstance(info, ResponseMessage):
         #     return info
 
-        _cookie = new_cookie(
-            self.endpoint_context,
-            cookie_name=self.endpoint_context.cookie_name['session'],
-            uid=user, sid=sid, state=request['state'])
+        _cookie = new_cookie(self.endpoint_context, sub=user, sid=sid,
+                             state=request['state'])
 
         # Now about the response_mode. Should not be set if it's obvious
         # from the response_type. Knows about 'query', 'fragment' and
@@ -621,10 +620,9 @@ class Authorization(Endpoint):
         """
         After the authentication this is where you should end up
 
-        :param user: Username
-        :param authn_event: A :py:class:`oidcendpoint.authn_event.AuthnEvent`
-            instance
+        :param user:
         :param request: The Authorization Request
+        :param sid: Session key
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """

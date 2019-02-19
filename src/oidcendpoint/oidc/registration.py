@@ -446,9 +446,8 @@ class Registration(Endpoint):
         if 'error' in reg_resp:
             return reg_resp
         else:
-            _cookie = new_cookie(
-                self.endpoint_context,
-                cookie_name=self.endpoint_context.cookie_name['registration'],
-                client_id=reg_resp['client_id'])
+            _cookie = new_cookie(self.endpoint_context,
+                                 cookie_name='oidc_op_rp',
+                                 client_id=reg_resp['client_id'])
 
             return {'response_args': reg_resp, 'cookie': _cookie}
