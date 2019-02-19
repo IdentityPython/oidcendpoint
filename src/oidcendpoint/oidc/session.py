@@ -188,7 +188,7 @@ class Session(Endpoint):
         _cntx = self.endpoint_context
         _sdb = _cntx.sdb
 
-        _cookie_name = self.endpoint_context.cookie_dealer.name
+        _cookie_name = self.endpoint_context.cookie_name['session']
         try:
             part = self.endpoint_context.cookie_dealer.get_cookie_value(
                 cookie, cookie_name=_cookie_name)

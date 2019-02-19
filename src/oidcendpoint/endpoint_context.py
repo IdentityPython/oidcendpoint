@@ -111,7 +111,7 @@ class EndpointContext(object):
         self.id_token_schema = IdToken
         self.endpoint_to_authn_method = {}
         self.cookie_dealer = cookie_dealer
-        self.cookie_name = {'session': "oidcop"}
+        self.cookie_name = {'session': "oidcop", 'register': 'oidc_op_rp'}
 
         for param in ['verify_ssl', 'issuer', 'sso_ttl',
                       'symkey', 'client_authn', 'id_token_schema']:
