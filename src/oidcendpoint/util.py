@@ -14,6 +14,15 @@ OAUTH2_NOCACHE_HEADERS = [
 
 
 def new_cookie(endpoint_context, cookie_name=None, **kwargs):
+    """
+    Constructs a cookie where the value is a json representation of the given
+    keyword arguments.
+
+    :param endpoint_context:
+    :param cookie_name:
+    :param kwargs:
+    :return:
+    """
     if endpoint_context.cookie_dealer:
         _val = as_unicode(b64e(as_bytes(json.dumps(kwargs))))
         return endpoint_context.cookie_dealer.create_cookie(

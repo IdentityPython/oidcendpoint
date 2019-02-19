@@ -95,7 +95,7 @@ def by_schema(cls, **kwa):
     """
     Will return only those claims that are listed in the Class definition.
 
-    :param cls: A subclass of :py:class:´oidcmsg.message.Message`
+    :param cls: A subclass of :py:class:`oidcmsg.message.Message`
     :param kwa: Keyword arguments
     :return: A dictionary with claims (keys) that meets the filter criteria
     """

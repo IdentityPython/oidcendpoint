@@ -1,9 +1,9 @@
 import copy
 import logging
 import os
-import requests
 from functools import cmp_to_key
 
+import requests
 from cryptojwt import jwe
 from cryptojwt.jws.jws import SIGNER_ALGS
 from cryptojwt.key_jar import KeyJar
@@ -19,7 +19,6 @@ from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
-from oidcendpoint.user_authn import user
 from oidcendpoint.user_authn.authn_context import AuthnBroker
 from oidcendpoint.util import build_endpoints
 
@@ -43,7 +42,7 @@ CAPABILITIES = {
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True
-    }
+}
 
 SORT_ORDER = {'RS': 0, 'ES': 1, 'HS': 2, 'PS': 3, 'no': 4}
 
@@ -111,7 +110,7 @@ class EndpointContext(object):
         self.id_token_schema = IdToken
         self.endpoint_to_authn_method = {}
         self.cookie_dealer = cookie_dealer
-        self.cookie_name = {'session': "oidcop"}
+        self.cookie_name = {'session': "oidcop", "registration": 'oidc_op_rp'}
 
         for param in ['verify_ssl', 'issuer', 'sso_ttl',
                       'symkey', 'client_authn', 'id_token_schema']:
