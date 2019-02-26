@@ -4,13 +4,12 @@ import logging
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
-
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint import rndstr
+from oidcendpoint.util import importer
 
 __author__ = 'Roland Hedberg'
 
@@ -110,6 +109,16 @@ class Token(object):
 
         :param token: A token
         :return: tuple of token type and session id
+        """
+        raise NotImplementedError()
+
+    def is_expired(self, token, when=0):
+        """
+        Evaluate whether the token has expired or not
+
+        :param token: The token
+        :param when: The time against which to check the expiration
+        :return: True/False
         """
         raise NotImplementedError()
 
@@ -217,12 +226,6 @@ class TokenHandler(object):
             self.handler['refresh_token'] = refresh_token_handler
             self.handler_order.append('refresh_token')
 
-        # self.lifetime_policy = {}
-        # self.token_policy = {}
-        # for handler in self.handler_order:
-        #     self.lifetime_policy[handler] = {}
-        #     self.token_policy[handler] = {}
-
     def __getitem__(self, typ):
         return self.handler[typ]
 
@@ -248,7 +251,7 @@ class TokenHandler(object):
     def type(self, token, order=None):
         return self.info(token, order)['type']
 
-    def is_black_listed(self, token,  order=None):
+    def is_black_listed(self, token, order=None):
         _handler = self.get_handler(token, order)
         return _handler.is_black_listed(token)
 
@@ -274,26 +277,36 @@ class TokenHandler(object):
         return self.handler.keys()
 
 
-def factory(password, token_expires_in=3600, grant_expires_in=600,
-            refresh_token_expires_in=86400):
+def init_token_handler(spec, typ):
+    try:
+        _cls = spec['class']
+    except KeyError:
+        cls = DefaultToken
+    else:
+        cls = importer(_cls)
+
+    return cls(typ=typ, **spec)
+
+
+def factory(code=None, token=None, refresh=None, **kwargs):
     """
     Create a token handler
 
-    :param password:
-    :param token_expires_in:
-    :param grant_expires_in:
-    :param refresh_token_expires_in:
-    :return:
+    :param code:
+    :param token:
+    :param refresh:
+    :return: TokenHandler instance
     """
-    code_handler = DefaultToken(password, typ='A',
-                                lifetime=grant_expires_in)
-    access_token_handler = DefaultToken(password, typ='T',
-                                        lifetime=token_expires_in)
-    refresh_token_handler = DefaultToken(password, typ='R',
-                                         lifetime=refresh_token_expires_in)
 
-    return TokenHandler(
-        code_handler=code_handler,
-        access_token_handler=access_token_handler,
-        refresh_token_handler=refresh_token_handler,
-    )
+    TTYPE = {'code': 'A', 'token': 'T', 'refresh': 'R'}
+
+    args = {}
+
+    if code:
+        args['code_handler'] = init_token_handler(code, TTYPE['code'])
+    if token:
+        args['access_token_handler'] = init_token_handler(token, TTYPE['token'])
+    if refresh:
+        args['refresh_token_handler'] = init_token_handler(token, TTYPE['refresh'])
+
+    return TokenHandler(**args)
