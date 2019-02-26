@@ -12,7 +12,6 @@ from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
-
 from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
@@ -21,7 +20,7 @@ from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 from oidcservice.exception import InvalidRequest
 
-from oidcendpoint import sanitize, rndstr
+from oidcendpoint import rndstr, sanitize
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import NoSuchAuthentication
@@ -104,7 +103,7 @@ def verify_redirect_uri(endpoint_context, request):
 
         match = False
         for regbase, rquery in endpoint_context.cdb[
-                str(request["client_id"])]["redirect_uris"]:
+            str(request["client_id"])]["redirect_uris"]:
 
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
@@ -235,7 +234,7 @@ def create_authn_response(endpoint, request, sid):
 
         if "token" in rtype:
             _dic = _context.sdb.upgrade_to_token(issue_refresh=False,
-                                                         key=sid)
+                                                 key=sid)
 
             logger.debug("_dic: %s" % sanitize(_dic))
             for key, val in _dic.items():
@@ -282,6 +281,13 @@ def create_authn_response(endpoint, request, sid):
             return {'response_args': resp, 'fragment_enc': fragment_enc}
 
     return {'response_args': aresp, 'fragment_enc': fragment_enc}
+
+
+def proposed_user(request):
+    try:
+        return request[verified_claim_name('it_token_hint')]['sub']
+    except KeyError:
+        return ''
 
 
 class Authorization(Endpoint):
@@ -375,15 +381,22 @@ class Authorization(Endpoint):
 
         return None
 
-    def pick_authn_method(self, request, redirect_uri):
+    def pick_authn_method(self, request, redirect_uri, acr=None):
         """
-        
-        :param request:
-        :param redirect_uri: 
+        Which ACR (Authentication context class reference) to use can
+        either be specified in the request, more specifically in the claims
+        parameter or in the call to this method.
+
+        :param request: The authorization/authentication request
+        :param redirect_uri: Where the auth response should be returned to.
+        :param acr: Authentication context class reference
         :return: 
         """
         _context = self.endpoint_context
         acrs = self._acr_claims(request)
+        if acrs == [] and acr:
+            acrs = [acr]
+
         if acrs:
             # If acr claims are present the picked acr value MUST match
             # one of the given
@@ -404,35 +417,32 @@ class Authorization(Endpoint):
                     authn, authn_class_ref = pick_auth(_context, request, "any")
 
         if authn is None:
-            return AuthorizationErrorResponse(error="access_denied",
-                                              redirect_uri=redirect_uri,
-                                              return_type=request[
-                                                  "response_type"])
+            return {'error': "access_denied", 'return_uri': redirect_uri,
+                    'return_type': request["response_type"]}
         else:
             logger.info('Authentication class: {}, acr: {}'.format(
                 authn.__class__.__name__, authn_class_ref))
 
         return authn, authn_class_ref
 
-    def proposed_user(self, request):
-        try:
-            return request[verified_claim_name('it_token_hint')]['sub']
-        except KeyError:
-            return ''
-
-    def setup_auth(self, request, redirect_uri, cinfo, cookie, **kwargs):
+    def setup_auth(self, request, redirect_uri, cinfo, cookie, acr=None,
+                   **kwargs):
         """
 
-        :param endpoint_context:
-        :param request:
+        :param request: The authorization/authentication request
         :param redirect_uri:
-        :param cinfo:
+        :param cinfo: client info
         :param cookie:
+        :param acr: Default ACR, if nothing else is specified
         :param kwargs:
         :return:
         """
 
-        authn, authn_class_ref = self.pick_authn_method(request, redirect_uri)
+        _res = self.pick_authn_method(request, redirect_uri, acr)
+        if isinstance(_res, dict):  # error message
+            return _res
+        else:
+            authn, authn_class_ref = _res
 
         try:
             try:
@@ -660,8 +670,8 @@ class Authorization(Endpoint):
     def process_request(self, request_info=None, **kwargs):
         """ The AuthorizationRequest endpoint
 
-        :param request: The authorization request as a dictionary
-        :return: res
+        :param request_info: The authorization request as a dictionary
+        :return: dictionary
         """
 
         if isinstance(request_info, AuthorizationErrorResponse):
@@ -676,9 +686,8 @@ class Authorization(Endpoint):
         else:
             del kwargs['cookie']
 
-        proposed_user = self.proposed_user(request_info)
-        if proposed_user:
-            kwargs['req_user'] = proposed_user
+        if proposed_user(request_info):
+            kwargs['req_user'] = proposed_user(request_info)
 
         info = self.setup_auth(request_info, request_info["redirect_uri"],
                                cinfo, cookie, **kwargs)
