@@ -5,7 +5,7 @@ try:
 except ImportError:
     import random as rnd
 
-__version__ = '0.5.1'
+__version__ = '0.6.0'
 
 
 DEF_SIGN_ALG = {"id_token": "RS256",
