@@ -126,11 +126,12 @@ class TestEndpoint(object):
                 }
             },
             'client_authn': verify_client,
-            "authentication": [{
-                'acr': INTERNETPROTOCOLPASSWORD,
-                'name': 'NoAuthn',
-                'kwargs': {'user': 'diana'}
-            }],
+            "authentication": {
+                'anon': {
+                    'acr': INTERNETPROTOCOLPASSWORD,
+                    'class': 'oidcendpoint.user_authn.user.NoAuthn',
+                    'kwargs': {'user': 'diana'}
+            }},
             'template_dir': 'template'
         }
         endpoint_context = EndpointContext(conf, keyjar=KEYJAR)

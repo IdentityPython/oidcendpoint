@@ -57,7 +57,8 @@ AUTH_REQ = AuthorizationRequest(client_id='client_1',
                                 redirect_uri='{}cb'.format(ISS),
                                 scope=['openid'],
                                 state='STATE',
-                                response_type='code')
+                                response_type='code',
+                                client_secret= 'hemligt')
 
 AUTH_REQ_DICT = AUTH_REQ.to_dict()
 
@@ -101,14 +102,25 @@ class SimpleCookieDealer(object):
         if cookie is None or cookie_name is None:
             return None
         else:
-            try:
-                info, timestamp = cookie[cookie_name].value.split('|')
-            except (TypeError, AssertionError):
-                return None
+            if isinstance(cookie, list):
+                for kaka in cookie:
+                    try:
+                        info, timestamp = kaka[cookie_name].value.split('|')
+                    except (TypeError, AssertionError):
+                        return None
+                    else:
+                        value = info.split("::")
+                        if timestamp == value[1]:
+                            return value
             else:
-                value = info.split("::")
-                if timestamp == value[1]:
-                    return value
+                try:
+                    info, timestamp = cookie[cookie_name].value.split('|')
+                except (TypeError, AssertionError):
+                    return None
+                else:
+                    value = info.split("::")
+                    if timestamp == value[1]:
+                        return value
         return None
 
 
@@ -157,24 +169,28 @@ class TestEndpoint(object):
                 'session': {
                     'path': '{}/end_session',
                     'class': Session,
-                    'kwargs': {}
+                    'kwargs': {'signing_alg': 'ES256'}
                     }
-
                 },
-            "authentication": [{
-                'acr': INTERNETPROTOCOLPASSWORD,
-                'name': 'NoAuthn',
-                'kwargs': {'user': 'diana'}
-                }],
+            "authentication": {
+                'anon': {
+                    'acr': INTERNETPROTOCOLPASSWORD,
+                    'class': 'oidcendpoint.user_authn.user.NoAuthn',
+                    'kwargs': {'user': 'diana'}
+                }},
             "userinfo": {
                 'class': UserInfo,
                 'kwargs': {'db': USERINFO_db}
                 },
-            'template_dir': 'template'
-            }
+            'template_dir': 'template',
+            # 'cookie_name':{
+            #     'session': 'oidcop',
+            #     'register': 'oidcreg'
+            # }
+        }
         endpoint_context = EndpointContext(conf, keyjar=KEYJAR,
                                            cookie_dealer=SimpleCookieDealer(
-                                               'oidc_op'))
+                                               'oidcop'))
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("{}cb".format(ISS), None)],
@@ -183,9 +199,9 @@ class TestEndpoint(object):
             'response_types': ['code', 'token', 'code id_token', 'id_token'],
             'post_logout_redirect_uris': [('{}logout_cb'.format(ISS), None)]
             }
-        self.authn_endpoint = Authorization(endpoint_context)
-        self.session_endpoint = Session(endpoint_context)
-        self.token_endpoint = AccessToken(endpoint_context)
+        self.authn_endpoint = endpoint_context.endpoint['authorization']
+        self.session_endpoint = endpoint_context.endpoint['session']
+        self.token_endpoint = endpoint_context.endpoint['token']
 
     def test_authn_then_end_with_state(self):
         _req = self.authn_endpoint.parse_request(AUTH_REQ_DICT)
@@ -199,7 +215,7 @@ class TestEndpoint(object):
 
         _resp = self.session_endpoint.process_request(_req,
                                                       cookie=msg['cookie'])
-        assert _resp['response_args'] == '{}logout_cb?state=STATE'.format(ISS)
+        assert _resp['sjwt']
         _resp = self.session_endpoint.do_response(request=_req, **_resp)
         assert _resp
         # Trying to use 'code' after logout

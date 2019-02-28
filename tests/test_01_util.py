@@ -1,17 +1,12 @@
-import pytest
-
-from cryptojwt.exception import UnknownAlgorithm
-
 from oidcmsg.oidc import RegistrationResponse
 
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.oidc.userinfo import UserInfo
-from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-
 from oidcendpoint.util import get_sign_and_encrypt_algorithms
 
 conf = {
@@ -25,38 +20,38 @@ conf = {
     "jwks_uri": 'https://example.com/jwks.json',
     'endpoint': {
         'provider_config': {
-            'path': '{}/.well-known/openid-configuration',
+            'path': '.well-known/openid-configuration',
             'class': ProviderConfiguration,
             'kwargs': {}
         },
         'registration_endpoint': {
-            'path': '{}/registration',
+            'path': 'registration',
             'class': Registration,
             'kwargs': {}
         },
         'authorization_endpoint': {
-            'path': '{}/authorization',
+            'path': 'authorization',
             'class': Authorization,
             'kwargs': {}
         },
         'token_endpoint': {
-            'path': '{}/token',
+            'path': 'token',
             'class': AccessToken,
             'kwargs': {}
         },
         'userinfo_endpoint': {
-            'path': '{}/userinfo',
+            'path': 'userinfo',
             'class': UserInfo,
             'kwargs': {'db_file': 'users.json'}
         }
     },
-    'authentication': [
-        {
+    'authentication': {
+        'anon': {
             'acr': INTERNETPROTOCOLPASSWORD,
-            'name': 'NoAuthn',
+            'class': 'oidcendpoint.user_authn.user.NoAuthn',
             'kwargs': {'user': 'diana'}
         }
-    ],
+    },
     'template_dir': 'template'
 }
 

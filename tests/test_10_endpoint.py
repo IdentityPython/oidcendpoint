@@ -55,11 +55,13 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "endpoint": {},
-            "authentication": [{
-                'acr': INTERNETPROTOCOLPASSWORD,
-                'name': 'NoAuthn',
-                'kwargs': {'user': 'diana'}
-            }],
+            "authentication": {
+                'anon':{
+                    'acr': INTERNETPROTOCOLPASSWORD,
+                    'class': 'oidcendpoint.user_authn.user.NoAuthn',
+                    'kwargs': {'user': 'diana'}
+                }
+            },
             'template_dir': 'template'
         }
         self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)

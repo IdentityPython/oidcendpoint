@@ -1,15 +1,15 @@
-import pytest
 from copy import copy
 
+import pytest
 from cryptojwt.key_jar import build_keyjar
 
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.oidc.userinfo import UserInfo
-from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
@@ -59,13 +59,13 @@ conf = {
             'kwargs': {'db_file': 'users.json'}
         }
     },
-    'authentication': [
-        {
+    'authentication': {
+        'anon': {
             'acr': INTERNETPROTOCOLPASSWORD,
-            'name': 'NoAuthn',
+            'class': 'oidcendpoint.user_authn.user.NoAuthn',
             'kwargs': {'user': 'diana'}
         }
-    ],
+    },
     'template_dir': 'template'
 }
 

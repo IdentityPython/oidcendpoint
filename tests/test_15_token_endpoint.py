@@ -123,11 +123,12 @@ class TestEndpoint(object):
                     'kwargs': {'db_file': 'users.json'}
                 }
             },
-            "authentication": [{
-                'acr': INTERNETPROTOCOLPASSWORD,
-                'name': 'NoAuthn',
-                'kwargs': {'user': 'diana'}
-            }],
+            "authentication": {
+                'anon': {
+                    'acr': INTERNETPROTOCOLPASSWORD,
+                    'class': 'oidcendpoint.user_authn.user.NoAuthn',
+                    'kwargs': {'user': 'diana'}
+            }},
             "userinfo": {
                 'class': UserInfo,
                 'kwargs': {'db': {}}

@@ -16,7 +16,6 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [

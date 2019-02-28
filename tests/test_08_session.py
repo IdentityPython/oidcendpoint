@@ -1,7 +1,7 @@
 import time
 import pytest
 
-from oidcendpoint import token_handler
+from oidcendpoint import token_handler, rndstr
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.in_memory_db import InMemoryDataBase
 from oidcendpoint.session import SessionDB
@@ -39,7 +39,14 @@ class TestSessionDB(object):
     @pytest.fixture(autouse=True)
     def create_sdb(self):
         _sso_db = SSODb()
-        _token_handler = token_handler.factory('losenord')
+        passwd = rndstr(24)
+        _th_args = {
+            'code': {'lifetime': 600, 'password': passwd},
+            'token': {'lifetime': 3600, 'password': passwd},
+            'refresh': {'lifetime': 86400, 'password': passwd}
+        }
+
+        _token_handler = token_handler.factory(**_th_args)
         self.sdb = SessionDB(InMemoryDataBase(), _token_handler, _sso_db)
 
     def test_create_authz_session(self):
