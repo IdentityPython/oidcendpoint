@@ -60,8 +60,8 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
-        "oidcmsg>=0.3.5",
-        'oidcservice>=0.5.10',
+        "oidcmsg>=0.6.2",
+        "oidcservice>=0.6.1",
         "cryptojwt",
         "jinja2"
         ],

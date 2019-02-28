@@ -1,3 +1,4 @@
+import importlib
 import json
 import logging
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 OAUTH2_NOCACHE_HEADERS = [
     ('Pragma', 'no-cache'),
     ('Cache-Control', 'no-store'),
-    ]
+]
 
 
 def new_cookie(endpoint_context, cookie_name=None, **kwargs):
@@ -81,6 +82,27 @@ def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
     return args
 
 
+def modsplit(s):
+    """Split importable"""
+    if ':' in s:
+        c = s.split(':')
+        if len(c) != 2:
+            raise ValueError("Syntax error: {s}")
+        return c[0], c[1]
+    else:
+        c = s.split('.')
+        if len(c) < 2:
+            raise ValueError("Syntax error: {s}")
+        return '.'.join(c[:-1]), c[-1]
+
+
+def importer(name):
+    """Import by name"""
+    c1, c2 = modsplit(name)
+    module = importlib.import_module(c1)
+    return getattr(module, c2)
+
+
 def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
     """
     conf typically contains::
@@ -110,7 +132,13 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
         except KeyError:
             kwargs = {}
 
-        _instance = spec['class'](endpoint_context=endpoint_context, **kwargs)
+        if isinstance(spec['class'], str):
+            _instance = importer(spec['class'])(
+                endpoint_context=endpoint_context, **kwargs)
+        else:
+            _instance = spec['class'](endpoint_context=endpoint_context,
+                                      **kwargs)
+
         _instance.endpoint_path = spec['path']
         _instance.full_path = '{}/{}'.format(_url, spec['path'])
         if 'provider_info' in spec:
@@ -126,3 +154,22 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
         endpoint[name] = _instance
 
     return endpoint
+
+
+class JSONDictDB(object):
+    def __init__(self, json_path):
+        with open(json_path, "r") as f:
+            self._db = json.load(f)
+
+    def __getitem__(self, item):
+        return self._db[item]
+
+    def __contains__(self, item):
+        return item in self._db
+
+
+def instantiate(cls, **kwargs):
+    if isinstance(cls, str):
+        return importer(cls)(**kwargs)
+    else:
+        return cls(**kwargs)
