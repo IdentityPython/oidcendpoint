@@ -76,10 +76,9 @@ class Endpoint(object):
     def parse_request(self, request, auth=None, **kwargs):
         """
 
-        :param request:
-        :param endpoint_context:
-        :param auth:
-        :param kwargs:
+        :param request: The request the server got
+        :param auth: Client authentication information
+        :param kwargs: extra keyword arguments
         :return:
         """
         logger.debug("- {} -".format(self.endpoint_name))
