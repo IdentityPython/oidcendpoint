@@ -82,6 +82,24 @@ def setup_session(endpoint_context, request, authn_event, client_id=''):
     return sid
 
 
+def acr_claims(request):
+    try:
+        acrdef = request["claims"]["id_token"]["acr"]
+    except KeyError:
+        return None
+    else:
+        if isinstance(acrdef, dict):
+            try:
+                return [acrdef["value"]]
+            except KeyError:
+                try:
+                    return acrdef["values"]
+                except KeyError:
+                    pass
+
+    return None
+
+
 def verify_redirect_uri(endpoint_context, request):
     """
     MUST NOT contain a fragment
@@ -363,24 +381,6 @@ class Authorization(Endpoint):
 
         return request
 
-    @staticmethod
-    def _acr_claims(request):
-        try:
-            acrdef = request["claims"]["id_token"]["acr"]
-        except KeyError:
-            return None
-        else:
-            if isinstance(acrdef, dict):
-                try:
-                    return [acrdef["value"]]
-                except KeyError:
-                    try:
-                        return acrdef["values"]
-                    except KeyError:
-                        pass
-
-        return None
-
     def pick_authn_method(self, request, redirect_uri, acr=None):
         """
         Which ACR (Authentication context class reference) to use can
@@ -393,7 +393,7 @@ class Authorization(Endpoint):
         :return: 
         """
         _context = self.endpoint_context
-        acrs = self._acr_claims(request)
+        acrs = acr_claims(request)
         if acrs == [] and acr:
             acrs = [acr]
 
@@ -438,7 +438,13 @@ class Authorization(Endpoint):
         :return:
         """
 
-        _res = self.pick_authn_method(request, redirect_uri, acr)
+        try:
+            auth_id = kwargs['auth_method_id']
+        except KeyError:
+            _res = self.pick_authn_method(request, redirect_uri, acr)
+        else:
+            _res = self.endpoint_context.authn_broker.get_method_by_id(auth_id)
+
         if isinstance(_res, dict):  # error message
             return _res
         else:
