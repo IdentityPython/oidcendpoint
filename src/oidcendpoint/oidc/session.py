@@ -117,7 +117,8 @@ class Session(Endpoint):
         # Find all RPs this user has logged it from
         uid = _sso_db.get_uid_by_sid(sid)
         _client_sid = {}
-        for usid in _sso_db.get_sids_by_uid(uid):
+        usids = _sso_db.get_sids_by_uid(uid)
+        for usid in usids:
             _client_sid[_sdb[usid]['authn_req']['client_id']] = usid
 
         # Front-/Backchannel logout ?
@@ -148,6 +149,12 @@ class Session(Endpoint):
                 logger.info('Logged out from {}'.format(_cid))
             elif res.status_code >= 400:
                 logger.info('failed to logout from {}'.format(_cid))
+
+        for sid in usids:
+            _state = _sdb[sid]['authn_req']['state']
+            del _sdb[sid]
+            _sdb.delete_kv2sid('state', _state)
+            _sso_db.remove_session_id(sid)
 
         return fc_iframes
 
@@ -200,13 +207,28 @@ class Session(Endpoint):
         if part:
             # value is a base64 encoded JSON document
             _cookie_info = json.loads(as_unicode(b64d(as_bytes(part[0]))))
+            logger.debug('Cookie info: {}'.format(_cookie_info))
             _sid = _cookie_info['sid']
         else:
+            logger.debug('No relevant cookie')
             _sid = ''
 
         if 'id_token_hint' in request:
-            _ith_sid = _sdb.sso_db.get_sids_by_sub(
-                request[verified_claim_name("id_token_hint")]['sub'])[0]
+            logger.debug(
+                'ID token hint: {}'.format(
+                    request[verified_claim_name("id_token_hint")]))
+
+            auds = request[verified_claim_name("id_token_hint")]['aud']
+            _ith_sid = ''
+            for _isid in _sdb.sso_db.get_sids_by_sub(
+                request[verified_claim_name("id_token_hint")]['sub']):
+                if _sdb[_isid]['authn_req']['client_id'] in auds:
+                    _ith_sid = _isid
+                    break
+
+            if not _ith_sid:
+                raise ValueError('Unknown subject')
+
             if _sid:
                 if _ith_sid != _sid:  # someone's messing with me
                     raise ValueError('Wrong ID Token hint')
@@ -236,8 +258,12 @@ class Session(Endpoint):
                 _uri = request['post_logout_redirect_uri']
 
         # redirect user to OP logout verification page
+        if 'state' in request:
+            _uri = '{}?{}'.format(_uri, urlencode({'state': request['state']}))
+
         payload = {'sid': _sid, 'client_id': client_id, 'redirect_uri': _uri}
 
+        logger.debug('JWS payload: {}'.format(payload))
         # From me to me
         _jws = JWT(_cntx.keyjar, iss=_cntx.issuer, lifetime=86400,
                    sign_alg=self.kwargs['signing_alg'])
