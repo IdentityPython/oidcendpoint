@@ -20,6 +20,7 @@ from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import InvalidCookieSign
 from oidcendpoint.exception import ToOld
+from oidcendpoint.util import instantiate
 
 __author__ = 'Roland Hedberg'
 
@@ -50,10 +51,14 @@ class UserAuthnMethod(object):
     url_endpoint = '/verify'
     FAILED_AUTHN = (None, True)
 
-    def __init__(self, endpoint_context=None):
+    def __init__(self, endpoint_context=None, **kwargs):
         self.query_param = "upm_answer"
         self.endpoint_context = endpoint_context
-        self.cookie_dealer = self.endpoint_context.cookie_dealer
+        try:
+            self.cookie_dealer = self.endpoint_context.cookie_dealer
+        except AttributeError:
+            self.cookie_dealer = None
+        self.kwargs = kwargs
 
     def __call__(self, **kwargs):
         """
@@ -231,12 +236,15 @@ class UserPassJinja2(UserAuthnMethod):
     url_endpoint = "/verify/user_pass_jinja"
 
     def __init__(self, db, template_env, template="user_pass.jinja2",
-                 endpoint_context=None, **kwargs):
+                 endpoint_context=None, verify_endpoint='', **kwargs):
+
         super(UserPassJinja2, self).__init__(endpoint_context=endpoint_context)
         self.template_env = template_env
         self.template = template
 
-        self.user_db = db["class"](**db["kwargs"])
+        self.action = verify_endpoint or self.url_endpoint
+
+        self.user_db = instantiate(db["class"], **db["kwargs"])
 
         self.kwargs = kwargs
         self.kwargs.setdefault("page_header", "Log in")
@@ -273,7 +281,14 @@ class UserPassJinja2(UserAuthnMethod):
                 _label = '{}_label'.format(attr)
                 _kwargs[_label] = LABELS[_uri]
 
-        return template.render(action=self.url_endpoint, token=jws, **_kwargs)
+        # try:
+        #     _action = _kwargs['verify_endpoint']
+        # except:
+        #     _action = self.url_endpoint
+        # else:
+        #     del kwargs['verify_endpoint']
+
+        return template.render(action=self.action, token=jws, **_kwargs)
 
     def verify(self, *args, **kwargs):
         username = kwargs["username"]
