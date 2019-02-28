@@ -1,8 +1,7 @@
 import logging
 
-from cryptojwt.jwt import JWT
 from cryptojwt.jws.utils import left_hash
-
+from cryptojwt.jwt import JWT
 from oidcservice.exception import AccessDenied
 
 from oidcendpoint.userinfo import id_token_claims
@@ -97,7 +96,7 @@ def id_token_payload(session, loa="2", alg="RS256", code=None,
         _args["c_hash"] = left_hash(code.encode("utf-8"), halg)
     if access_token:
         _args["at_hash"] = left_hash(access_token.encode("utf-8"),
-                                         halg)
+                                     halg)
 
     authn_req = session['authn_req']
     if authn_req:
@@ -135,7 +134,7 @@ def sign_encrypt_id_token(endpoint_context, session_info, client_id, code=None,
     _authn_event = session_info['authn_event']
 
     _idt_info = id_token_payload(session_info, loa=_authn_event["authn_info"],
-                                 alg = alg_dict['sign_alg'], code=code,
+                                 alg=alg_dict['sign_alg'], code=code,
                                  access_token=access_token, user_info=user_info,
                                  auth_time=_authn_event["authn_time"],
                                  extra_claims=extra_claims)
