@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import time
 
 from oidcendpoint.sso_db import SSODb
 
@@ -38,6 +39,15 @@ def authn_event_deser(val, sformat="urlencoded"):
             val = json.dumps(val)
             sformat = "json"
     return AuthnEvent().deserialize(val, sformat)
+
+
+def setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt'):
+    authn_event = AuthnEvent(uid=uid, salt=salt, authn_info=acr,
+                             time_stamp=time.time())
+    sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
+                                                    client_id=client_id)
+    endpoint_context.sdb.do_sub(sid, '')
+    return sid
 
 
 SINGLE_REQUIRED_AUTHN_EVENT = (Message, True, msg_ser,
@@ -169,6 +179,9 @@ class SessionDB(object):
 
     def map_kv2sid(self, key, value, sid):
         self._db.set('__{}__{}__'.format(key, value), sid)
+
+    def delete_kv2sid(self, key, value):
+        self._db.delete('__{}__{}__'.format(key, value))
 
     def get_sid_by_kv(self, key, value):
         return self._db.get('__{}__{}__'.format(key, value))
@@ -483,11 +496,8 @@ class SessionDB(object):
         return self.get_sid_by_kv('code', req['code'])
 
 
-def create_session_db(password, token_expires_in=3600,
-                      grant_expires_in=600, refresh_token_expires_in=86400,
-                      db=None, sso_db=SSODb()):
-    _token_handler = token_handler.factory(
-        password, token_expires_in, grant_expires_in, refresh_token_expires_in)
+def create_session_db(token_handler_args, db=None, sso_db=SSODb()):
+    _token_handler = token_handler.factory(**token_handler_args)
 
     if not db:
         db = InMemoryDataBase()
