@@ -11,7 +11,12 @@ def make_idtoken(endpoint, req, sess_info, authn_req=None, user_claims=False,
     _context = endpoint.endpoint_context
     _sdb = _context.sdb
 
-    _cinfo = _context.cdb[authn_req['client_id']]
+    if authn_req:
+        _cid = authn_req['client_id']
+    else:
+        _cid = req['client_id']
+
+    _cinfo = _context.cdb[_cid]
     userinfo = userinfo_in_id_token_claims(_context, sess_info)
 
     if user_claims:
