@@ -19,8 +19,8 @@ CMP_TYPE = ['exact', 'minimum', 'maximum', 'better']
 
 class AuthnBroker(object):
     def __init__(self):
-        self.db = {"info": {}, "key": {}}
-        self.next = 0
+        self.db = {}
+        self.acr2id = {}
 
     @staticmethod
     def exact(a, b):
@@ -38,51 +38,33 @@ class AuthnBroker(object):
     def better(a, b):
         return b > a
 
-    def add(self, acr, method, level=0, authn_authority=""):
+    def __setitem__(self, key, info):
         """
         Adds a new authentication method.
-        Assumes not more than one authentication method per type.
 
-        :param acr: Add to what the authentication endpoint offers for this acr
-        :param method: A identifier of the authentication method.
-        :param level: security level, positive integers, 0 is lowest
-        :param authn_authority: Who is authoritative for the authentication
-        :return:
+        :param value: A dictionary with metadata and configuration information
         """
-
-        _info = {
-            "ref": acr,
-            "method": method,
-            "level": level,
-            "authn_auth": authn_authority
-        }
-
-        self.next += 1
-        _ref = str(self.next)
-        self.db["info"][_ref] = _info
+        
+        for attr in ['acr', 'method']:
+            if attr not in info:
+                raise ValueError('Required attribute "{}" missing'.format(attr))
+            
+        self.db[key] = info
         try:
-            self.db["key"][acr].append(_ref)
+            self.acr2id[info['acr']].append(key)
         except KeyError:
-            self.db["key"][acr] = [_ref]
+            self.acr2id[info['acr']] = [key]
 
-    def remove(self, acr, method=None, level=0, authn_authority=""):
-        try:
-            _refs = self.db["key"][acr]
-        except KeyError:
-            return
-        else:
-            _remain = []
-            for _ref in _refs:
-                item = self.db["info"][_ref]
-                if method and method != item["method"]:
-                    _remain.append(_ref)
-                if level and level != item["level"]:
-                    _remain.append(_ref)
-                if authn_authority and authn_authority != item[
-                        "authn_authority"]:
-                    _remain.append(_ref)
-            if _remain:
-                self.db[acr] = _remain
+    def __delitem__(self, key):
+        _acr = self.db[key]['acr']
+        del self.db[key]
+        self.acr2id[_acr].remove(key)
+        if not self.acr2id[_acr]:
+            del self.acr2id[_acr]
+
+    def __getitem__(self, key):
+        item = self.db[key]
+        return item['method'], item['acr']
 
     @staticmethod
     def _cmp(item0, item1):
@@ -97,35 +79,35 @@ class AuthnBroker(object):
 
     def _pick_by_class_ref(self, acr, comparision_type="exact"):
         func = getattr(self, comparision_type)
+
         try:
-            _refs = self.db["key"][acr]
+            _ids = self.acr2id[acr]
         except KeyError:
             return []
         else:
-            _info = self.db["info"]
-            _item = _info[_refs[0]]
+            _item = self.db[_ids[0]]
             _level = _item["level"]
             if comparision_type != "better":
                 if _item["method"]:
-                    res = [(_level, _item["method"], _item["ref"])]
+                    res = [(_level, _item["method"], _item["acr"])]
                 else:
                     res = []
             else:
                 res = []
 
-            for ref in _refs[1:]:
-                item = _info[ref]
-                res.append((item["level"], item["method"], item["ref"]))
+            for ref in _ids[1:]:
+                item = self.db[ref]
+                res.append((item["level"], item["method"], item["acr"]))
                 if func(_level, item["level"]):
                     _level = item["level"]
             res_other = []
             if comparision_type != "exact":
-                for ref, _dic in _info.items():
-                    if ref in _refs:
+                for id, _dic in self.db.items():
+                    if id in _ids:
                         continue
                     elif func(_level, _dic["level"]):
                         if _dic["method"]:
-                            _val = (_dic["level"], _dic["method"], _dic["ref"])
+                            _val = (_dic["level"], _dic["method"], _dic["acr"])
                             if _val not in res:
                                 res_other.append(_val)
             res.extend(res_other)
@@ -134,11 +116,20 @@ class AuthnBroker(object):
 
             return [(b, c) for a, b, c in res]
 
-    def get_method(self, name):
-        for key, item in self.db["info"].items():
-            if item["method"].__class__.__name__ == name:
-                return item["method"]
-        raise KeyError("No method by that name")
+    def get_method(self, cls_name):
+        """
+        Generator that returns all registered authenticators based on a
+        specific authentication class.
+
+        :param acr: Authentication Class
+        :return: generator
+        """
+        for id, spec in self.db.items():
+            if spec["method"].__class__.__name__ == cls_name:
+                yield spec["method"]
+
+    def get_method_by_id(self, id):
+        return self[id]
 
     def pick(self, acr=None, comparision_type="minimum"):
         """
@@ -167,46 +158,54 @@ class AuthnBroker(object):
         else:
             return False
 
-    def __getitem__(self, item):
-        i = 0
-        for key, info in self.db["info"].items():
-            if i == item:
-                return info["method"], info["ref"]
-            i += 1
-
-        raise IndexError()
-
     def getAcrValuesString(self):
         acr_values = None
-        for item in self.db["info"].values():
+        for item in self.db.values():
             if acr_values is None:
-                acr_values = item["ref"]
+                acr_values = item["acr"]
             else:
-                acr_values += " " + item["ref"]
+                acr_values += " " + item["acr"]
         return acr_values
 
     def __iter__(self):
-        for item in self.db["info"].values():
+        for item in self.db.values():
             yield item["method"]
         raise StopIteration
 
     def __len__(self):
-        return len(self.db["info"].keys())
+        return len(self.db.keys())
+
+    def pick_by_path(self, path):
+        for key, item in self.db.items():
+            try:
+                _path = item["view_path"]
+            except KeyError:
+                continue
+            else:
+                if _path == path:
+                    return item["method"]
+        raise KeyError('No authn method at that path')
+
+    def default(self):
+        if len(self.db) == 1:
+            item = list(self.db.values())[0]
+            return item['method'], item['acr']
 
 
 def pick_auth(endpoint_context, areq, comparision_type=""):
     """
+    Pick authentication method
 
     :param areq: AuthorizationRequest instance
     :param comparision_type: How to pick the authentication method
     :return: An authentication method and its authn class ref
     """
     if comparision_type == "any":
-        return endpoint_context.authn_broker[0]
+        return endpoint_context.authn_broker.default()
 
     try:
         if len(endpoint_context.authn_broker) == 1:
-            return endpoint_context.authn_broker[0]
+            return endpoint_context.authn_broker.default()
         elif "acr_values" in areq:
             if not comparision_type:
                 comparision_type = "exact"
@@ -220,12 +219,13 @@ def pick_auth(endpoint_context, areq, comparision_type=""):
                     str(acr), str(res)))
                 if res:
                     # Return the best guess by pick.
-                    return res[0]
+                    item = res[0]
+                    return item['method'], item['acr']
         else:  # same as any
             try:
                 acrs = areq["claims"]["id_token"]["acr"]["values"]
             except KeyError:
-                return endpoint_context.authn_broker[0]
+                return endpoint_context.authn_broker.default()
             else:
                 for acr in acrs:
                     res = endpoint_context.authn_broker.pick(acr, comparision_type)
@@ -233,12 +233,12 @@ def pick_auth(endpoint_context, areq, comparision_type=""):
                         str(acr), str(res)))
                     if res:
                         # Return the best guess by pick.
-                        return res[0]
+                        item = res[0]
+                        return item['method'], item['acr']
 
     except KeyError as exc:
         logger.debug(
-            "An error occured while picking the authN broker: %s" % str(
-                exc))
+            "An error occured while picking the authN broker: %s" % str(exc))
 
     # return the best I have
     return None, None
