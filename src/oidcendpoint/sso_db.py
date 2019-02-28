@@ -143,7 +143,7 @@ class SSODb(object):
 
         for sub in self.get('sid2sub', sid):
             self.remove('sub2sid', sub, sid)
-        self.delete('sid2uid', sid)
+        self.delete('sid2sub', sid)
 
     def remove_uid(self, uid):
         """
