@@ -1,9 +1,9 @@
 import copy
 import logging
 import os
-import requests
 from functools import cmp_to_key
 
+import requests
 from cryptojwt import jwe
 from cryptojwt.jws.jws import SIGNER_ALGS
 from cryptojwt.key_jar import KeyJar
@@ -12,16 +12,15 @@ from jinja2 import FileSystemLoader
 from oidcmsg.oidc import IdToken
 from oidcmsg.oidc import SCOPE2CLAIMS
 
-from oidcendpoint import authz
+from oidcendpoint import authz, util
 from oidcendpoint import rndstr
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
-from oidcendpoint.user_authn import user
 from oidcendpoint.user_authn.authn_context import AuthnBroker
-from oidcendpoint.util import build_endpoints
+from oidcendpoint.util import build_endpoints, instantiate
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ CAPABILITIES = {
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True
-    }
+}
 
 SORT_ORDER = {'RS': 0, 'ES': 1, 'HS': 2, 'PS': 3, 'no': 4}
 
@@ -75,9 +74,38 @@ def add_path(url, path):
             return '{}/{}'.format(url, path)
 
 
+def populate_authn_broker(methods, endpoint_context, jinja_env=None):
+    """
+
+    :param methods: Authentication method specifications
+    :param endpoint_context:
+    :param jinja_env:
+    :return:
+    """
+    authn_broker = AuthnBroker()
+
+    for id, authn_spec in methods.items():
+        try:
+            _args = authn_spec['kwargs']
+        except KeyError:
+            _args = {}
+
+        if 'template' in _args:
+            _args['template_env'] = jinja_env
+
+        _args['endpoint_context'] = endpoint_context
+
+        args = {'method': instantiate(authn_spec['class'], **_args)}
+        args.update({k: v for k, v in authn_spec.items() if k not in ['class', 'kwargs']})
+
+        authn_broker[id] = args
+
+    return authn_broker
+
+
 class EndpointContext(object):
     def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
-                 cwd='', cookie_dealer=None, httpc=None):
+                 cwd='', cookie_dealer=None, httpc=None, cookie_name=None):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
@@ -85,12 +113,18 @@ class EndpointContext(object):
         if session_db:
             self.sdb = session_db
         else:
-            self.sdb = create_session_db(
-                conf['password'], db=None,
-                token_expires_in=conf['token_expires_in'],
-                grant_expires_in=conf['grant_expires_in'],
-                refresh_token_expires_in=conf['refresh_token_expires_in'],
-                sso_db=SSODb())
+            try:
+                _th_args = conf['token_handler_args']
+            except KeyError:
+                passwd = rndstr(24)
+                _th_args = {
+                    'code': {'lifetime': 600, 'password': passwd},
+                    'token': {'lifetime': 3600, 'password': passwd},
+                    'refresh': {'lifetime': 86400, 'password': passwd}
+                }
+
+            self.sdb = create_session_db(_th_args, db=None,
+                                         sso_db=SSODb())
 
         # client database
         self.cdb = client_db or {}
@@ -111,7 +145,12 @@ class EndpointContext(object):
         self.id_token_schema = IdToken
         self.endpoint_to_authn_method = {}
         self.cookie_dealer = cookie_dealer
-        self.cookie_name = {'session': "oidcop", 'register': 'oidc_op_rp'}
+        if cookie_name:
+            self.cookie_name = cookie_name
+        elif 'cookie_name' in conf:
+            self.cookie_name = conf['cookie_name']
+        else:
+            self.cookie_name = {'session': "oidcop", 'register': 'oidc_op_rp'}
 
         for param in ['verify_ssl', 'issuer', 'sso_ttl',
                       'symkey', 'client_authn', 'id_token_schema']:
@@ -173,25 +212,7 @@ class EndpointContext(object):
         except KeyError:
             self.authn_broker = None
         else:
-            self.authn_broker = AuthnBroker()
-
-            for authn_spec in _authn:
-                try:
-                    _args = authn_spec['kwargs']
-                except KeyError:
-                    _args = {}
-
-                if 'template' in _args:
-                    _args['template_env'] = jinja_env
-
-                _args['endpoint_context'] = self
-                authn_method = authn_spec['class'](**_args)
-                args = {k: authn_spec[k] for k in
-                        ['acr', 'level', 'authn_authority'] if k in authn_spec}
-
-                self.authn_broker.add(method=authn_method, **args)
-                self.endpoint_to_authn_method[
-                    authn_method.url_endpoint] = authn_method
+            self.authn_broker = populate_authn_broker(_authn, self, jinja_env)
 
         try:
             _conf = conf['userinfo']
@@ -205,7 +226,11 @@ class EndpointContext(object):
 
             if 'db_file' in kwargs:
                 kwargs['db_file'] = os.path.join(self.cwd, kwargs['db_file'])
-            self.userinfo = _conf['class'](**kwargs)
+
+            if isinstance(_conf['class'], str):
+                self.userinfo = util.importer(_conf['class'])(**kwargs)
+            else:
+                self.userinfo = _conf['class'](**kwargs)
 
         self.provider_info = self.create_providerinfo(_cap)
 
@@ -287,7 +312,13 @@ class EndpointContext(object):
                     if isinstance(val, str):
                         sv = {val}
                     else:
-                        sv = set(val)
+                        try:
+                            sv = set(val)
+                        except TypeError:
+                            if key == 'response_types_supported':
+                                sv = set([' '.join(v) for v in val])
+                            else:
+                                raise
 
                     sa = set(allowed)
 
