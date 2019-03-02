@@ -1,27 +1,26 @@
 import json
 import os
 from http.cookies import SimpleCookie
-from urllib.parse import urlencode
 
 import pytest
-
-from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.key_jar import build_keyjar
-from oidcmsg.time_util import in_a_while
-
-
+from oidcmsg.message import Message
 from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import TokenErrorResponse
+from oidcmsg.oidc import verified_claim_name
+from oidcmsg.oidc import verify_id_token
+from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import RedirectURIError
+from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.oidc import userinfo
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 from oidcendpoint.util import new_cookie
@@ -34,7 +33,7 @@ CLI2 = "https://client2.example.com/"
 KEYDEFS = [
     {"type": "RSA", "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
-    ]
+]
 
 KEYJAR = build_keyjar(KEYDEFS)
 KEYJAR.import_jwks(KEYJAR.export_jwks(private=True, issuer=''), issuer=ISS)
@@ -57,14 +56,14 @@ CAPABILITIES = {
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True,
-    }
+}
 
 AUTH_REQ = AuthorizationRequest(client_id='client_1',
                                 redirect_uri='{}cb'.format(ISS),
                                 scope=['openid'],
                                 state='STATE',
                                 response_type='code',
-                                client_secret= 'hemligt')
+                                client_secret='hemligt')
 
 AUTH_REQ_DICT = AUTH_REQ.to_dict()
 
@@ -145,49 +144,50 @@ class TestEndpoint(object):
                 'url_path': '{}/jwks.json',
                 'local_path': 'static/jwks.json',
                 'private_path': 'own/jwks.json'
-                },
+            },
             'endpoint': {
                 'provider_config': {
                     'path': '{}/.well-known/openid-configuration',
                     'class': ProviderConfiguration,
                     'kwargs': {'client_authn_method': None}
-                    },
+                },
                 'registration': {
                     'path': '{}/registration',
                     'class': Registration,
                     'kwargs': {'client_authn_method': None}
-                    },
+                },
                 'authorization': {
                     'path': '{}/authorization',
                     'class': Authorization,
                     'kwargs': {'client_authn_method': None}
-                    },
+                },
                 'token': {
                     'path': '{}/token',
                     'class': AccessToken,
                     'kwargs': {}
-                    },
+                },
                 'userinfo': {
                     'path': '{}/userinfo',
                     'class': userinfo.UserInfo,
                     'kwargs': {'db_file': 'users.json'}
-                    },
+                },
                 'session': {
                     'path': '{}/end_session',
                     'class': Session,
                     'kwargs': {'signing_alg': 'ES256'}
-                    }
-                },
+                }
+            },
             "authentication": {
                 'anon': {
                     'acr': INTERNETPROTOCOLPASSWORD,
                     'class': 'oidcendpoint.user_authn.user.NoAuthn',
                     'kwargs': {'user': 'diana'}
-                }},
+                }
+            },
             "userinfo": {
                 'class': UserInfo,
                 'kwargs': {'db': USERINFO_db}
-                },
+            },
             'template_dir': 'template',
             # 'cookie_name':{
             #     'session': 'oidcop',
@@ -225,13 +225,13 @@ class TestEndpoint(object):
         with pytest.raises(ValueError):
             _ = self.session_endpoint.process_request("", cookie="FAIL")
 
-    def _create_cookie(self, user, sid):
+    def _create_cookie(self, user, sid, state):
         ec = self.session_endpoint.endpoint_context
-        return new_cookie(ec, sub=user, sid=sid, state='state',
+        return new_cookie(ec, sub=user, sid=sid, state=state,
                           cookie_name=ec.cookie_name['session'])
 
-    def _code_auth(self):
-        req = AuthorizationRequest(state='1234567',
+    def _code_auth(self, state):
+        req = AuthorizationRequest(state=state,
                                    response_type='code',
                                    redirect_uri="{}cb".format(CLI1),
                                    scope=['openid'],
@@ -239,8 +239,8 @@ class TestEndpoint(object):
         _pr_resp = self.authn_endpoint.parse_request(req.to_dict())
         _resp = self.authn_endpoint.process_request(_pr_resp)
 
-    def _code_auth2(self):
-        req = AuthorizationRequest(state='abcdefg',
+    def _code_auth2(self, state):
+        req = AuthorizationRequest(state=state,
                                    response_type='code',
                                    redirect_uri="{}cb".format(CLI2),
                                    scope=['openid'],
@@ -248,15 +248,27 @@ class TestEndpoint(object):
         _pr_resp = self.authn_endpoint.parse_request(req.to_dict())
         _resp = self.authn_endpoint.process_request(_pr_resp)
 
+    def _auth_with_id_token(self, state):
+        req = AuthorizationRequest(state=state,
+                                   response_type='id_token',
+                                   redirect_uri="{}cb".format(CLI1),
+                                   scope=['openid'],
+                                   client_id='client_1',
+                                   nonce='_nonce_')
+        _pr_resp = self.authn_endpoint.parse_request(req.to_dict())
+        _resp = self.authn_endpoint.process_request(_pr_resp)
+
+        return _resp['response_args']['id_token']
+
     def test_end_session_endpoint_with_cookie(self):
-        self._code_auth()
+        self._code_auth('1234567')
         _sdb = self.session_endpoint.endpoint_context.sdb
 
         _sid = list(_sdb.keys())[0]
-        cookie = self._create_cookie("diana", _sid)
+        cookie = self._create_cookie("diana", _sid, '1234567')
 
         resp = self.session_endpoint.process_request(
-                {"state": 'abcde'}, cookie=cookie)
+            {"state": 'abcde'}, cookie=cookie)
 
         # returns a signed JWT to be put in a verification web page shown to
         # the user
@@ -268,153 +280,105 @@ class TestEndpoint(object):
         assert jwt_info['client_id'] == 'client_1'
         assert jwt_info['redirect_uri'] == 'https://client1.example.com/logout_cb?state=abcde'
 
-    # def test_end_session_endpoint_with_wrong_cookie(self):
-    #     self._code_auth()
-    #     cookie = self._create_cookie("username", "number5", c_type='session')
-    #
-    #     resp = self.session_endpoint.end_session_endpoint(
-    #             urlencode({"state": 'abcde'}),
-    #             cookie=cookie)
-    #
-    #     assert isinstance(resp, Response)
-    #     _err = ErrorResponse().from_json(resp.message)
-    #     assert _err['error'] == "invalid_request"
-    #
-    # def test_end_session_endpoint_with_cookie_wrong_user(self):
-    #     # Need cookie and ID Token to figure this out
-    #     id_token = self._auth_with_id_token()
-    #     assert self.session_endpoint.sdb.get_sids_by_sub(
-    #             id_token["sub"])  # verify we got valid session
-    #
-    #     id_token_hint = id_token.to_jwt(algorithm="none")
-    #     cookie = self._create_cookie("diggins", "number5")
-    #
-    #     resp = self.session_endpoint.end_session_endpoint(
-    #             urlencode({"id_token_hint": id_token_hint}),
-    #             cookie=cookie)
-    #
-    #     assert isinstance(resp, Response)
-    #     _err = ErrorResponse().from_json(resp.message)
-    #     assert _err['error'] == "invalid_request"
-    #     assert _err['error_description'] == 'Wrong user'
-    #
-    # def test_end_session_endpoint_with_cookie_wrong_client(self):
-    #     # Need cookie and ID Token to figure this out
-    #     id_token = self._auth_with_id_token()
-    #     assert self.session_endpoint.sdb.get_sids_by_sub(
-    #             id_token["sub"])  # verify we got valid session
-    #
-    #     id_token_hint = id_token.to_jwt(algorithm="none")
-    #     # Wrong client_id
-    #     cookie = self._create_cookie("username", "a1b2c3")
-    #
-    #     resp = self.session_endpoint.end_session_endpoint(
-    #             urlencode({"id_token_hint": id_token_hint}),
-    #             cookie=cookie)
-    #
-    #     assert isinstance(resp, Response)
-    #     _err = ErrorResponse().from_json(resp.message)
-    #     assert _err['error'] == "invalid_request"
-    #
-    # def test_end_session_endpoint_with_cookie_dual_login(self):
-    #     self._code_auth()
-    #     self._code_auth2()
-    #     cookie = self._create_cookie("username", "client0")
-    #
-    #     resp = self.session_endpoint.end_session_endpoint(
-    #             urlencode({"state": 'abcde'}),
-    #             cookie=cookie)
-    #
-    #     jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
-    #
-    #     assert jwt_info['payload']['state'] == 'abcde'
-    #     assert jwt_info['payload']['uid'] == 'username'
-    #     assert jwt_info['payload']['client_id'] == 'client0'
-    #     assert jwt_info['payload']['redirect_uri'] == 'https://www.example.org/post_logout'
-    #
-    # def test_end_session_endpoint_with_cookie_dual_login_wrong_client(self):
-    #     self._code_auth()
-    #     self._code_auth2()
-    #     cookie = self._create_cookie("username", "a1b2c3")
-    #
-    #     resp = self.session_endpoint.end_session_endpoint(
-    #             urlencode({"state": 'abcde'}),
-    #             cookie=cookie)
-    #
-    #     assert isinstance(resp, Response)
-    #     _err = ErrorResponse().from_json(resp.message)
-    #     assert _err['error'] == "invalid_request"
-    #
-    # def test_end_session_endpoint_with_id_token_hint_only(self):
-    #     id_token = self._auth_with_id_token()
-    #     assert self.session_endpoint.sdb.get_sids_by_sub(
-    #             id_token["sub"])  # verify we got valid session
-    #
-    #     id_token_hint = id_token.to_jwt(algorithm="none")
-    #
-    #     resp = self.session_endpoint.end_session_endpoint(
-    #             urlencode({"id_token_hint": id_token_hint}))
-    #
-    #     jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
-    #
-    #     assert jwt_info['payload']['uid'] == 'username'
-    #     assert jwt_info['payload']['client_id'] == 'number5'
-    #     assert jwt_info['payload']['redirect_uri'] == 'https://example.com/post_logout'
-    #
-    # def test_end_session_endpoint_with_id_token_hint_and_cookie(self):
-    #     id_token = self._auth_with_id_token()
-    #     assert self.session_endpoint.sdb.get_sids_by_sub(
-    #             id_token["sub"])  # verify we got valid session
-    #
-    #     id_token_hint = id_token.to_jwt(algorithm="none")
-    #     cookie = self._create_cookie("username", "number5")
-    #
-    #     resp = self.session_endpoint.end_session_endpoint(
-    #             urlencode({"id_token_hint": id_token_hint}),
-    #             cookie=cookie)
-    #
-    #     jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
-    #
-    #     assert jwt_info['payload']['uid'] == 'username'
-    #     assert jwt_info['payload']['client_id'] == 'number5'
-    #     assert jwt_info['payload']['redirect_uri'] == 'https://example.com/post_logout'
-    #
-    # def test_end_session_endpoint_with_post_logout_redirect_uri(self):
-    #     self._code_auth()
-    #     # verify we got valid session
-    #     assert self.session_endpoint.sdb.has_uid('username')
-    #     cookie = self._create_cookie("username", "number5")
-    #
-    #     post_logout_redirect_uri = \
-    #         CDB[CLIENT_CONFIG["client_id"]]["post_logout_redirect_uris"][0][0]
-    #     resp = self.session_endpoint.end_session_endpoint(urlencode(
-    #             {"post_logout_redirect_uri": post_logout_redirect_uri,
-    #              "state": 'abcde'}),
-    #             cookie=cookie)
-    #
-    #     jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
-    #
-    #     assert jwt_info['payload']['state'] == 'abcde'
-    #     assert jwt_info['payload']['uid'] == 'username'
-    #     assert jwt_info['payload']['client_id'] == 'number5'
-    #     assert jwt_info['payload']['redirect_uri'] == 'https://example.com/post_logout'
-    #
-    # def test_end_session_endpoint_with_wrong_post_logout_redirect_uri(self):
-    #     self._code_auth()
-    #     # verify we got valid session
-    #     assert self.session_endpoint.sdb.has_uid('username')
-    #     cookie = self._create_cookie("username", "number5")
-    #
-    #     post_logout_redirect_uri = 'https://www.example.com/logout'
-    #     resp = self.session_endpoint.end_session_endpoint(urlencode(
-    #             {"post_logout_redirect_uri": post_logout_redirect_uri,
-    #              "state": 'abcde'}),
-    #             cookie=cookie)
-    #
-    #     assert isinstance(resp, Response)
-    #     _err = ErrorResponse().from_json(resp.message)
-    #     assert _err['error'] == "invalid_request"
-    #
+    def test_end_session_endpoint_with_wrong_cookie(self):
+        self._code_auth('1234567')
+        cookie = self._create_cookie("diana", "client_2", 'abcdefg')
+
+        with pytest.raises(ValueError):
+            self.session_endpoint.process_request(
+                {"state": 'abcde'}, cookie=cookie)
+
+    def test_end_session_endpoint_with_cookie_wrong_user(self):
+        # Need cookie and ID Token to figure this out
+        id_token = self._auth_with_id_token('1234567')
+
+        cookie = self._create_cookie("diggins", "_sid_", '1234567')
+
+        msg = Message(id_token=id_token)
+        verify_id_token(
+            msg, keyjar=self.session_endpoint.endpoint_context.keyjar)
+
+        msg2 = Message(id_token_hint=id_token)
+        msg2[verified_claim_name('id_token_hint')] = msg[verified_claim_name('id_token')]
+        with pytest.raises(ValueError):
+            self.session_endpoint.process_request(msg2, cookie=cookie)
+
+    def test_end_session_endpoint_with_cookie_unknown_sid(self):
+        # Need cookie and ID Token to figure this out
+        id_token = self._auth_with_id_token('1234567')
+
+        # Wrong client_id
+        cookie = self._create_cookie("diana", "_sid_", 'state')
+
+        msg = Message(id_token=id_token)
+        verify_id_token(
+            msg, keyjar=self.session_endpoint.endpoint_context.keyjar)
+
+        msg2 = Message(id_token_hint=id_token)
+        msg2[verified_claim_name('id_token_hint')] = msg[verified_claim_name('id_token')]
+        with pytest.raises(ValueError):
+            self.session_endpoint.process_request(msg2, cookie=cookie)
+
+    def test_end_session_endpoint_with_cookie_dual_login(self):
+        self._code_auth('1234567')
+        self._code_auth2('abcdefg')
+        _sdb = self.session_endpoint.endpoint_context.sdb
+        _sid = list(_sdb.keys())[0]
+        cookie = self._create_cookie("diana", _sid, '1234567')
+
+        resp = self.session_endpoint.process_request(
+            {"state": 'abcde'}, cookie=cookie)
+
+        # returns a signed JWT to be put in a verification web page shown to
+        # the user
+
+        jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
+
+        assert jwt_info['state'] == 'abcde'
+        assert jwt_info['user'] == 'diana'
+        assert jwt_info['client_id'] == 'client_1'
+        assert jwt_info['redirect_uri'] == 'https://client1.example.com/logout_cb?state=abcde'
+
+    def test_end_session_endpoint_with_post_logout_redirect_uri(self):
+        self._code_auth('1234567')
+        self._code_auth2('abcdefg')
+        _sdb = self.session_endpoint.endpoint_context.sdb
+        _sid = list(_sdb.keys())[0]
+        cookie = self._create_cookie("diana", _sid, '1234567')
+
+        post_logout_redirect_uri = join_query(
+            *self.session_endpoint.endpoint_context.cdb[
+                'client_1']["post_logout_redirect_uris"][0])
+
+        resp = self.session_endpoint.process_request(
+            {
+                "post_logout_redirect_uri": post_logout_redirect_uri,
+                "state": 'abcde'
+            }, cookie=cookie)
+
+        jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
+
+        assert jwt_info['state'] == 'abcde'
+        assert jwt_info['user'] == 'diana'
+        assert jwt_info['client_id'] == 'client_1'
+        assert jwt_info['redirect_uri'] == 'https://client1.example.com/logout_cb?state=abcde'
+
+    def test_end_session_endpoint_with_wrong_post_logout_redirect_uri(self):
+        self._code_auth('1234567')
+        self._code_auth2('abcdefg')
+        _sdb = self.session_endpoint.endpoint_context.sdb
+        _sid = list(_sdb.keys())[0]
+        cookie = self._create_cookie("diana", _sid, '1234567')
+
+        post_logout_redirect_uri = 'https://demo.example.com/log_out'
+
+        with pytest.raises(RedirectURIError):
+            self.session_endpoint.process_request(
+                {
+                    "post_logout_redirect_uri": post_logout_redirect_uri,
+                    "state": 'abcde'
+                }, cookie=cookie)
+
     # def test_authn_then_end_with_state(self):
     #     _req = self.authn_endpoint.parse_request(AUTH_REQ_DICT)
     #     _authn_resp = self.authn_endpoint.process_request(_req)
