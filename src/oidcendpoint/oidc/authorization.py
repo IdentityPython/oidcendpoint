@@ -100,7 +100,7 @@ def acr_claims(request):
     return None
 
 
-def verify_uri(endpoint_context, request, uri_type):
+def verify_uri(endpoint_context, request, uri_type, client_id=None):
     """
     A redirect URI
     MUST NOT contain a fragment
@@ -113,7 +113,16 @@ def verify_uri(endpoint_context, request, uri_type):
         None
     """
     try:
-        _redirect_uri = unquote(request["redirect_uri"])
+        _cid = request["client_id"]
+    except KeyError:
+        _cid = client_id
+
+    if not _cid:
+        logger.error('No client id found')
+        raise UnknownClient('No client_id provided')
+
+    try:
+        _redirect_uri = unquote(request[uri_type])
 
         part = urlparse(_redirect_uri)
         if part.fragment:
@@ -124,9 +133,7 @@ def verify_uri(endpoint_context, request, uri_type):
             _query = parse_qs(_query)
 
         match = False
-        for regbase, rquery in endpoint_context.cdb[
-            str(request["client_id"])]['{}s'.format(uri_type)]:
-
+        for regbase, rquery in endpoint_context.cdb[_cid]['{}s'.format(uri_type)]:
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
                 # every registered query component must exist in the uri
@@ -148,21 +155,12 @@ def verify_uri(endpoint_context, request, uri_type):
                 break
         if not match:
             raise RedirectURIError("Doesn't match any registered uris")
-        # ignore query components that are not registered
-        return None
+
     except Exception:
-        logger.error("Faulty {}: {}".format(uri_type, request[uri_type]))
         try:
-            _cinfo = endpoint_context.cdb[str(request["client_id"])]
+            _cinfo = endpoint_context.cdb[str(_cid)]
         except KeyError:
-            try:
-                cid = request["client_id"]
-            except KeyError:
-                logger.error('No client id found')
-                raise UnknownClient('No client_id provided')
-            else:
-                logger.info("Unknown client: %s" % cid)
-                raise UnknownClient(request["client_id"])
+            raise ValueError('Unknown client: {}'.format(_cid))
         else:
             logger.info("Registered {}s: {}".format(uri_type, sanitize(_cinfo)))
             raise RedirectURIError(
@@ -743,7 +741,8 @@ class Authorization(Endpoint):
                 logger.exception(err)
                 return {'http_response': 'Internal error: {}'.format(err)}
 
-    def _compute_session_state(self, state, salt, client_id, redirect_uri):
+    @staticmethod
+    def _compute_session_state(state, salt, client_id, redirect_uri):
         parsed_uri = urlparse(redirect_uri)
         rp_origin_url = "{uri.scheme}://{uri.netloc}".format(uri=parsed_uri)
         session_str = client_id + " " + rp_origin_url + " " + state + " " + salt
