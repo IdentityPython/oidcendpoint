@@ -61,8 +61,8 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules"],
     install_requires=[
         "oidcmsg>=0.6.2",
-        "oidcservice>=0.6.1",
-        "cryptojwt",
+        "oidcservice>=0.6.2",
+        "cryptojwt>=0.6.6",
         "jinja2"
         ],
     tests_require=[
