@@ -13,3 +13,6 @@ class InMemoryDataBase(object):
 
     def delete(self, key):
         del self.db[key]
+
+    def keys(self):
+        return self.db.keys()
