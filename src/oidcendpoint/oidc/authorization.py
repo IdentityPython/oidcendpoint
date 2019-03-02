@@ -100,11 +100,15 @@ def acr_claims(request):
     return None
 
 
-def verify_redirect_uri(endpoint_context, request):
+def verify_uri(endpoint_context, request, uri_type):
     """
+    A redirect URI
     MUST NOT contain a fragment
     MAY contain query component
 
+    :param endpoint_context:
+    :param request:
+    :param uri_type:
     :return: An error response if the redirect URI is faulty otherwise
         None
     """
@@ -121,18 +125,17 @@ def verify_redirect_uri(endpoint_context, request):
 
         match = False
         for regbase, rquery in endpoint_context.cdb[
-            str(request["client_id"])]["redirect_uris"]:
+            str(request["client_id"])]['{}s'.format(uri_type)]:
 
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
-                # every registered query component must exist in the
-                # redirect_uri
+                # every registered query component must exist in the uri
                 if rquery:
                     for key, vals in rquery.items():
                         assert key in _query
                         for val in vals:
                             assert val in _query[key]
-                # and vice versa, every query component in the redirect_uri
+                # and vice versa, every query component in the uri
                 # must be registered
                 if _query:
                     if rquery is None:
@@ -148,7 +151,7 @@ def verify_redirect_uri(endpoint_context, request):
         # ignore query components that are not registered
         return None
     except Exception:
-        logger.error("Faulty redirect_uri: %s" % request["redirect_uri"])
+        logger.error("Faulty {}: {}".format(uri_type, request[uri_type]))
         try:
             _cinfo = endpoint_context.cdb[str(request["client_id"])]
         except KeyError:
@@ -161,25 +164,42 @@ def verify_redirect_uri(endpoint_context, request):
                 logger.info("Unknown client: %s" % cid)
                 raise UnknownClient(request["client_id"])
         else:
-            logger.info("Registered redirect_uris: %s" % sanitize(_cinfo))
+            logger.info("Registered {}s: {}".format(uri_type, sanitize(_cinfo)))
             raise RedirectURIError(
-                "Faulty redirect_uri: %s" % request["redirect_uri"])
+                "Faulty {}: {}".format(uri_type, request[uri_type]))
 
 
-def get_redirect_uri(endpoint_context, request):
+def join_query(base, queryp):
+    if queryp:
+        return '{}?{}'.format(base, queryp)
+    else:
+        return base
+
+
+def get_uri(endpoint_context, request, uri_type):
     """ verify that the redirect URI is reasonable
 
     :param endpoint_context:
     :param request: The Authorization request
-    :return: Tuple of (redirect_uri, Response instance)
-        Response instance is not None of matching redirect_uri failed
+    :param uri_type: 'redirect_uri' or 'post_logout_redirect_uri'
+    :return: redirect_uri
     """
-    if 'redirect_uri' in request:
-        verify_redirect_uri(endpoint_context, request)
-        uri = request["redirect_uri"]
+    if uri_type in request:
+        verify_uri(endpoint_context, request, uri_type)
+        uri = request[uri_type]
     else:
-        raise ParameterError(
-            "Missing redirect_uri and more than one or none registered")
+        try:
+            _specs = endpoint_context.cdb[
+                str(request["client_id"])]["{}s".format(uri_type)]
+        except KeyError:
+            raise ParameterError(
+                "Missing {} and none registered".format(uri_type))
+        else:
+            if len(_specs) > 1:
+                raise ParameterError(
+                    "Missing {} and more than one registered".format(uri_type))
+            else:
+                uri = join_query(*_specs[0])
 
     return uri
 
@@ -371,7 +391,7 @@ class Authorization(Endpoint):
 
         # Get the redirect URI
         try:
-            redirect_uri = get_redirect_uri(endpoint_context, request)
+            redirect_uri = get_uri(endpoint_context, request, 'redirect_uri')
         except (RedirectURIError, ParameterError, UnknownClient) as err:
             return AuthorizationErrorResponse(
                 error="invalid_request",
@@ -600,7 +620,7 @@ class Authorization(Endpoint):
         response_info = create_authn_response(self, request, sid)
 
         try:
-            redirect_uri = get_redirect_uri(self.endpoint_context, request)
+            redirect_uri = get_uri(self.endpoint_context, request, 'redirect_uri')
         except (RedirectURIError, ParameterError) as err:
             return self.error_response(response_info,
                                        'invalid_request',
@@ -614,7 +634,8 @@ class Authorization(Endpoint):
         #     return info
 
         _cookie = new_cookie(self.endpoint_context, sub=user, sid=sid,
-                             state=request['state'])
+                             state=request['state'],
+                             cookie_name=self.endpoint_context.cookie_name['session'])
 
         # Now about the response_mode. Should not be set if it's obvious
         # from the response_type. Knows about 'query', 'fragment' and
