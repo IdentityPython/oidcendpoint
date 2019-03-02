@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 from urllib.parse import splitquery
@@ -21,6 +22,7 @@ from oidcendpoint import URL_ENCODED
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.oidc.authorization import join_query
+from oidcendpoint.oidc.authorization import verify_uri
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -260,14 +262,12 @@ class Session(Endpoint):
         # registered
 
         try:
-            _url_q = splitquery(request['post_logout_redirect_uri'])
+            _uri = request['post_logout_redirect_uri']
         except KeyError:
             _uri = join_query(*_cinfo['post_logout_redirect_uris'][0])
         else:
-            if not _url_q in _cinfo['post_logout_redirect_uris']:
-                raise ValueError('Unregistered post_logout_redirect_uri')
-            else:
-                _uri = request['post_logout_redirect_uri']
+            verify_uri(_cntx, request, 'post_logout_redirect_uri',
+                       client_id=client_id)
 
         payload = {'sid': _sid, 'client_id': client_id,
                    'user':session['authn_event']['uid']}
