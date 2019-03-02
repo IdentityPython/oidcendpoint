@@ -3,12 +3,13 @@ import logging
 from urllib.parse import splitquery
 from urllib.parse import urlencode
 
-from cryptojwt import as_unicode, b64d
+from cryptojwt import as_unicode
+from cryptojwt import b64d
 from cryptojwt.jws.exception import JWSException
 from cryptojwt.jws.jws import factory
+from cryptojwt.jws.utils import alg2keytype
 from cryptojwt.jwt import JWT
 from cryptojwt.utils import as_bytes
-from cryptojwt.jws.utils import alg2keytype
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
@@ -19,6 +20,7 @@ from oidcmsg.oidc.session import EndSessionRequest
 from oidcendpoint import URL_ENCODED
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -110,6 +112,16 @@ class Session(Endpoint):
 
         return back_channel_logout_uri, sjwt
 
+    def clean_sessions(self, usids):
+        # Clean out all sessions
+        _sdb = self.endpoint_context.sdb
+        _sso_db = self.endpoint_context.sdb.sso_db
+        for sid in usids:
+            _state = _sdb[sid]['authn_req']['state']
+            del _sdb[sid]
+            _sdb.delete_kv2sid('state', _state)
+            _sso_db.remove_session_id(sid)
+
     def logout_all_clients(self, sid, client_id):
         _sdb = self.endpoint_context.sdb
         _sso_db = self.endpoint_context.sdb.sso_db
@@ -129,34 +141,24 @@ class Session(Endpoint):
         for _cid, _csid in _client_sid.items():
             if 'backchannel_logout_uri' in _cdb[_cid]:
                 _sub = _sso_db.get_sub_by_sid(_csid)
-                bc_logouts[_cid] = self.do_back_channel_logout(
+                _spec = self.do_back_channel_logout(
                     _cdb[_cid], _sub, _csid)
+                if _spec:
+                    bc_logouts[_cid] = _spec
             elif 'frontchannel_logout_uri' in _cdb[_cid]:
                 # Construct an IFrame
-                fc_iframes.append(do_front_channel_logout_iframe(_cdb[_cid],
-                                                                 _iss, _csid))
+                _spec = do_front_channel_logout_iframe(_cdb[_cid],_iss, _csid)
+                if _spec:
+                    fc_iframes[_cid] = _spec
 
-        # take care of Back channel logout first
-        for _cid, spec in bc_logouts.items():
-            _url, sjwt = spec
-            logger.info('logging out from {} at {}'.format(_cid, _url))
+        self.clean_sessions(usids)
 
-            res = self.endpoint_context.httpc.post(
-                _url, data="logout_token={}".format(sjwt),
-                verify=self.endpoint_context.verify_ssl)
-
-            if res.status_code < 300:
-                logger.info('Logged out from {}'.format(_cid))
-            elif res.status_code >= 400:
-                logger.info('failed to logout from {}'.format(_cid))
-
-        for sid in usids:
-            _state = _sdb[sid]['authn_req']['state']
-            del _sdb[sid]
-            _sdb.delete_kv2sid('state', _state)
-            _sso_db.remove_session_id(sid)
-
-        return fc_iframes
+        res = {}
+        if bc_logouts:
+            res['blu'] = bc_logouts
+        if fc_iframes:
+            res['flu'] = fc_iframes
+        return res
 
     def unpack_signed_jwt(self, sjwt):
         _jwt = factory(sjwt)
@@ -173,15 +175,25 @@ class Session(Endpoint):
         _cdb = self.endpoint_context.cdb
         _sso_db = self.endpoint_context.sdb.sso_db
 
+        # Kill the session
+        _sdb = self.endpoint_context.sdb
+        _sdb.revoke_session(sid=sid)
+
+        res = {}
         if 'backchannel_logout_uri' in _cdb[client_id]:
             _sub = _sso_db.get_sub_by_sid(sid)
-            bc_logout = self.do_back_channel_logout(_cdb[client_id], _sub, sid)
-            return []
+            _spec = self.do_back_channel_logout(_cdb[client_id], _sub, sid)
+            if _spec:
+                res['blu'] = {client_id: _spec}
         elif 'frontchannel_logout_uri' in _cdb[client_id]:
             # Construct an IFrame
-            _iframe = do_front_channel_logout_iframe(
+            _spec = do_front_channel_logout_iframe(
                 _cdb[client_id], self.endpoint_context.issuer, sid)
-            return [_iframe]
+            if _spec:
+                res['flu'] = {client_id: _spec}
+
+        self.clean_sessions([sid])
+        return res
 
     def process_request(self, request=None, cookie=None, **kwargs):
         """
@@ -250,18 +262,22 @@ class Session(Endpoint):
         try:
             _url_q = splitquery(request['post_logout_redirect_uri'])
         except KeyError:
-            _uri = _cinfo['post_logout_redirect_uris'][0]
+            _uri = join_query(*_cinfo['post_logout_redirect_uris'][0])
         else:
             if not _url_q in _cinfo['post_logout_redirect_uris']:
                 raise ValueError('Unregistered post_logout_redirect_uri')
             else:
                 _uri = request['post_logout_redirect_uri']
 
+        payload = {'sid': _sid, 'client_id': client_id,
+                   'user':session['authn_event']['uid']}
+
         # redirect user to OP logout verification page
         if 'state' in request:
             _uri = '{}?{}'.format(_uri, urlencode({'state': request['state']}))
+            payload['state'] = request['state']
 
-        payload = {'sid': _sid, 'client_id': client_id, 'redirect_uri': _uri}
+        payload['redirect_uri'] = _uri
 
         logger.debug('JWS payload: {}'.format(payload))
         # From me to me
@@ -270,28 +286,6 @@ class Session(Endpoint):
         sjwt = _jws.pack(payload=payload, recv=_cntx.issuer)
 
         return {'sjwt': sjwt}
-
-    def kill_session(self, sid, request, fc_iframes):
-        # Kill the session
-        _sdb = self.endpoint_context.sdb
-        _sdb.revoke_session(sid=sid)
-
-        # redirect user
-        if 'post_logout_redirect_uri' in request:
-            _ruri = request["post_logout_redirect_uri"]
-            if 'state' in request:
-                _ruri = '{}?{}'.format(
-                    _ruri, urlencode({'state': request['state']}))
-        else:  # To  my own logout-done page
-            try:
-                _ruri = self.endpoint_context.conf['post_logout_page']
-            except KeyError:
-                _ruri = self.endpoint_context.issuer
-
-        return {
-            'logout_iframes': fc_iframes,
-            'response_args': _ruri
-        }
 
     def parse_request(self, request, auth=None, **kwargs):
         """
@@ -337,8 +331,30 @@ class Session(Endpoint):
 
     def do_verified_logout(self, sid, client_id, alla=False, **kwargs):
         if alla:
-            _iframes = self.logout_all_clients(sid=sid, client_id=client_id)
+            _res = self.logout_all_clients(sid=sid, client_id=client_id)
         else:
-            _iframes = self.logout_from_client(sid=sid, client_id=client_id)
+            _res = self.logout_from_client(sid=sid, client_id=client_id)
 
-        return _iframes
+        try:
+            bcl = _res['blu']
+        except KeyError:
+            pass
+        else:
+            # take care of Back channel logout first
+            for _cid, spec in bcl.items():
+                _url, sjwt = spec
+                logger.info('logging out from {} at {}'.format(_cid, _url))
+
+                res = self.endpoint_context.httpc.post(
+                    _url, data="logout_token={}".format(sjwt),
+                    verify=self.endpoint_context.verify_ssl)
+
+                if res.status_code < 300:
+                    logger.info('Logged out from {}'.format(_cid))
+                elif res.status_code >= 400:
+                    logger.info('failed to logout from {}'.format(_cid))
+
+        try:
+            return _res['flu'].values()
+        except KeyError:
+            return []
