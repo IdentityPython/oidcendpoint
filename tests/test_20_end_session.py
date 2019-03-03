@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 from http.cookies import SimpleCookie
@@ -20,6 +21,7 @@ from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
+from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
@@ -378,6 +380,112 @@ class TestEndpoint(object):
                     "post_logout_redirect_uri": post_logout_redirect_uri,
                     "state": 'abcde'
                 }, cookie=cookie)
+
+    def test_back_channel_logout_no_uri(self):
+        self._code_auth('1234567')
+
+        res = self.session_endpoint.do_back_channel_logout(
+            self.session_endpoint.endpoint_context.cdb['client_1'], 'username', 0)
+        assert res is None
+
+    def test_back_channel_logout(self):
+        self._code_auth('1234567')
+
+        _cdb = copy.copy(self.session_endpoint.endpoint_context.cdb['client_1'])
+        _cdb['backchannel_logout_uri'] = 'https://example.com/bc_logout'
+        _cdb['client_id'] = 'client_1'
+        res = self.session_endpoint.do_back_channel_logout(_cdb, 'username', '_sid_')
+        assert isinstance(res, tuple)
+        assert res[0] == 'https://example.com/bc_logout'
+        _jwt = self.session_endpoint.unpack_signed_jwt(res[1], 'RS256')
+        assert _jwt
+        assert _jwt['iss'] == ISS
+        assert _jwt['aud'] == ['client_1']
+        assert _jwt['sub'] == 'username'
+        assert _jwt['sid'] == '_sid_'
+
+    def test_front_channel_logout(self):
+        self._code_auth('1234567')
+
+        _cdb = copy.copy(self.session_endpoint.endpoint_context.cdb['client_1'])
+        _cdb['frontchannel_logout_uri'] = 'https://example.com/fc_logout'
+        _cdb['client_id'] = 'client_1'
+        res = do_front_channel_logout_iframe(_cdb, ISS, '_sid_')
+        assert res == '<iframe src="https://example.com/fc_logout">'
+
+    def test_front_channel_logout_session_required(self):
+        self._code_auth('1234567')
+
+        _cdb = copy.copy(self.session_endpoint.endpoint_context.cdb['client_1'])
+        _cdb['frontchannel_logout_uri'] = 'https://example.com/fc_logout'
+        _cdb['frontchannel_logout_session_required'] = True
+        _cdb['client_id'] = 'client_1'
+        res = do_front_channel_logout_iframe(_cdb, ISS,'_sid_')
+        assert res == '<iframe src="https://example.com/fc_logout?iss=https%3A%2F%2Fexample.com%2F&sid=_sid_">'
+
+    def test_logout_from_client_bc(self):
+        self._code_auth('1234567')
+        self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri'] = 'https://example.com/bc_logout'
+        self.session_endpoint.endpoint_context.cdb['client_1']['client_id'] = 'client_1'
+        _sid = list(self.session_endpoint.endpoint_context.sdb._db.keys())[0]
+        res = self.session_endpoint.logout_from_client(_sid, 'client_1')
+        assert set(res.keys()) == {'blu'}
+        assert set(res['blu'].keys()) == {'client_1'}
+        _spec = res['blu']['client_1']
+        assert _spec[0] == 'https://example.com/bc_logout'
+        _jwt = self.session_endpoint.unpack_signed_jwt(_spec[1], 'RS256')
+        assert _jwt
+        assert _jwt['iss'] == ISS
+        assert _jwt['aud'] == ['client_1']
+        assert _jwt['sid'] == _sid
+
+        with pytest.raises(KeyError):
+            _ = self.session_endpoint.endpoint_context.sdb[_sid]
+
+    def test_logout_from_client_fc(self):
+        self._code_auth('1234567')
+        # del self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri']
+        self.session_endpoint.endpoint_context.cdb['client_1']['frontchannel_logout_uri'] = 'https://example.com/fc_logout'
+        self.session_endpoint.endpoint_context.cdb['client_1']['client_id'] = 'client_1'
+        _sid = list(self.session_endpoint.endpoint_context.sdb._db.keys())[0]
+        res = self.session_endpoint.logout_from_client(_sid, 'client_1')
+        assert set(res.keys()) == {'flu'}
+        assert set(res['flu'].keys()) == {'client_1'}
+        _spec = res['flu']['client_1']
+        assert _spec == '<iframe src="https://example.com/fc_logout">'
+
+        with pytest.raises(KeyError):
+            _ = self.session_endpoint.endpoint_context.sdb[_sid]
+
+    def test_logout_from_client(self):
+        self._code_auth('1234567')
+        self._code_auth2('abcdefg')
+
+        # client0
+        self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri'] = \
+            'https://example.com/bc_logout'
+        self.session_endpoint.endpoint_context.cdb['client_1']['client_id'] = 'client_1'
+        self.session_endpoint.endpoint_context.cdb['client_2']['frontchannel_logout_uri'] = \
+            'https://example.com/fc_logout'
+        self.session_endpoint.endpoint_context.cdb['client_2']['client_id'] = 'client_2'
+
+        _sid = list(self.session_endpoint.endpoint_context.sdb._db.keys())[0]
+        res = self.session_endpoint.logout_all_clients(_sid, 'client_1')
+        assert res
+        assert set(res.keys()) == {'blu', 'flu'}
+        assert set(res['flu'].keys()) == {'client_2'}
+        _spec = res['flu']['client_2']
+        assert _spec == '<iframe src="https://example.com/fc_logout">'
+        assert set(res['blu'].keys()) == {'client_1'}
+        _spec = res['blu']['client_1']
+        assert _spec[0] == 'https://example.com/bc_logout'
+        _jwt = self.session_endpoint.unpack_signed_jwt(_spec[1], 'RS256')
+        assert _jwt
+        assert _jwt['iss'] == ISS
+        assert _jwt['aud'] == ['client_1']
+
+        with pytest.raises(KeyError):
+            _ = self.session_endpoint.endpoint_context.sdb[_sid]
 
     # def test_authn_then_end_with_state(self):
     #     _req = self.authn_endpoint.parse_request(AUTH_REQ_DICT)

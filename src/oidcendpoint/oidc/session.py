@@ -36,7 +36,11 @@ def do_front_channel_logout_iframe(cinfo, iss, sid):
     :param sid: Session ID
     :return: IFrame
     """
-    frontchannel_logout_uri = cinfo['frontchannel_logout_uri']
+    try:
+        frontchannel_logout_uri = cinfo['frontchannel_logout_uri']
+    except KeyError:
+        return None
+
     try:
         flsr = cinfo['frontchannel_logout_session_required']
     except KeyError:
@@ -93,7 +97,10 @@ class Session(Endpoint):
 
         _cntx = self.endpoint_context
 
-        back_channel_logout_uri = cinfo['backchannel_logout_uri']
+        try:
+            back_channel_logout_uri = cinfo['backchannel_logout_uri']
+        except KeyError:
+            return None
 
         # always include sub and sid so I don't check for
         # backchannel_logout_session_required
@@ -139,7 +146,7 @@ class Session(Endpoint):
         _cdb = self.endpoint_context.cdb
         _iss = self.endpoint_context.issuer
         bc_logouts = {}
-        fc_iframes = []
+        fc_iframes = {}
         for _cid, _csid in _client_sid.items():
             if 'backchannel_logout_uri' in _cdb[_cid]:
                 _sub = _sso_db.get_sub_by_sid(_csid)
@@ -162,10 +169,14 @@ class Session(Endpoint):
             res['flu'] = fc_iframes
         return res
 
-    def unpack_signed_jwt(self, sjwt):
+    def unpack_signed_jwt(self, sjwt, sig_alg=''):
         _jwt = factory(sjwt)
         if _jwt:
-            alg = self.kwargs['signing_alg']
+            if sig_alg:
+                alg = sig_alg
+            else:
+                alg = self.kwargs['signing_alg']
+
             sign_keys = self.endpoint_context.keyjar.get_signing_key(
                 alg2keytype(alg))
             _info = _jwt.verify_compact(keys=sign_keys, sigalg=alg)
