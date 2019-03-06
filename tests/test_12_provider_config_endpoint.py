@@ -1,8 +1,6 @@
 import json
 import pytest
 
-from cryptojwt.key_jar import build_keyjar
-
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
@@ -14,8 +12,6 @@ KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
-
-KEYJAR = build_keyjar(KEYDEFS)
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],
@@ -50,9 +46,8 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {
-                'public_path': 'jwks.json',
-                'local_path': 'static/jwks.json',
-                'private_path': 'own/jwks.json'
+                'uri_path': 'static/jwks.json',
+                'key_defs': KEYDEFS
             },
             'endpoint': {
                 'provider_config': {
@@ -83,7 +78,7 @@ class TestEndpoint(object):
             },
             'template_dir': 'template'
         }
-        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint_context = EndpointContext(conf)
         self.endpoint = ProviderConfiguration(self.endpoint_context)
 
     def test_do_response(self):
@@ -93,5 +88,5 @@ class TestEndpoint(object):
         _msg = json.loads(msg['response'])
         assert _msg
         assert _msg['token_endpoint'] == 'https://example.com/token'
-        assert _msg['jwks_uri'] == 'https://example.com/jwks.json'
+        assert _msg['jwks_uri'] == 'https://example.com/static/jwks.json'
         assert ('Content-type', 'application/json') in msg['http_headers']

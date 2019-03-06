@@ -1,6 +1,5 @@
 import time
 import pytest
-from cryptojwt.key_jar import build_keyjar
 
 from oidcendpoint import token_handler, rndstr
 from oidcendpoint.authn_event import create_authn_event
@@ -309,8 +308,6 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)
-
 conf = {
     "issuer": "https://example.com/",
     "password": "mycket hemligt",
@@ -320,8 +317,8 @@ conf = {
     "verify_ssl": False,
     "capabilities": {},
     "jwks": {
-        'url_path': 'jwks.json',
-        'local_path': 'static/jwks.json',
+        'uri_path': 'static/jwks.json',
+        'key_defs': KEYDEFS,
         'private_path': 'own/jwks.json'
     },
     'endpoint': {
@@ -348,22 +345,22 @@ conf = {
 
 
 def test_setup_session():
-    endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+    endpoint_context = EndpointContext(conf)
     uid = '_user_'
     client_id = 'EXTERNAL'
     areq = None
     acr = None
-    sid = setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt')
+    sid = setup_session(endpoint_context, areq, uid, client_id, acr, salt='salt')
     assert sid
 
 
 def test_setup_session_upgrade_to_token():
-    endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+    endpoint_context = EndpointContext(conf)
     uid = '_user_'
     client_id = 'EXTERNAL'
     areq = None
     acr = None
-    sid = setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt')
+    sid = setup_session(endpoint_context, areq, uid, client_id, acr, salt='salt')
     assert sid
     code = endpoint_context.sdb[sid]['code']
     assert code

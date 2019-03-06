@@ -1,22 +1,20 @@
 import json
-
 import os
-import pytest
 import time
 
-from cryptojwt.key_jar import build_keyjar
-
+import pytest
+from oidcendpoint.session import setup_session
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 
+from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.client_authn import verify_client
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.authn_event import AuthnEvent
-from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -24,8 +22,6 @@ KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
-
-KEYJAR = build_keyjar(KEYDEFS)
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],
@@ -71,20 +67,9 @@ def full_path(local_file):
 USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
 
 
-def setup_session(endpoint_context, areq):
-    authn_event = AuthnEvent(uid="uid", salt='salt',
-                             authn_info=INTERNETPROTOCOLPASSWORD,
-                             time_stamp=time.time())
-    sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
-                                                    client_id='client_id')
-    endpoint_context.sdb.do_sub(sid, '')
-    return sid
-
-
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
-        self.endpoint = userinfo.UserInfo(KEYJAR)
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
@@ -94,9 +79,8 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {
-                'url_path': '{}/jwks.json',
-                'local_path': 'static/jwks.json',
-                'private_path': 'own/jwks.json'
+                'uri_path': 'jwks.json',
+                'key_defs': KEYDEFS,
             },
             'endpoint': {
                 'provider_config': {
@@ -134,7 +118,7 @@ class TestEndpoint(object):
             }},
             'template_dir': 'template'
         }
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context = EndpointContext(conf)
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
@@ -148,7 +132,8 @@ class TestEndpoint(object):
         assert self.endpoint
 
     def test_parse(self):
-        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
+                                   uid='userID')
         _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
             key=session_id)
         _req = self.endpoint.parse_request(

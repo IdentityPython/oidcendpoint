@@ -9,6 +9,11 @@ from oidcendpoint.oidc.userinfo import UserInfo
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.util import get_sign_and_encrypt_algorithms
 
+KEYDEFS = [
+    {"type": "RSA", "key": '', "use": ["sig"]},
+    {"type": "EC", "crv": "P-256", "use": ["sig"]}
+]
+
 conf = {
     "issuer": "https://example.com/",
     "password": "mycket hemligt",
@@ -18,6 +23,13 @@ conf = {
     "verify_ssl": False,
     "capabilities": {},
     "jwks_uri": 'https://example.com/jwks.json',
+    'jwks':
+        {
+            'private_path': 'own/jwks.json',
+            'key_defs': KEYDEFS,
+            'uri_path': 'static/jwks.json'
+        },
+
     'endpoint': {
         'provider_config': {
             'path': '.well-known/openid-configuration',

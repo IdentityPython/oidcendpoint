@@ -19,8 +19,6 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)
-
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],
     ["id_token", "token"], ["code", "token", "id_token"], ['none']]
@@ -74,9 +72,8 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {
-                'url_path': '{}/jwks.json',
-                'local_path': 'static/jwks.json',
-                'private_path': 'own/jwks.json'
+                'key_defs': KEYDEFS,
+                'uri_path': 'static/jwks.json',
             },
             'endpoint': {
                 'provider_config': {
@@ -107,7 +104,7 @@ class TestEndpoint(object):
             },
             'template_dir': 'template'
         }
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context = EndpointContext(conf)
         self.endpoint = Registration(endpoint_context)
 
     def test_parse(self):

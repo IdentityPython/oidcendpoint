@@ -24,8 +24,6 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)
-
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],
     ["id_token", "token"], ["code", "token", "id_token"], ['none']]
@@ -116,9 +114,8 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {
-                'url_path': '{}/jwks.json',
-                'local_path': 'static/jwks.json',
-                'private_path': 'own/jwks.json'
+                'uri_path': 'static/jwks.json',
+                'key_defs': KEYDEFS
             },
             'endpoint': {
                 'provider_config': {
@@ -160,9 +157,8 @@ class TestEndpoint(object):
             },
             'template_dir': 'template'
         }
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR,
-                                           cookie_dealer=SimpleCookieDealer(
-                                               'foo'))
+        endpoint_context = EndpointContext(
+            conf, cookie_dealer=SimpleCookieDealer('foo'))
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],

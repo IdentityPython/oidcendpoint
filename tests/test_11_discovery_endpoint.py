@@ -1,18 +1,15 @@
 import json
 
 import pytest
-from cryptojwt.key_jar import build_keyjar
 
-from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oidcendpoint.oidc.discovery import Discovery
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.oidc.discovery import Discovery
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
-
-KEYJAR = build_keyjar(KEYDEFS)
 
 
 class TestEndpoint(object):
@@ -26,6 +23,10 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "endpoint": {},
+            "jwks": {
+                'uri_path': 'static/jwks.json',
+                'key_defs': KEYDEFS,
+            },
             "authentication": {
                 'anon':{
                     'acr': INTERNETPROTOCOLPASSWORD,
@@ -34,7 +35,7 @@ class TestEndpoint(object):
             }},
             'template_dir': 'template'
         }
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context = EndpointContext(conf)
         self.endpoint = Discovery(endpoint_context)
 
     def test_do_response(self):

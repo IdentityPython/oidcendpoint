@@ -15,8 +15,6 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-KEYJAR = build_keyjar(KEYDEFS)
-
 REQ = Message(foo='bar', hej='hopp')
 
 EXAMPLE_MSG = {
@@ -55,6 +53,12 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "endpoint": {},
+            "jwks": {
+                'public_path': 'jwks.json',
+                'key_defs': KEYDEFS,
+                'private_path': 'own/jwks.json',
+                'uri_path': 'static/jwks.json'
+            },
             "authentication": {
                 'anon':{
                     'acr': INTERNETPROTOCOLPASSWORD,
@@ -64,7 +68,7 @@ class TestEndpoint(object):
             },
             'template_dir': 'template'
         }
-        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint_context = EndpointContext(conf)
         self.endpoint = Endpoint(self.endpoint_context)
 
     def test_parse_urlencoded(self):
@@ -95,7 +99,8 @@ class TestEndpoint(object):
 
     def test_parse_jwt(self):
         self.endpoint.request_format = 'jwt'
-        request = REQ.to_jwt(KEYJAR.get_signing_key('RSA'), 'RS256')
+        kj = self.endpoint_context.keyjar
+        request = REQ.to_jwt(kj.get_signing_key('RSA'), 'RS256')
         req = self.endpoint.parse_request(request)
         assert req == REQ
 

@@ -1,10 +1,10 @@
 import base64
 
+from cryptojwt.jwt import JWT
+from cryptojwt.key_jar import KeyJar
+from cryptojwt.key_jar import build_keyjar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-
-from cryptojwt.jwt import JWT
-from cryptojwt.key_jar import build_keyjar, KeyJar
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import ClientSecretBasic
@@ -28,7 +28,13 @@ conf = {
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
     "endpoint": {},
-    'template_dir': 'template'
+    'template_dir': 'template',
+    'jwks':
+        {
+            'private_path': 'own/jwks.json',
+            'key_defs': KEYDEFS,
+            'uri_path': 'static/jwks.json'
+        }
 }
 client_id = 'client_id'
 client_secret = 'a_longer_client_secret'
@@ -67,8 +73,10 @@ def test_client_secret_jwt():
     _jwt = JWT(client_keyjar, iss=client_id, sign_alg='HS256')
     _assertion = _jwt.pack({'aud': [conf['issuer']]})
 
-    request = {'client_assertion': _assertion,
-               'client_assertion_type': JWT_BEARER}
+    request = {
+        'client_assertion': _assertion,
+        'client_assertion_type': JWT_BEARER
+    }
 
     authn_info = ClientSecretJWT(endpoint_context).verify(request)
 
@@ -88,8 +96,10 @@ def test_private_key_jwt():
     _jwt = JWT(client_keyjar, iss=client_id, sign_alg='RS256')
     _assertion = _jwt.pack({'aud': [conf['issuer']]})
 
-    request = {'client_assertion': _assertion,
-               'client_assertion_type': JWT_BEARER}
+    request = {
+        'client_assertion': _assertion,
+        'client_assertion_type': JWT_BEARER
+    }
 
     authn_info = PrivateKeyJWT(endpoint_context).verify(request)
 

@@ -99,6 +99,12 @@ def test_by_schema():
         }
 
 
+KEYDEFS = [
+    {"type": "RSA", "key": '', "use": ["sig"]},
+    {"type": "EC", "crv": "P-256", "use": ["sig"]}
+]
+
+
 def test_collect_user_info():
     _session_info = {'authn_req': OIDR}
     session = _session_info.copy()
@@ -116,6 +122,11 @@ def test_collect_user_info():
         'token_expires_in': 900, 'grant_expires_in': 600,
         'refresh_token_expires_in': 86400,
         "endpoint": {},
+        "jwks": {
+            'public_path': 'jwks.json',
+            'key_defs': KEYDEFS,
+            'uri_path': 'static/jwks.json'
+        },
         "authentication": {
             'anon': {
                 'acr': INTERNETPROTOCOLPASSWORD,

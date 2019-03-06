@@ -4,8 +4,7 @@ import os
 import pytest
 import time
 
-from cryptojwt.key_jar import build_keyjar
-
+from oidcendpoint.session import setup_session
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 
@@ -24,8 +23,6 @@ KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
-
-KEYJAR = build_keyjar(KEYDEFS)
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],
@@ -70,14 +67,14 @@ def full_path(local_file):
 USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
 
 
-def setup_session(endpoint_context, areq):
-    authn_event = create_authn_event(uid="uid", salt='salt',
-                             authn_info=INTERNETPROTOCOLPASSWORD,
-                             time_stamp=time.time())
-    sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
-                                                    client_id='client_id')
-    endpoint_context.sdb.do_sub(sid, '')
-    return sid
+# def setup_session(endpoint_context, areq):
+#     authn_event = create_authn_event(uid="uid", salt='salt',
+#                              authn_info=INTERNETPROTOCOLPASSWORD,
+#                              time_stamp=time.time())
+#     sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
+#                                                     client_id='client_id')
+#     endpoint_context.sdb.do_sub(sid, '')
+#     return sid
 
 
 class TestEndpoint(object):
@@ -92,9 +89,8 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {
-                'url_path': '{}/jwks.json',
-                'local_path': 'static/jwks.json',
-                'private_path': 'own/jwks.json'
+                'uri_path': 'jwks.json',
+                'key_defs': KEYDEFS,
             },
             'endpoint': {
                 'provider_config': {
@@ -136,7 +132,7 @@ class TestEndpoint(object):
             'client_authn': verify_client,
             'template_dir': 'template'
         }
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        endpoint_context = EndpointContext(conf)
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
@@ -150,7 +146,8 @@ class TestEndpoint(object):
         assert self.endpoint
 
     def test_parse(self):
-        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
+                                   uid='user')
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request['code'] = self.endpoint.endpoint_context.sdb[
             session_id]['code']
@@ -160,7 +157,8 @@ class TestEndpoint(object):
         assert set(_req.keys()) == set(_token_request.keys())
 
     def test_process_request(self):
-        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
+                                   uid='user', acr=INTERNETPROTOCOLPASSWORD)
         _token_request = TOKEN_REQ_DICT.copy()
         _context = self.endpoint.endpoint_context
         _token_request['code'] = _context.sdb[session_id]['code']
@@ -173,7 +171,8 @@ class TestEndpoint(object):
         assert set(_resp.keys()) == {'http_headers', 'response_args'}
 
     def test_do_response(self):
-        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ)
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
+                                   uid='user', acr=INTERNETPROTOCOLPASSWORD)
         self.endpoint.endpoint_context.sdb.update(session_id, user='diana')
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request['code'] = self.endpoint.endpoint_context.sdb[

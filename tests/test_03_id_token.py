@@ -23,8 +23,6 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
     ]
 
-KEYJAR = build_keyjar(KEYDEFS)
-
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -46,6 +44,11 @@ conf = {
     "grant_expires_in": 300,
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
+    'jwks':
+        {
+            'key_defs': KEYDEFS,
+            'uri_path': 'static/jwks.json'
+        },
     "jwks_uri": 'https://example.com/jwks.json',
     'endpoint': {
         'authorization_endpoint': {
@@ -68,7 +71,7 @@ conf = {
     'template_dir': 'template'
     }
 
-ENDPOINT_CONTEXT = EndpointContext(conf, keyjar=KEYJAR)
+ENDPOINT_CONTEXT = EndpointContext(conf)
 ENDPOINT_CONTEXT.cdb['client_1'] = {
     "client_secret": 'hemligt',
     "redirect_uris": [("https://example.com/cb", None)],
@@ -188,7 +191,7 @@ def test_sign_encrypt_id_token():
     assert _jws.jwt.headers['alg'] == 'RS512'
 
     client_keyjar = KeyJar()
-    _jwks = KEYJAR.export_jwks()
+    _jwks = ENDPOINT_CONTEXT.keyjar.export_jwks()
     client_keyjar.import_jwks(_jwks, ENDPOINT_CONTEXT.issuer)
 
     _jwt = JWT(key_jar=client_keyjar, iss='client_1')

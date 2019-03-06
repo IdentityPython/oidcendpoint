@@ -143,9 +143,8 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {
-                'url_path': '{}/jwks.json',
-                'local_path': 'static/jwks.json',
-                'private_path': 'own/jwks.json'
+                'uri_path': 'jwks.json',
+                'key_defs': KEYDEFS,
             },
             'endpoint': {
                 'provider_config': {
@@ -197,8 +196,8 @@ class TestEndpoint(object):
             # }
         }
         self.cd = CookieDealer('abcdefghijklmnopqrstuvxyz')
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR,
-                                           cookie_dealer=self.cd)
+        endpoint_context = EndpointContext(conf, cookie_dealer=self.cd,
+                                           keyjar=KEYJAR)
         endpoint_context.cdb = {
             'client_1': {
                 "client_secret": 'hemligt',
@@ -251,6 +250,15 @@ class TestEndpoint(object):
         _pr_resp = self.authn_endpoint.parse_request(req.to_dict())
         _resp = self.authn_endpoint.process_request(_pr_resp)
 
+    def _get_sid(self):
+        _sdb = self.session_endpoint.endpoint_context.sdb
+
+        for _sid in _sdb.keys():
+            if _sid.startswith('__state__'):
+                continue
+            else:
+                return _sid
+
     def _auth_with_id_token(self, state):
         req = AuthorizationRequest(state=state,
                                    response_type='id_token',
@@ -265,9 +273,7 @@ class TestEndpoint(object):
 
     def test_end_session_endpoint_with_cookie(self):
         self._code_auth('1234567')
-        _sdb = self.session_endpoint.endpoint_context.sdb
-
-        _sid = list(_sdb.keys())[0]
+        _sid = self._get_sid()
         cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         resp = self.session_endpoint.process_request(
@@ -326,7 +332,7 @@ class TestEndpoint(object):
         self._code_auth('1234567')
         self._code_auth2('abcdefg')
         _sdb = self.session_endpoint.endpoint_context.sdb
-        _sid = list(_sdb.keys())[0]
+        _sid = self._get_sid()
         cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         resp = self.session_endpoint.process_request(
@@ -346,7 +352,7 @@ class TestEndpoint(object):
         self._code_auth('1234567')
         self._code_auth2('abcdefg')
         _sdb = self.session_endpoint.endpoint_context.sdb
-        _sid = list(_sdb.keys())[0]
+        _sid = self._get_sid()
         cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         post_logout_redirect_uri = join_query(
@@ -370,7 +376,7 @@ class TestEndpoint(object):
         self._code_auth('1234567')
         self._code_auth2('abcdefg')
         _sdb = self.session_endpoint.endpoint_context.sdb
-        _sid = list(_sdb.keys())[0]
+        _sid = self._get_sid()
         cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         post_logout_redirect_uri = 'https://demo.example.com/log_out'
@@ -428,7 +434,7 @@ class TestEndpoint(object):
         self._code_auth('1234567')
         self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri'] = 'https://example.com/bc_logout'
         self.session_endpoint.endpoint_context.cdb['client_1']['client_id'] = 'client_1'
-        _sid = list(self.session_endpoint.endpoint_context.sdb._db.keys())[0]
+        _sid = self._get_sid()
         res = self.session_endpoint.logout_from_client(_sid, 'client_1')
         assert set(res.keys()) == {'blu'}
         assert set(res['blu'].keys()) == {'client_1'}
@@ -448,7 +454,7 @@ class TestEndpoint(object):
         # del self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri']
         self.session_endpoint.endpoint_context.cdb['client_1']['frontchannel_logout_uri'] = 'https://example.com/fc_logout'
         self.session_endpoint.endpoint_context.cdb['client_1']['client_id'] = 'client_1'
-        _sid = list(self.session_endpoint.endpoint_context.sdb._db.keys())[0]
+        _sid = self._get_sid()
         res = self.session_endpoint.logout_from_client(_sid, 'client_1')
         assert set(res.keys()) == {'flu'}
         assert set(res['flu'].keys()) == {'client_1'}
@@ -470,7 +476,8 @@ class TestEndpoint(object):
             'https://example.com/fc_logout'
         self.session_endpoint.endpoint_context.cdb['client_2']['client_id'] = 'client_2'
 
-        _sid = list(self.session_endpoint.endpoint_context.sdb._db.keys())[0]
+        _sid = self._get_sid()
+
         res = self.session_endpoint.logout_all_clients(_sid, 'client_1')
         assert res
         assert set(res.keys()) == {'blu', 'flu'}
