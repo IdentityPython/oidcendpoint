@@ -220,8 +220,8 @@ def create_signed_jwt(issuer, keyjar, sign_alg='RS256', **kwargs):
     return signer.pack(payload=kwargs)
 
 
-def verify_signed_jwt(token, keyjar):
-    verifier = JWT(keyjar)
+def verify_signed_jwt(token, keyjar, allowed_sign_algs=None):
+    verifier = JWT(keyjar, allowed_sign_algs=allowed_sign_algs)
     return verifier.unpack(token)
 
 

@@ -1,10 +1,15 @@
 import time
 import pytest
+from cryptojwt.key_jar import build_keyjar
 
 from oidcendpoint import token_handler, rndstr
 from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.in_memory_db import InMemoryDataBase
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.session import SessionDB
+from oidcendpoint.session import setup_session
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
@@ -13,6 +18,7 @@ from oidcendpoint.token_handler import WrongTokenType
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
 
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 __author__ = 'rohe0002'
 
@@ -52,7 +58,7 @@ class TestSessionDB(object):
     def test_create_authz_session(self):
         ae = create_authn_event("uid", "salt")
         sid = self.sdb.create_authz_session(ae, AREQ, client_id='client_id')
-        self.sdb.do_sub(sid, "client_salt")
+        self.sdb.do_sub(sid, uid='user', client_salt="client_salt")
 
         info = self.sdb[sid]
         assert info["client_id"] == "client_id"
@@ -92,7 +98,7 @@ class TestSessionDB(object):
         ae = create_authn_event("sub", "salt")
         sid = self.sdb.create_authz_session(ae, AREQ, client_id='client_id',
                                             oidreq=OIDR)
-        self.sdb.do_sub(sid, "client_salt", "http://example.com/si.jwt",
+        self.sdb.do_sub(sid, 'user1', "client_salt", "http://example.com/si.jwt",
                         "pairwise")
 
         info_1 = self.sdb[sid].copy()
@@ -100,7 +106,7 @@ class TestSessionDB(object):
         assert "oidreq" in info_1
         assert info_1["sub"] != "sub"
 
-        self.sdb.do_sub(sid, "client_salt", "http://example.net/si.jwt",
+        self.sdb.do_sub(sid, 'user2', "client_salt", "http://example.net/si.jwt",
                         "pairwise")
 
         info_2 = self.sdb[sid]
@@ -127,7 +133,7 @@ class TestSessionDB(object):
     def test_upgrade_to_token_refresh(self):
         ae1 = create_authn_event("sub", "salt")
         sid = self.sdb.create_authz_session(ae1, AREQO, client_id='client_id')
-        self.sdb.do_sub(sid, ae1['salt'])
+        self.sdb.do_sub(sid, 'user', ae1['salt'])
         grant = self.sdb[sid]["code"]
         # Issue an access token trading in the access grant code
         _dict = self.sdb.upgrade_to_token(grant, issue_refresh=True)
@@ -266,7 +272,7 @@ class TestSessionDB(object):
     def test_sub_to_authn_event(self):
         ae = create_authn_event("sub", "salt", time_stamp=time.time())
         sid = self.sdb.create_authz_session(ae, AREQ, client_id='client_id')
-        sub = self.sdb.do_sub(sid, "client_salt")
+        sub = self.sdb.do_sub(sid, 'user', "client_salt")
 
         # given the sub find out whether the authn event is still valid
         sids = self.sdb.get_sids_by_sub(sub)
@@ -276,23 +282,94 @@ class TestSessionDB(object):
     def test_do_sub_deterministic(self):
         ae = create_authn_event("tester", "random_value")
         sid = self.sdb.create_authz_session(ae, AREQ, client_id='client_id')
-        self.sdb.do_sub(sid, "other_random_value")
+        self.sdb.do_sub(sid, 'user', "other_random_value")
 
         info = self.sdb[sid]
         assert info["sub"] == \
-               '179670cdee6375c48e577317b2abd7d5cd26a5cdb1cfb7ef84af3d703c71d013'
+               '04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb'
 
-        self.sdb.do_sub(sid, "other_random_value",
+        self.sdb.do_sub(sid, 'user', "other_random_value",
                         sector_id='http://example.com',
                         subject_type="pairwise")
         info2 = self.sdb[sid]
         assert info2["sub"] == \
-               'aaa50d80f8780cf1c4beb39e8e126556292f5091b9e39596424fefa2b99d9c53'
+               '1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd'
 
-        self.sdb.do_sub(sid, "another_random_value",
+        self.sdb.do_sub(sid, 'user', "another_random_value",
                         sector_id='http://other.example.com',
                         subject_type="pairwise")
 
         info2 = self.sdb[sid]
         assert info2["sub"] == \
-               '62fb630e29f0d41b88e049ac0ef49a9c3ac5418c029d6e4f5417df7e9443976b'
+               '56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec'
+
+
+KEYDEFS = [
+    {"type": "RSA", "key": '', "use": ["sig"]},
+    {"type": "EC", "crv": "P-256", "use": ["sig"]}
+]
+
+KEYJAR = build_keyjar(KEYDEFS)
+
+conf = {
+    "issuer": "https://example.com/",
+    "password": "mycket hemligt",
+    "token_expires_in": 600,
+    "grant_expires_in": 300,
+    "refresh_token_expires_in": 86400,
+    "verify_ssl": False,
+    "capabilities": {},
+    "jwks": {
+        'url_path': 'jwks.json',
+        'local_path': 'static/jwks.json',
+        'private_path': 'own/jwks.json'
+    },
+    'endpoint': {
+        'provider_config': {
+            'path': '.well-known/openid-configuration',
+            'class': ProviderConfiguration,
+            'kwargs': {}
+        },
+        'authorization_endpoint': {
+            'path': 'authorization',
+            'class': Authorization,
+            'kwargs': {}
+        }
+    },
+    'authentication': {
+        'anon': {
+            'acr': INTERNETPROTOCOLPASSWORD,
+            'class': 'oidcendpoint.user_authn.user.NoAuthn',
+            'kwargs': {'user': 'diana'}
+        }
+    },
+    'template_dir': 'template'
+}
+
+
+def test_setup_session():
+    endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+    uid = '_user_'
+    client_id = 'EXTERNAL'
+    areq = None
+    acr = None
+    sid = setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt')
+    assert sid
+
+
+def test_setup_session_upgrade_to_token():
+    endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+    uid = '_user_'
+    client_id = 'EXTERNAL'
+    areq = None
+    acr = None
+    sid = setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt')
+    assert sid
+    code = endpoint_context.sdb[sid]['code']
+    assert code
+
+    res = endpoint_context.sdb.upgrade_to_token(code)
+    assert 'access_token' in res
+
+    endpoint_context.sdb.revoke_uid('_user_')
+    assert endpoint_context.sdb.is_session_revoked(sid)

@@ -1,8 +1,8 @@
-import copy
 import hashlib
 import json
 import time
 
+from oidcmsg.exception import MissingParameter
 from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
@@ -42,11 +42,27 @@ def authn_event_deser(val, sformat="urlencoded"):
 
 
 def setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt'):
-    authn_event = AuthnEvent(uid=uid, salt=salt, authn_info=acr,
-                             time_stamp=time.time())
+    """
+    Setting up a user session
+
+    :param endpoint_context:
+    :param areq:
+    :param uid:
+    :param acr:
+    :param client_id:
+    :param salt:
+    :return:
+    """
+    if acr:
+        authn_event = AuthnEvent(uid=uid, salt=salt, authn_info=acr,
+                                 time_stamp=time.time())
+    else:
+        authn_event = None
+
     sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
-                                                    client_id=client_id)
-    endpoint_context.sdb.do_sub(sid, '')
+                                                    client_id=client_id,
+                                                    uid=uid)
+    endpoint_context.sdb.do_sub(sid, uid, '')
     return sid
 
 
@@ -80,7 +96,8 @@ def dict_match(a, b):
     return all(res)
 
 
-def mint_sub(authn_event, client_salt, sector_id="", subject_type="public"):
+def mint_sub(client_salt, sector_id="", subject_type="public",
+             uid='', user_salt=''):
     """
     Mint a new sub (subject identifier)
 
@@ -90,11 +107,6 @@ def mint_sub(authn_event, client_salt, sector_id="", subject_type="public"):
     :param subject_type: 'public'/'pairwise'
     :return: Subject identifier
     """
-    uid = authn_event['uid']
-    try:
-        user_salt = authn_event['salt']
-    except KeyError:
-        user_salt = ''
 
     if subject_type == "public":
         sub = hashlib.sha256(
@@ -138,9 +150,27 @@ class SessionDB(object):
     def keys(self):
         return self._db.keys()
 
-    def create_authz_session(self, authn_event, areq, client_id='', **kwargs):
+    def create_authz_session(self, authn_event, areq, client_id='', uid='',
+                             **kwargs):
+        """
 
-        sid = self.handler['code'].key(user=authn_event['uid'], areq=areq)
+        :param authn_event:
+        :param areq:
+        :param client_id:
+        :param uid:
+        :param kwargs:
+        :return:
+        """
+        try:
+            _uid = authn_event['uid']
+        except (TypeError, KeyError):
+            _uid = uid
+
+        if not _uid:
+            raise MissingParameter('Need a "uid"')
+
+        sid = self.handler['code'].key(user=_uid, areq=areq)
+
         access_grant = self.handler['code'](sid=sid)
 
         _info = SessionInfo(code=access_grant, oauth_state='authz')
@@ -148,14 +178,16 @@ class SessionDB(object):
         if client_id:
             _info['client_id'] = client_id
 
-        _info['authn_req'] = areq
-        _info['authn_event'] = authn_event
+        if areq:
+            _info['authn_req'] = areq
+            self.map_kv2sid('state', areq['state'], sid)
+        if authn_event:
+            _info['authn_event'] = authn_event
 
         if kwargs:
             _info.update(kwargs)
 
         self[sid] = _info
-        self.map_kv2sid('state', areq['state'], sid)
         return sid
 
     def update(self, sid, **kwargs):
@@ -197,11 +229,11 @@ class SessionDB(object):
         elif _sess_info["oauth_state"] == "token":
             return _sess_info["access_token"]
 
-    def do_sub(self, sid, client_salt, sector_id='', subject_type='public'):
-        authn_event = self[sid]['authn_event']
-        sub = mint_sub(authn_event, client_salt, sector_id, subject_type)
+    def do_sub(self, sid, uid, client_salt, sector_id='', subject_type='public',
+               user_salt=''):
+        sub = mint_sub(client_salt, sector_id, subject_type, uid, user_salt)
 
-        self.sso_db.map_sid2uid(sid, authn_event['uid'])
+        self.sso_db.map_sid2uid(sid, uid)
         self.update(sid, sub=sub)
         self.sso_db.map_sid2sub(sid, sub)
 
@@ -458,26 +490,6 @@ class SessionDB(object):
         # Remove the uid from the SSO db
         self.sso_db.remove_uid(uid)
 
-    def duplicate(self, sinfo):
-        session_info = copy.copy(sinfo)
-        areq = AuthorizationRequest().from_json(session_info["authzreq"])
-        sid = self.handler['code'].key(user=session_info["sub"], areq=areq)
-
-        session_info["code"] = self.handler['code'](sid=sid, sinfo=sinfo)
-
-        for key in ["access_token", "access_token_scope", "oauth_state",
-                    "token_type", "token_expires_at", "expires_in",
-                    "client_id_issued_at", "id_token", "oidreq",
-                    "refresh_token"]:
-            try:
-                del session_info[key]
-            except KeyError:
-                pass
-
-        self[sid] = session_info
-        self.sso_db.map_sid2sub(sid, session_info["sub"])
-        return sid
-
     def read(self, token):
         try:
             _tinfo = self.handler['access_token'].info(token)
@@ -488,13 +500,12 @@ class SessionDB(object):
 
     def find_sid(self, req):
         """
-        Given a request with some info find the correct session
-        The useful claims are 'redirect_uri' and 'code'.
+        Given a request with some info find the correct session.
+        The useful claim is 'code'.
 
         :param req: An AccessTokenRequest instance
         :return: session ID or None
         """
-        # _ruri = req['redirect_uri']
 
         return self.get_sid_by_kv('code', req['code'])
 
