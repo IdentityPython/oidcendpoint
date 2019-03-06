@@ -105,7 +105,7 @@ def populate_authn_broker(methods, endpoint_context, jinja_env=None):
 
 class EndpointContext(object):
     def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
-                 cwd='', cookie_dealer=None, httpc=None, cookie_name=None):
+                 cwd='', cookie_dealer=None, httpc=None, cookie_name=None, jwks_uri_path=None):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
@@ -165,14 +165,13 @@ class EndpointContext(object):
         self.template_handler = Jinja2TemplateHandler(jinja_env)
 
         self.setup = {}
+        if jwks_uri_path is None:
+            jwks_uri_path = conf['jwks']['public_path']
         try:
             if self.issuer.endswith('/'):
-                self.jwks_uri = '{}{}'.format(self.issuer,
-                                              conf['jwks']['public_path'])
+                self.jwks_uri = '{}{}'.format(self.issuer, jwks_uri_path)
             else:
-                self.jwks_uri = '{}/{}'.format(self.issuer,
-                                               conf['jwks']['public_path'])
-
+                self.jwks_uri = '{}/{}'.format(self.issuer, jwks_uri_path)
         except KeyError:
             self.jwks_uri = ''
 
