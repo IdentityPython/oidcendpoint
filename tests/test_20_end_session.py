@@ -227,9 +227,10 @@ class TestEndpoint(object):
         with pytest.raises(ValueError):
             _ = self.session_endpoint.process_request("", cookie="FAIL")
 
-    def _create_cookie(self, user, sid, state):
+    def _create_cookie(self, user, sid, state, client_id):
         ec = self.session_endpoint.endpoint_context
         return new_cookie(ec, sub=user, sid=sid, state=state,
+                          client_id=client_id,
                           cookie_name=ec.cookie_name['session'])
 
     def _code_auth(self, state):
@@ -267,7 +268,7 @@ class TestEndpoint(object):
         _sdb = self.session_endpoint.endpoint_context.sdb
 
         _sid = list(_sdb.keys())[0]
-        cookie = self._create_cookie("diana", _sid, '1234567')
+        cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         resp = self.session_endpoint.process_request(
             {"state": 'abcde'}, cookie=cookie)
@@ -284,7 +285,7 @@ class TestEndpoint(object):
 
     def test_end_session_endpoint_with_wrong_cookie(self):
         self._code_auth('1234567')
-        cookie = self._create_cookie("diana", "client_2", 'abcdefg')
+        cookie = self._create_cookie("diana", "client_2", 'abcdefg', 'client_1')
 
         with pytest.raises(ValueError):
             self.session_endpoint.process_request(
@@ -294,7 +295,7 @@ class TestEndpoint(object):
         # Need cookie and ID Token to figure this out
         id_token = self._auth_with_id_token('1234567')
 
-        cookie = self._create_cookie("diggins", "_sid_", '1234567')
+        cookie = self._create_cookie("diggins", "_sid_", '1234567', 'client_1')
 
         msg = Message(id_token=id_token)
         verify_id_token(
@@ -310,7 +311,7 @@ class TestEndpoint(object):
         id_token = self._auth_with_id_token('1234567')
 
         # Wrong client_id
-        cookie = self._create_cookie("diana", "_sid_", 'state')
+        cookie = self._create_cookie("diana", "_sid_", 'state', 'client_1')
 
         msg = Message(id_token=id_token)
         verify_id_token(
@@ -326,7 +327,7 @@ class TestEndpoint(object):
         self._code_auth2('abcdefg')
         _sdb = self.session_endpoint.endpoint_context.sdb
         _sid = list(_sdb.keys())[0]
-        cookie = self._create_cookie("diana", _sid, '1234567')
+        cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         resp = self.session_endpoint.process_request(
             {"state": 'abcde'}, cookie=cookie)
@@ -346,7 +347,7 @@ class TestEndpoint(object):
         self._code_auth2('abcdefg')
         _sdb = self.session_endpoint.endpoint_context.sdb
         _sid = list(_sdb.keys())[0]
-        cookie = self._create_cookie("diana", _sid, '1234567')
+        cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         post_logout_redirect_uri = join_query(
             *self.session_endpoint.endpoint_context.cdb[
@@ -370,7 +371,7 @@ class TestEndpoint(object):
         self._code_auth2('abcdefg')
         _sdb = self.session_endpoint.endpoint_context.sdb
         _sid = list(_sdb.keys())[0]
-        cookie = self._create_cookie("diana", _sid, '1234567')
+        cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         post_logout_redirect_uri = 'https://demo.example.com/log_out'
 

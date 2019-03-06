@@ -631,9 +631,10 @@ class Authorization(Endpoint):
         # if isinstance(info, ResponseMessage):
         #     return info
 
-        _cookie = new_cookie(self.endpoint_context, sub=user, sid=sid,
-                             state=request['state'],
-                             cookie_name=self.endpoint_context.cookie_name['session'])
+        _cookie = new_cookie(
+            self.endpoint_context, sub=user, sid=sid, state=request['state'],
+            client_id=request['client_id'],
+            cookie_name=self.endpoint_context.cookie_name['session'])
 
         # Now about the response_mode. Should not be set if it's obvious
         # from the response_type. Knows about 'query', 'fragment' and
