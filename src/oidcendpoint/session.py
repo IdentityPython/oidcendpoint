@@ -1,4 +1,3 @@
-import copy
 import hashlib
 import json
 import time
@@ -490,26 +489,6 @@ class SessionDB(object):
 
         # Remove the uid from the SSO db
         self.sso_db.remove_uid(uid)
-
-    # def duplicate(self, sinfo):
-    #     session_info = copy.copy(sinfo)
-    #     areq = AuthorizationRequest().from_json(session_info["authzreq"])
-    #     sid = self.handler['code'].key(user=session_info["sub"], areq=areq)
-    #
-    #     session_info["code"] = self.handler['code'](sid=sid, sinfo=sinfo)
-    #
-    #     for key in ["access_token", "access_token_scope", "oauth_state",
-    #                 "token_type", "token_expires_at", "expires_in",
-    #                 "client_id_issued_at", "id_token", "oidreq",
-    #                 "refresh_token"]:
-    #         try:
-    #             del session_info[key]
-    #         except KeyError:
-    #             pass
-    #
-    #     self[sid] = session_info
-    #     self.sso_db.map_sid2sub(sid, session_info["sub"])
-    #     return sid
 
     def read(self, token):
         try:
