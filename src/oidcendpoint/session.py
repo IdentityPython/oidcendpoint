@@ -41,7 +41,8 @@ def authn_event_deser(val, sformat="urlencoded"):
     return AuthnEvent().deserialize(val, sformat)
 
 
-def setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt'):
+def setup_session(endpoint_context, areq, uid, client_id='', acr='', salt='salt',
+                  authn_event=None):
     """
     Setting up a user session
 
@@ -51,13 +52,15 @@ def setup_session(endpoint_context, areq, uid, acr, client_id, salt='salt'):
     :param acr:
     :param client_id:
     :param salt:
+    :param authn_event: A already made AuthnEvent
     :return:
     """
-    if acr:
+    if authn_event is None and acr:
         authn_event = AuthnEvent(uid=uid, salt=salt, authn_info=acr,
-                                 time_stamp=time.time())
-    else:
-        authn_event = None
+                                 authn_time=time.time())
+
+    if not client_id:
+        client_id = areq['client_id']
 
     sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
                                                     client_id=client_id,
