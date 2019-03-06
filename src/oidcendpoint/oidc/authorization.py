@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import time
 from urllib.parse import parse_qs
 from urllib.parse import splitquery
 from urllib.parse import unquote
@@ -12,6 +13,7 @@ from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
+from oidcendpoint.session import setup_session
 from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
@@ -73,13 +75,6 @@ def re_authenticate(request, authn):
             return True
 
     return False
-
-
-def setup_session(endpoint_context, request, authn_event, client_id=''):
-    sid = endpoint_context.sdb.create_authz_session(authn_event, request,
-                                                    client_id=client_id)
-    endpoint_context.sdb.do_sub(sid, '')
-    return sid
 
 
 def acr_claims(request):
@@ -549,6 +544,10 @@ class Authorization(Endpoint):
                                          identity.get('salt', ''),
                                          authn_info=authn_class_ref,
                                          time_stamp=_ts)
+        try:
+            authn_event['valid_until'] = time.time()+authn.kwargs['expires_in']
+        except KeyError:
+            pass
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
@@ -662,7 +661,8 @@ class Authorization(Endpoint):
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """
-        sid = setup_session(self.endpoint_context, request, authn_event)
+        sid = setup_session(self.endpoint_context, request, user,
+                            authn_event=authn_event)
 
         try:
             resp_info = self.post_authentication(user, request, sid, **kwargs)
