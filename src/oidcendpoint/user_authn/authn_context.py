@@ -177,19 +177,22 @@ class AuthnBroker(object):
 
     def pick_by_path(self, path):
         for key, item in self.db.items():
+            _method = item['method']
             try:
-                _path = item["view_path"]
-            except KeyError:
+                _path = _method.action
+            except AttributeError:
                 continue
             else:
                 if _path == path:
-                    return item["method"]
+                    return _method
         raise KeyError('No authn method at that path')
 
     def default(self):
-        if len(self.db) == 1:
+        if len(self.db) >= 1:
             item = list(self.db.values())[0]
             return item['method'], item['acr']
+        else:
+            return None
 
 
 def pick_auth(endpoint_context, areq, comparision_type=""):

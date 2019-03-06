@@ -326,7 +326,7 @@ class Session(Endpoint):
             request = self.request_cls(**request)
             if not request.verify(keyjar=self.endpoint_context.keyjar,
                                   sigalg=''):
-                raise InvalidRequest("Didn't verify")
+                raise InvalidRequest("Request didn't verify")
             # id_token_signing_alg_values_supported
             try:
                 _ith = request[verified_claim_name("id_token_hint")]
