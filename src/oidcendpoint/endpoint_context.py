@@ -7,6 +7,7 @@ import requests
 from cryptojwt import jwe
 from cryptojwt.jws.jws import SIGNER_ALGS
 from cryptojwt.key_jar import KeyJar
+from cryptojwt.key_jar import init_key_jar
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 from oidcmsg.oidc import IdToken
@@ -165,8 +166,12 @@ class EndpointContext(object):
         self.template_handler = Jinja2TemplateHandler(jinja_env)
 
         self.setup = {}
-        if jwks_uri_path is None:
-            jwks_uri_path = conf['jwks']['public_path']
+        if not jwks_uri_path:
+            try:
+                jwks_uri_path = conf['jwks']['uri_path']
+            except KeyError:
+                pass
+
         try:
             if self.issuer.endswith('/'):
                 self.jwks_uri = '{}{}'.format(self.issuer, jwks_uri_path)
@@ -174,6 +179,10 @@ class EndpointContext(object):
                 self.jwks_uri = '{}/{}'.format(self.issuer, jwks_uri_path)
         except KeyError:
             self.jwks_uri = ''
+
+        if self.keyjar is None or self.keyjar.owners() == []:
+            args = {k:v for k,v in conf['jwks'].items() if k != 'uri_path'}
+            self.keyjar = init_key_jar(**args)
 
         self.endpoint = build_endpoints(conf['endpoint'],
                                         endpoint_context=self,

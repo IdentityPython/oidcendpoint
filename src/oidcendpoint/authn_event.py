@@ -11,7 +11,7 @@ class AuthnEvent(Message):
         'authn_info': SINGLE_REQUIRED_STRING,
         'authn_time': SINGLE_OPTIONAL_INT,
         'valid_until': SINGLE_OPTIONAL_INT
-        }
+    }
 
     def valid(self, now=0):
         if now:
@@ -33,7 +33,7 @@ def create_authn_event(uid, salt, authn_info=None, **kwargs):
     :return:
     """
 
-    args = {'uid': uid, 'salt':salt, 'authn_info': authn_info}
+    args = {'uid': uid, 'salt': salt, 'authn_info': authn_info}
 
     try:
         args['authn_time'] = int(kwargs['authn_time'])
