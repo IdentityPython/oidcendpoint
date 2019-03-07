@@ -285,7 +285,7 @@ class CookieDealer(object):
             _seed = open(seed_file).read()
         else:
             _seed = rndstr(48)
-            with open('seed.txt', "w") as f:
+            with open(seed_file, "w") as f:
                 f.write(_seed)
 
         self.seed = as_bytes(_seed)
