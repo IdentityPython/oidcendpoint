@@ -62,7 +62,7 @@ setup(
     install_requires=[
         "oidcmsg>=0.6.2",
         "oidcservice>=0.6.2",
-        "cryptojwt>=0.6.6",
+        "cryptojwt>=0.7.0",
         "jinja2"
         ],
     tests_require=[
