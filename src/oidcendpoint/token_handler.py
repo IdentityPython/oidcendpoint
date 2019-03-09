@@ -122,6 +122,9 @@ class Token(object):
         """
         raise NotImplementedError()
 
+    def gather_args(self, *args, **kwargs):
+        return {}
+
 
 class DefaultToken(Token):
     def __init__(self, password, typ='', black_list=None, token_type='Bearer',
@@ -277,7 +280,7 @@ class TokenHandler(object):
         return self.handler.keys()
 
 
-def init_token_handler(spec, typ):
+def init_token_handler(ec, spec, typ):
     try:
         _cls = spec['class']
     except KeyError:
@@ -285,10 +288,10 @@ def init_token_handler(spec, typ):
     else:
         cls = importer(_cls)
 
-    return cls(typ=typ, **spec)
+    return cls(typ=typ, ec=ec, **spec)
 
 
-def factory(code=None, token=None, refresh=None, **kwargs):
+def factory(ec, code=None, token=None, refresh=None, **kwargs):
     """
     Create a token handler
 
@@ -303,10 +306,10 @@ def factory(code=None, token=None, refresh=None, **kwargs):
     args = {}
 
     if code:
-        args['code_handler'] = init_token_handler(code, TTYPE['code'])
+        args['code_handler'] = init_token_handler(ec, code, TTYPE['code'])
     if token:
-        args['access_token_handler'] = init_token_handler(token, TTYPE['token'])
+        args['access_token_handler'] = init_token_handler(ec, token, TTYPE['token'])
     if refresh:
-        args['refresh_token_handler'] = init_token_handler(token, TTYPE['refresh'])
+        args['refresh_token_handler'] = init_token_handler(ec, token, TTYPE['refresh'])
 
     return TokenHandler(**args)

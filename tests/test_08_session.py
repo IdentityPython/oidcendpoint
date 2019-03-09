@@ -1,3 +1,4 @@
+import os
 import time
 import pytest
 
@@ -18,6 +19,7 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
 
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_info import UserInfo
 
 __author__ = 'rohe0002'
 
@@ -39,6 +41,12 @@ OIDR = OpenIDRequest(response_type="code", client_id="client1",
                      redirect_uri="http://example.com/authz", scope=["openid"],
                      state="state000")
 
+BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+
+def full_path(local_file):
+    return os.path.join(BASEDIR, local_file)
+
 
 class TestSessionDB(object):
     @pytest.fixture(autouse=True)
@@ -51,8 +59,10 @@ class TestSessionDB(object):
             'refresh': {'lifetime': 86400, 'password': passwd}
         }
 
-        _token_handler = token_handler.factory(**_th_args)
-        self.sdb = SessionDB(InMemoryDataBase(), _token_handler, _sso_db)
+        _token_handler = token_handler.factory(None, **_th_args)
+        userinfo = UserInfo(db_file=full_path('users.json'))
+        self.sdb = SessionDB(InMemoryDataBase(), _token_handler, _sso_db,
+                             userinfo)
 
     def test_create_authz_session(self):
         ae = create_authn_event("uid", "salt")
@@ -339,6 +349,10 @@ conf = {
             'class': 'oidcendpoint.user_authn.user.NoAuthn',
             'kwargs': {'user': 'diana'}
         }
+    },
+    'userinfo': {
+        'class': UserInfo,
+        'kwargs': {'db_file': full_path('users.json')}
     },
     'template_dir': 'template'
 }

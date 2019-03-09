@@ -81,7 +81,7 @@ class SessionInfo(Message):
         'client_id': SINGLE_REQUIRED_STRING,
         'authn_event': SINGLE_REQUIRED_AUTHN_EVENT,
         'si_redirects': OPTIONAL_LIST_OF_STRINGS,
-        }
+    }
 
 
 def pairwise_id(sub, sector_identifier, seed):
@@ -121,11 +121,12 @@ def mint_sub(client_salt, sector_id="", subject_type="public",
 
 
 class SessionDB(object):
-    def __init__(self, db, handler, sso_db):
+    def __init__(self, db, handler, sso_db, userinfo=None):
         # db must implement the InMemoryStateDataBase interface
         self._db = db
         self.handler = handler
         self.sso_db = sso_db
+        self.userinfo = userinfo
 
     def __getitem__(self, item):
         _info = self._db.get(item)
@@ -282,6 +283,13 @@ class SessionDB(object):
 
         return sinfo
 
+    def _make_at(self, sid, session_info):
+        uid = self.sso_db.get_uid_by_sid(sid)
+        uinfo = self.userinfo(uid, session_info['client_id'])
+        return self.handler['access_token'](sid=sid, sinfo=session_info,
+                                            uinfo=uinfo,
+                                            aud=session_info['client_id'])
+
     def upgrade_to_token(self, grant=None, issue_refresh=False, id_token="",
                          oidreq=None, key=None, scope=None):
         """
@@ -308,15 +316,14 @@ class SessionDB(object):
                 raise AccessCodeUsed(grant)
 
             # mint a new access token
-            _at = self.handler['access_token'](sid=_tinfo['sid'],
-                                               sinfo=session_info)
+            _at = self._make_at(_tinfo['sid'], session_info)
 
             # make sure the code can't be used again
             self.handler['code'].black_list(grant)
             key = _tinfo['sid']
         else:
             session_info = self[key]
-            _at = self.handler['access_token'](sid=key, sinfo=session_info)
+            _at = self._make_at(key, session_info)
 
         session_info["access_token"] = _at
         session_info["oauth_state"] = "token"
@@ -513,8 +520,8 @@ class SessionDB(object):
         return self.get_sid_by_kv('code', req['code'])
 
 
-def create_session_db(token_handler_args, db=None, sso_db=SSODb()):
-    _token_handler = token_handler.factory(**token_handler_args)
+def create_session_db(ec, token_handler_args, db=None, sso_db=SSODb()):
+    _token_handler = token_handler.factory(ec, **token_handler_args)
 
     if not db:
         db = InMemoryDataBase()

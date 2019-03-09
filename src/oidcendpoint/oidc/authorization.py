@@ -30,7 +30,6 @@ from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.oidc.util import make_idtoken
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.util import new_cookie
 
@@ -292,7 +291,7 @@ def create_authn_response(endpoint, request, sid):
                 kwargs['user_claims'] = True
 
             try:
-                id_token = make_idtoken(endpoint, request, _sinfo, **kwargs)
+                id_token = _context.idtoken.make(request, _sinfo, **kwargs)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 resp = AuthorizationErrorResponse(

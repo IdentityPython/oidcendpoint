@@ -24,64 +24,6 @@ def new_cookie(endpoint_context, cookie_name=None, **kwargs):
         return None
 
 
-DEF_SIGN_ALG = {
-    "id_token": "RS256",
-    "userinfo": "RS256",
-    "request_object": "RS256",
-    "client_secret_jwt": "HS256",
-    "private_key_jwt": "RS256"
-}
-
-
-def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
-                                    sign=False, encrypt=False):
-    args = {'sign': sign, 'encrypt': encrypt}
-    if sign:
-        try:
-            args['sign_alg'] = client_info[
-                "{}_signed_response_alg".format(payload_type)]
-        except KeyError:  # Fall back to default
-            try:
-                args['sign_alg'] = endpoint_context.jwx_def["signing_alg"][
-                    payload_type]
-            except KeyError:
-                _def_sign_alg = DEF_SIGN_ALG[payload_type]
-                _supported = endpoint_context.provider_info[
-                    "{}_signing_alg_values_supported".format(payload_type)]
-
-                if _def_sign_alg in _supported:
-                    args['sign_alg'] = _def_sign_alg
-                else:
-                    args['sign_alg'] = _supported[0]
-
-    if encrypt:
-        try:
-            args['enc_alg'] = client_info[
-                "%s_encrypted_response_alg" % payload_type]
-        except KeyError:
-            try:
-                args['enc_alg'] = endpoint_context.jwx_def["encryption_alg"][
-                    payload_type]
-            except KeyError:
-                _supported = endpoint_context.provider_info[
-                    "{}_encryption_alg_values_supported".format(payload_type)]
-                args['enc_alg'] = _supported[0]
-
-        try:
-            args['enc_enc'] = client_info[
-                "%s_encrypted_response_enc" % payload_type]
-        except KeyError:
-            try:
-                args['enc_enc'] = endpoint_context.jwx_def["encryption_enc"][
-                    payload_type]
-            except KeyError:
-                _supported = endpoint_context.provider_info[
-                    "{}_encryption_enc_values_supported".format(payload_type)]
-                args['enc_enc'] = _supported[0]
-
-    return args
-
-
 def modsplit(s):
     """Split importable"""
     if ':' in s:
