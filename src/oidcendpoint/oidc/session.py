@@ -237,6 +237,7 @@ class Session(Endpoint):
         else:
             logger.debug('No relevant cookie')
             _sid = ''
+            _cookie_info = {}
 
         if 'id_token_hint' in request:
             logger.debug(
@@ -245,8 +246,13 @@ class Session(Endpoint):
 
             auds = request[verified_claim_name("id_token_hint")]['aud']
             _ith_sid = ''
-            for _isid in _sdb.sso_db.get_sids_by_sub(
-                request[verified_claim_name("id_token_hint")]['sub']):
+            _sids = _sdb.sso_db.get_sids_by_sub(
+                request[verified_claim_name("id_token_hint")]['sub'])
+
+            if _sids is None:
+                raise ValueError('Unknown subject identifier')
+
+            for _isid in _sids:
                 if _sdb[_isid]['authn_req']['client_id'] in auds:
                     _ith_sid = _isid
                     break
@@ -259,6 +265,8 @@ class Session(Endpoint):
                     raise ValueError('Wrong ID Token hint')
             else:
                 _sid = _ith_sid
+        else:
+            auds = []
 
         try:
             session = _sdb[_sid]
@@ -266,6 +274,16 @@ class Session(Endpoint):
             raise ValueError("Can't find any corresponding session")
 
         client_id = session['authn_req']['client_id']
+        # Does this match what's in the cookie ?
+        if _cookie_info:
+            if client_id != _cookie_info['client_id']:
+                logger.warning(
+                    'Client ID in authz request and in cookie does not match')
+                raise ValueError("Wrong Client")
+
+        if auds:
+            if client_id not in auds:
+                raise ValueError('Incorrect ID Token hint')
 
         _cinfo = _cntx.cdb[client_id]
 
