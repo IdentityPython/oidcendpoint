@@ -7,7 +7,6 @@ from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.oidc.userinfo import UserInfo
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oidcendpoint.util import get_sign_and_encrypt_algorithms
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -68,55 +67,3 @@ conf = {
 }
 
 
-def test_get_sign_algorithm():
-    client_info = RegistrationResponse()
-    endpoint_context = EndpointContext(conf)
-    algs = get_sign_and_encrypt_algorithms(endpoint_context, client_info,
-                                           'id_token',
-                                           sign=True)
-    # default signing alg
-    assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS256'}
-
-
-def test_no_default_encrypt_algorithms():
-    client_info = RegistrationResponse()
-    endpoint_context = EndpointContext(conf)
-    args = get_sign_and_encrypt_algorithms(endpoint_context, client_info,
-                                           'id_token', sign=True, encrypt=True)
-    assert args['sign_alg'] == 'RS256'
-    assert args['enc_enc'] == 'A128CBC-HS256'
-    assert args['enc_alg'] == 'RSA1_5'
-
-
-def test_get_sign_algorithm_2():
-    client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
-    endpoint_context = EndpointContext(conf)
-    algs = get_sign_and_encrypt_algorithms(endpoint_context, client_info,
-                                           'id_token',
-                                           sign=True)
-    # default signing alg
-    assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS512'}
-
-
-def test_get_sign_algorithm_3():
-    client_info = RegistrationResponse()
-    endpoint_context = EndpointContext(conf)
-    endpoint_context.jwx_def["signing_alg"] = {'id_token': 'RS384'}
-
-    algs = get_sign_and_encrypt_algorithms(endpoint_context, client_info,
-                                           'id_token',
-                                           sign=True)
-    # default signing alg
-    assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS384'}
-
-
-def test_get_sign_algorithm_4():
-    client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
-    endpoint_context = EndpointContext(conf)
-    endpoint_context.jwx_def["signing_alg"] = {'id_token': 'RS384'}
-
-    algs = get_sign_and_encrypt_algorithms(endpoint_context, client_info,
-                                           'id_token',
-                                           sign=True)
-    # default signing alg
-    assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS512'}

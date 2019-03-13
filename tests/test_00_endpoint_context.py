@@ -32,6 +32,7 @@ conf = {
         'key_defs': KEYDEFS,
         'read_only': True
     },
+    "idoken": {},
     'endpoint': {
         'provider_config': {
             'path': '.well-known/openid-configuration',

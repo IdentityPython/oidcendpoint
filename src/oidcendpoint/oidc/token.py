@@ -13,7 +13,6 @@ from oidcmsg.oidc import TokenErrorResponse
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.oidc.util import make_idtoken
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
@@ -96,7 +95,7 @@ class AccessToken(Endpoint):
 
         if "openid" in _authn_req["scope"]:
             try:
-                _idtoken = make_idtoken(self, req, _info, _authn_req)
+                _idtoken = _context.idtoken.make(req, _info, _authn_req)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 resp = TokenErrorResponse(

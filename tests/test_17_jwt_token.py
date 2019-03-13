@@ -1,26 +1,33 @@
-import json
 import os
 
 import pytest
-from oidcendpoint import user_info
+from cryptojwt.key_jar import build_keyjar
+from cryptojwt.jwt import JWT
+from cryptojwt.key_jar import init_key_jar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 
+from oidcendpoint import rndstr
+from oidcendpoint import user_info
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
+
+ISSUER = 'https://example.com/'
+
+KEYJAR = init_key_jar(key_defs=KEYDEFS, owner=ISSUER)
+KEYJAR.import_jwks(KEYJAR.export_jwks(True, ISSUER), '')
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],
@@ -63,14 +70,11 @@ def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
 
 
-USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
-
-
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
         conf = {
-            "issuer": "https://example.com/",
+            "issuer": ISSUER,
             "password": "mycket hemligt",
             "token_expires_in": 600,
             "grant_expires_in": 300,
@@ -80,6 +84,17 @@ class TestEndpoint(object):
             "jwks": {
                 'uri_path': 'jwks.json',
                 'key_defs': KEYDEFS,
+            },
+            'token_handler_args': {
+                'code': {'lifetime': 600, 'password': rndstr(16)},
+                'token': {
+                    'class': 'oidcendpoint.jwt_token.JWTToken',
+                    'lifetime': 3600,
+                    'add_claims': ['email', 'email_verified',
+                                   'phone_number', 'phone_number_verified'],
+                    'add_claim_by_scope': True,
+                    'aud': ['https://example.org/appl']
+                }
             },
             'endpoint': {
                 'provider_config': {
@@ -102,15 +117,10 @@ class TestEndpoint(object):
                     'class': AccessToken,
                     'kwargs': {}
                 },
-                'userinfo': {
-                    'path': '{}/userinfo',
-                    'class': userinfo.UserInfo,
-                    'kwargs': {}
+                'session': {
+                    'path': '{}/end_session',
+                    'class': Session
                 }
-            },
-            'userinfo': {
-                'class': user_info.UserInfo,
-                'kwargs': {'db_file': full_path('users.json')}
             },
             'client_authn': verify_client,
             "authentication": {
@@ -119,9 +129,16 @@ class TestEndpoint(object):
                     'class': 'oidcendpoint.user_authn.user.NoAuthn',
                     'kwargs': {'user': 'diana'}
             }},
-            'template_dir': 'template'
+            'template_dir': 'template',
+            'userinfo': {
+                'class': user_info.UserInfo,
+                'kwargs':{
+                    'db_file': full_path('users.json')
+                }
+            }
         }
-        endpoint_context = EndpointContext(conf)
+
+        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
@@ -129,17 +146,17 @@ class TestEndpoint(object):
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token']
         }
-        self.endpoint = userinfo.UserInfo(endpoint_context)
-
-    def test_init(self):
-        assert self.endpoint
+        self.endpoint = Session(endpoint_context)
 
     def test_parse(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
-                                   uid='userID')
+                                   uid='diana')
         _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
             key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic['access_token']))
 
-        assert set(_req.keys()) == {'client_id', 'access_token'}
+        _verifier = JWT(self.endpoint.endpoint_context.keyjar)
+        _info = _verifier.unpack(_dic['access_token'])
+
+        assert _info['ttype'] == 'T'
+        assert _info['phone_number'] == '+46 90 7865000'
+        assert set(_info['aud']) == {'client_1', 'https://example.org/appl'}

@@ -17,6 +17,7 @@ from oidcendpoint import authz, util
 from oidcendpoint import rndstr
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.exception import ConfigurationError
+from oidcendpoint.id_token import IDToken
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
@@ -111,22 +112,6 @@ class EndpointContext(object):
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
 
-        if session_db:
-            self.sdb = session_db
-        else:
-            try:
-                _th_args = conf['token_handler_args']
-            except KeyError:
-                passwd = rndstr(24)
-                _th_args = {
-                    'code': {'lifetime': 600, 'password': passwd},
-                    'token': {'lifetime': 3600, 'password': passwd},
-                    'refresh': {'lifetime': 86400, 'password': passwd}
-                }
-
-            self.sdb = create_session_db(_th_args, db=None,
-                                         sso_db=SSODb())
-
         # client database
         self.cdb = client_db or {}
 
@@ -184,6 +169,22 @@ class EndpointContext(object):
             args = {k:v for k,v in conf['jwks'].items() if k != 'uri_path'}
             self.keyjar = init_key_jar(**args)
 
+        if session_db:
+            self.sdb = session_db
+        else:
+            try:
+                _th_args = conf['token_handler_args']
+            except KeyError:
+                passwd = rndstr(24)
+                _th_args = {
+                    'code': {'lifetime': 600, 'password': passwd},
+                    'token': {'lifetime': 3600, 'password': passwd},
+                    'refresh': {'lifetime': 86400, 'password': passwd}
+                }
+
+            self.sdb = create_session_db(self, _th_args, db=None,
+                                         sso_db=SSODb())
+
         self.endpoint = build_endpoints(conf['endpoint'],
                                         endpoint_context=self,
                                         client_authn_method=CLIENT_AUTHN_METHOD,
@@ -223,6 +224,13 @@ class EndpointContext(object):
             self.authn_broker = populate_authn_broker(_authn, self, jinja_env)
 
         try:
+            kwargs = conf['id_token']
+        except KeyError:
+            kwargs = {}
+
+        self.idtoken = IDToken(self, **kwargs)
+
+        try:
             _conf = conf['userinfo']
         except KeyError:
             pass
@@ -239,6 +247,8 @@ class EndpointContext(object):
                 self.userinfo = util.importer(_conf['class'])(**kwargs)
             else:
                 self.userinfo = _conf['class'](**kwargs)
+
+            self.sdb.userinfo = self.userinfo
 
         self.provider_info = self.create_providerinfo(_cap)
 
