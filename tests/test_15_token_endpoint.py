@@ -64,17 +64,8 @@ BASEDIR = os.path.abspath(os.path.dirname(__file__))
 def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
 
+
 USERINFO = UserInfo(json.loads(open(full_path('users.json')).read()))
-
-
-# def setup_session(endpoint_context, areq):
-#     authn_event = create_authn_event(uid="uid", salt='salt',
-#                              authn_info=INTERNETPROTOCOLPASSWORD,
-#                              time_stamp=time.time())
-#     sid = endpoint_context.sdb.create_authz_session(authn_event, areq,
-#                                                     client_id='client_id')
-#     endpoint_context.sdb.do_sub(sid, '')
-#     return sid
 
 
 class TestEndpoint(object):

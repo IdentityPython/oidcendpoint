@@ -75,7 +75,7 @@ def test_capabilities_default():
     endpoint_context = EndpointContext(conf)
     assert set(endpoint_context.provider_info['response_types_supported']) == {
         'code', 'token', 'id_token', 'code token', 'code id_token',
-        'id_token token', 'code token id_token', 'none'}
+        'id_token token', 'code id_token token', 'none'}
     assert endpoint_context.provider_info[
                "request_uri_parameter_supported"] is True
 

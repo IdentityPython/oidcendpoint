@@ -68,7 +68,11 @@ conf = {
         }
     },
     'client_authn': verify_client,
-    'template_dir': 'template'
+    'template_dir': 'template',
+    'id_token': {
+        'class': IDToken,
+        'kwargs': {'foo':'bar'}
+    }
 }
 
 
@@ -84,11 +88,9 @@ class TestEndpoint(object):
             'response_types': ['code', 'token', 'code id_token', 'id_token']
         }
 
-        self.idtoken = IDToken(self.endpoint_context)
-
     def test_id_token_payload_0(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
-        info = self.idtoken.payload(session_info)
+        info = self.endpoint_context.idtoken.payload(session_info)
         assert info['payload'] == {
             'acr': '2', 'sub': '1234567890', 'nonce': 'nonce'
         }
@@ -98,7 +100,7 @@ class TestEndpoint(object):
     def test_id_token_payload_1(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
-        info = self.idtoken.payload(session_info)
+        info = self.endpoint_context.idtoken.payload(session_info)
         assert info['payload'] == {
             'acr': '2', 'nonce': 'nonce',
             'sub': '1234567890'
@@ -109,7 +111,7 @@ class TestEndpoint(object):
     def test_id_token_payload_with_code(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
-        info = self.idtoken.payload(session_info, code='ABCDEFGHIJKLMNOP')
+        info = self.endpoint_context.idtoken.payload(session_info, code='ABCDEFGHIJKLMNOP')
         assert info['payload'] == {
             'acr': '2', 'nonce': 'nonce',
             'c_hash': '5-i4nCch0pDMX1VCVJHs1g',
@@ -121,7 +123,7 @@ class TestEndpoint(object):
     def test_id_token_payload_with_access_token(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
-        info = self.idtoken.payload(session_info, access_token='012ABCDEFGHIJKLMNOP')
+        info = self.endpoint_context.idtoken.payload(session_info, access_token='012ABCDEFGHIJKLMNOP')
         assert info['payload'] == {
             'acr': '2', 'nonce': 'nonce',
             'at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
@@ -129,11 +131,10 @@ class TestEndpoint(object):
         }
         assert info['lifetime'] == 300
 
-
     def test_id_token_payload_with_code_and_access_token(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
-        info = self.idtoken.payload(session_info, access_token='012ABCDEFGHIJKLMNOP',
+        info = self.endpoint_context.idtoken.payload(session_info, access_token='012ABCDEFGHIJKLMNOP',
                                code='ABCDEFGHIJKLMNOP')
         assert info['payload'] == {
             'acr': '2', 'nonce': 'nonce',
@@ -143,11 +144,10 @@ class TestEndpoint(object):
         }
         assert info['lifetime'] == 300
 
-
     def test_id_token_payload_with_userinfo(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
-        info = self.idtoken.payload(session_info, user_info={'given_name': 'Diana'})
+        info = self.endpoint_context.idtoken.payload(session_info, user_info={'given_name': 'Diana'})
         assert info['payload'] == {
             'acr': '2', 'nonce': 'nonce',
             'given_name': 'Diana', 'sub': '1234567890'
@@ -158,9 +158,9 @@ class TestEndpoint(object):
     def test_id_token_payload_many_0(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
-        info = self.idtoken.payload(session_info, user_info={'given_name': 'Diana'},
-                               access_token='012ABCDEFGHIJKLMNOP',
-                               code='ABCDEFGHIJKLMNOP')
+        info = self.endpoint_context.idtoken.payload(
+            session_info, user_info={'given_name': 'Diana'},
+            access_token='012ABCDEFGHIJKLMNOP', code='ABCDEFGHIJKLMNOP')
         assert info['payload'] == {
             'acr': '2', 'nonce': 'nonce',
             'given_name': 'Diana',
@@ -186,7 +186,9 @@ class TestEndpoint(object):
         self.endpoint_context.jwx_def["signing_alg"] = {'id_token': 'RS384'}
         self.endpoint_context.cdb['client_1'] = client_info.to_dict()
 
-        _token = self.idtoken.sign_encrypt(session_info, 'client_1', sign=True)
+        _token = self.endpoint_context.idtoken.sign_encrypt(session_info,
+                                                            'client_1',
+                                                            sign=True)
         assert _token
 
         _jws = jws.factory(_token)
@@ -211,7 +213,6 @@ class TestEndpoint(object):
         # default signing alg
         assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS256'}
 
-
     def test_no_default_encrypt_algorithms(self):
         client_info = RegistrationResponse()
         endpoint_context = EndpointContext(conf)
@@ -221,7 +222,6 @@ class TestEndpoint(object):
         assert args['enc_enc'] == 'A128CBC-HS256'
         assert args['enc_alg'] == 'RSA1_5'
 
-
     def test_get_sign_algorithm_2(self):
         client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
         endpoint_context = EndpointContext(conf)
@@ -230,7 +230,6 @@ class TestEndpoint(object):
                                                sign=True)
         # default signing alg
         assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS512'}
-
 
     def test_get_sign_algorithm_3(self):
         client_info = RegistrationResponse()
@@ -242,7 +241,6 @@ class TestEndpoint(object):
                                                sign=True)
         # default signing alg
         assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS384'}
-
 
     def test_get_sign_algorithm_4(self):
         client_info = RegistrationResponse(id_token_signed_response_alg='RS512')
