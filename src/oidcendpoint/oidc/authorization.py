@@ -1,4 +1,3 @@
-import hashlib
 import json
 import logging
 import time
@@ -13,7 +12,6 @@ from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
-from oidcendpoint.session import setup_session
 from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
@@ -22,14 +20,18 @@ from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 from oidcservice.exception import InvalidRequest
 
-from oidcendpoint import rndstr, sanitize
+from oidcendpoint import rndstr
+from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.cookie import append_cookie
+from oidcendpoint.cookie import compute_session_state
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.util import new_cookie
 
@@ -672,17 +674,22 @@ class Authorization(Endpoint):
             ec = self.endpoint_context
             salt = rndstr()
             authn_event = ec.sdb.get_authentication_event(sid)  # use the last session
-            state = str(authn_event.authn_time)
-            _session_state = self._compute_session_state(
-                state, salt, request["client_id"], resp_info['return_uri'])
+            _state = json.dumps({'authn_time': authn_event.authn_time})
+
+            session_cookie = ec.cookie_dealer.create_cookie(
+                json.dumps(_state), typ="session",
+                cookie_name=ec.cookie_name['session_management'])
+
+            opbs = session_cookie[ec.cookie_name['session_management']]
+
+            _session_state = compute_session_state(opbs, salt,
+                                                   request["client_id"],
+                                                   resp_info['return_uri'])
 
             if 'cookie' in resp_info:
-                resp_info['cookie'] = ec.cookie_dealer.append_cookie(
-                    resp_info['cookie'], state, typ="session",
-                    cookie_name=ec.cookie_name['session'])
+                append_cookie(resp_info['cookie'], session_cookie)
             else:
-                resp_info['cookie'] = ec.cookie_dealer.create_cookie(
-                    state, typ="session", cookie_name=ec.cookie_name['session'])
+                resp_info['cookie'] = session_cookie
 
             resp_info['response_args']['session_state'] = _session_state
 
@@ -740,11 +747,3 @@ class Authorization(Endpoint):
             except Exception as err:
                 logger.exception(err)
                 return {'http_response': 'Internal error: {}'.format(err)}
-
-    @staticmethod
-    def _compute_session_state(state, salt, client_id, redirect_uri):
-        parsed_uri = urlparse(redirect_uri)
-        rp_origin_url = "{uri.scheme}://{uri.netloc}".format(uri=parsed_uri)
-        session_str = client_id + " " + rp_origin_url + " " + state + " " + salt
-        return hashlib.sha256(
-            session_str.encode("utf-8")).hexdigest() + "." + salt
