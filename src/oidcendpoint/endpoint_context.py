@@ -26,12 +26,10 @@ from oidcendpoint.util import build_endpoints, instantiate
 
 logger = logging.getLogger(__name__)
 
-RESPONSE_TYPES_SUPPORTED = [
-    ["code"], ["token"], ["id_token"], ["code", "token"], ["code", "id_token"],
-    ["id_token", "token"], ["code", "token", "id_token"], ['none']]
-
 CAPABILITIES = {
-    "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
+    "response_types_supported": [
+        "code", "token", "id_token", "code token", "code id_token",
+        "id_token token", "code id_token token", 'none'],
     "token_endpoint_auth_methods_supported": [
         "client_secret_post", "client_secret_basic",
         "client_secret_jwt", "private_key_jwt"],
@@ -76,12 +74,12 @@ def add_path(url, path):
             return '{}/{}'.format(url, path)
 
 
-def populate_authn_broker(methods, endpoint_context, jinja_env=None):
+def populate_authn_broker(methods, endpoint_context, template_handler=None):
     """
 
     :param methods: Authentication method specifications
     :param endpoint_context:
-    :param jinja_env:
+    :param template_handler: A class used to render templates
     :return:
     """
     authn_broker = AuthnBroker()
@@ -93,7 +91,7 @@ def populate_authn_broker(methods, endpoint_context, jinja_env=None):
             _args = {}
 
         if 'template' in _args:
-            _args['template_env'] = jinja_env
+            _args['template_handler'] = template_handler
 
         _args['endpoint_context'] = endpoint_context
 
@@ -136,7 +134,8 @@ class EndpointContext(object):
         elif 'cookie_name' in conf:
             self.cookie_name = conf['cookie_name']
         else:
-            self.cookie_name = {'session': "oidcop", 'register': 'oidc_op_rp'}
+            self.cookie_name = {'session': "oidcop", 'register': 'oidc_op_rp',
+                                'session_management': "sman"}
 
         for param in ['verify_ssl', 'issuer', 'sso_ttl',
                       'symkey', 'client_authn', 'id_token_schema']:
@@ -145,10 +144,15 @@ class EndpointContext(object):
             except KeyError:
                 pass
 
-        template_dir = conf["template_dir"]
-        jinja_env = Environment(loader=FileSystemLoader(template_dir))
-
-        self.template_handler = Jinja2TemplateHandler(jinja_env)
+        try:
+            self.template_handler = conf['template_handler']
+        except KeyError:
+            try:
+                loader = conf['template_loader']
+            except KeyError:
+                template_dir = conf["template_dir"]
+                loader = Environment(loader=FileSystemLoader(template_dir))
+            self.template_handler = Jinja2TemplateHandler(loader)
 
         self.setup = {}
         if not jwks_uri_path:
@@ -221,14 +225,22 @@ class EndpointContext(object):
         except KeyError:
             self.authn_broker = None
         else:
-            self.authn_broker = populate_authn_broker(_authn, self, jinja_env)
+            self.authn_broker = populate_authn_broker(_authn, self,
+                                                      self.template_handler)
 
         try:
-            kwargs = conf['id_token']
-        except KeyError:
-            kwargs = {}
+            _conf = conf['id_token']
+            try:
+                kwargs = _conf['kwargs']
+            except KeyError:
+                kwargs = {}
 
-        self.idtoken = IDToken(self, **kwargs)
+            if isinstance(_conf['class'], str):
+                self.idtoken = util.importer(_conf['class'])(self, **kwargs)
+            else:
+                self.idtoken = _conf['class'](self, **kwargs)
+        except KeyError:
+            self.idtoken = IDToken(self)
 
         try:
             _conf = conf['userinfo']
@@ -334,9 +346,18 @@ class EndpointContext(object):
                             sv = set(val)
                         except TypeError:
                             if key == 'response_types_supported':
-                                sv = set([' '.join(v) for v in val])
+                                sv = set()
+                                for v in val:
+                                    v.sort()
+                                    sv.add(' '.join(v))
                             else:
                                 raise
+                        else:
+                            sv = set()
+                            for v in val:
+                                vs = v.split(' ')
+                                vs.sort()
+                                sv.add(' '.join(vs))
 
                     sa = set(allowed)
 
