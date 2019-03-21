@@ -235,11 +235,11 @@ LABELS = {
 class UserPassJinja2(UserAuthnMethod):
     url_endpoint = "/verify/user_pass_jinja"
 
-    def __init__(self, db, template_env, template="user_pass.jinja2",
+    def __init__(self, db, template_handler, template="user_pass.jinja2",
                  endpoint_context=None, verify_endpoint='', **kwargs):
 
         super(UserPassJinja2, self).__init__(endpoint_context=endpoint_context)
-        self.template_env = template_env
+        self.template_handler = template_handler
         self.template = template
 
         self.action = verify_endpoint or self.url_endpoint
@@ -264,7 +264,7 @@ class UserPassJinja2(UserAuthnMethod):
              'production environment'),
             OnlyForTestingWarning)
 
-        template = self.template_env.get_template(self.template)
+        #template = self.template_handler.get_template(self.template)
         _ec = self.endpoint_context
         # Stores information need afterwards in a signed JWT that then
         # appears as a hidden input in the form
@@ -288,7 +288,8 @@ class UserPassJinja2(UserAuthnMethod):
         # else:
         #     del kwargs['verify_endpoint']
 
-        return template.render(action=self.action, token=jws, **_kwargs)
+        return self.template_handler.render(self.template, action=self.action,
+                                            token=jws, **_kwargs)
 
     def verify(self, *args, **kwargs):
         username = kwargs["username"]
