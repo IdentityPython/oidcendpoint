@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from http.cookies import SimpleCookie
+from urllib.parse import urlparse
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -409,3 +410,37 @@ class CookieDealer(object):
                 cookie[name][key] = value
 
         return cookie
+
+
+def compute_session_state(opbs, salt, client_id, redirect_uri):
+    """
+
+    :param opbs:
+    :param salt:
+    :param client_id:
+    :param redirect_uri:
+    :return:
+    """
+    parsed_uri = urlparse(redirect_uri)
+    rp_origin_url = "{uri.scheme}://{uri.netloc}".format(uri=parsed_uri)
+    session_str = client_id + " " + rp_origin_url + " " + opbs + " " + salt
+    return hashlib.sha256(
+        session_str.encode("utf-8")).hexdigest() + "." + salt
+
+
+def create_session_cookie(name, opbs, **kwargs):
+    cookie = SimpleCookie()
+    cookie[name] = opbs
+    for key, value in kwargs.items():
+        cookie[name][key] = value
+    return cookie
+
+
+def append_cookie(kaka1, kaka2):
+    for name, args in kaka2.items():
+        kaka1[name] = name
+        for key, value in args.items():
+            if key == 'value':
+                continue
+            kaka1[name][key] = value
+    return kaka1
