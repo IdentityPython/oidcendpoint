@@ -1,7 +1,5 @@
-import copy
 import json
 import logging
-from urllib.parse import splitquery
 from urllib.parse import urlencode
 
 from cryptojwt import as_unicode
@@ -20,6 +18,7 @@ from oidcmsg.oidc.session import EndSessionRequest
 
 from oidcendpoint import URL_ENCODED
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
+from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.authorization import verify_uri
@@ -156,7 +155,7 @@ class Session(Endpoint):
                     bc_logouts[_cid] = _spec
             elif 'frontchannel_logout_uri' in _cdb[_cid]:
                 # Construct an IFrame
-                _spec = do_front_channel_logout_iframe(_cdb[_cid],_iss, _csid)
+                _spec = do_front_channel_logout_iframe(_cdb[_cid], _iss, _csid)
                 if _spec:
                     fc_iframes[_cid] = _spec
 
@@ -298,8 +297,10 @@ class Session(Endpoint):
             verify_uri(_cntx, request, 'post_logout_redirect_uri',
                        client_id=client_id)
 
-        payload = {'sid': _sid, 'client_id': client_id,
-                   'user':session['authn_event']['uid']}
+        payload = {
+            'sid': _sid, 'client_id': client_id,
+            'user': session['authn_event']['uid']
+        }
 
         # redirect user to OP logout verification page
         if 'state' in request:
@@ -314,7 +315,9 @@ class Session(Endpoint):
                    sign_alg=self.kwargs['signing_alg'])
         sjwt = _jws.pack(payload=payload, recv=_cntx.issuer)
 
-        return {'sjwt': sjwt}
+        location = '{}?{}'.format(self.kwargs['logout_verify_url'],
+                                  urlencode({'sjwt': sjwt}))
+        return {'redirect_location': location}
 
     def parse_request(self, request, auth=None, **kwargs):
         """
@@ -387,3 +390,16 @@ class Session(Endpoint):
             return _res['flu'].values()
         except KeyError:
             return []
+
+    def kill_cookies(self):
+        _ec = self.endpoint_context
+        _dealer = _ec.cookie_dealer
+        _kakor = append_cookie(
+            _dealer.create_cookie(
+                'none', typ="session", ttl=0,
+                cookie_name=_ec.cookie_name['session_management']),
+            _dealer.create_cookie(
+                'none', typ="session", ttl=0,
+                cookie_name=_ec.cookie_name['session']))
+
+        return _kakor
