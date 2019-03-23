@@ -396,7 +396,7 @@ class Registration(Endpoint):
 
         if set_secret:
             try:
-                args = {'delta': self.kwargs['client_secret_expiration_time']}
+                args = {'delta': int(self.kwargs['client_secret_expiration_time'])}
             except KeyError:
                 args = {}
 
