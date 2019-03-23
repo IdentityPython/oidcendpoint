@@ -673,25 +673,31 @@ class Authorization(Endpoint):
         if "check_session_iframe" in self.endpoint_context.provider_info:
             ec = self.endpoint_context
             salt = rndstr()
-            authn_event = ec.sdb.get_authentication_event(sid)  # use the last session
-            _state = json.dumps({'authn_time': authn_event.authn_time})
-
-            session_cookie = ec.cookie_dealer.create_cookie(
-                json.dumps(_state), typ="session",
-                cookie_name=ec.cookie_name['session_management'])
-
-            opbs = session_cookie[ec.cookie_name['session_management']]
-
-            _session_state = compute_session_state(opbs, salt,
-                                                   request["client_id"],
-                                                   resp_info['return_uri'])
-
-            if 'cookie' in resp_info:
-                append_cookie(resp_info['cookie'], session_cookie)
+            if ec.sdb.is_session_revoked(sid):
+                pass
             else:
-                resp_info['cookie'] = session_cookie
+                authn_event = ec.sdb.get_authentication_event(sid)  # use the last session
+                _state = json.dumps({'authn_time': authn_event['authn_time']})
 
-            resp_info['response_args']['session_state'] = _session_state
+                session_cookie = ec.cookie_dealer.create_cookie(
+                    json.dumps(_state), typ="session",
+                    cookie_name=ec.cookie_name['session_management'])
+
+                opbs = session_cookie[ec.cookie_name['session_management']]
+
+                _session_state = compute_session_state(opbs.value, salt,
+                                                       request["client_id"],
+                                                       resp_info['return_uri'])
+
+                if 'cookie' in resp_info:
+                    if isinstance(resp_info['cookie'], list):
+                        resp_info['cookie'].append(session_cookie)
+                    else:
+                        append_cookie(resp_info['cookie'], session_cookie)
+                else:
+                    resp_info['cookie'] = session_cookie
+
+                resp_info['response_args']['session_state'] = _session_state
 
         # Mix-Up mitigation
         resp_info['response_args']['iss'] = self.endpoint_context.issuer
