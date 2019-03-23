@@ -519,6 +519,17 @@ class SessionDB(object):
 
         return self.get_sid_by_kv('code', req['code'])
 
+    def get_authentication_event(self, sid):
+        try:
+            session_info = self[sid]
+        except Exception:
+            raise UnknownToken(sid)
+        else:
+            try:
+                return session_info['authn_event']
+            except KeyError:
+                raise ValueError('No Authn event info')
+
 
 def create_session_db(ec, token_handler_args, db=None, sso_db=SSODb()):
     _token_handler = token_handler.factory(ec, **token_handler_args)
