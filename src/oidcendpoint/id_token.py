@@ -219,7 +219,13 @@ class IDToken(object):
             _cid = req['client_id']
 
         _cinfo = _context.cdb[_cid]
-        userinfo = userinfo_in_id_token_claims(_context, sess_info)
+        try:
+            default_idtoken_claims = self.kwargs['default_claims']
+        except KeyError:
+            default_idtoken_claims = None
+
+        userinfo = userinfo_in_id_token_claims(_context, sess_info,
+                                               default_idtoken_claims)
 
         if user_claims:
             info = collect_user_info(_context, sess_info)

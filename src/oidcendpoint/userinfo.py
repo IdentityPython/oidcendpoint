@@ -161,13 +161,22 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
     return info
 
 
-def userinfo_in_id_token_claims(endpoint_context, session):
+def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
     """
-    Put userinfo claims in the id token
-    :param session:
-    :return:
+    Collect user info claims that are to be placed in the id token.
+
+    :param endpoint_context: Endpoint context
+    :param session: Session information
+    :param def_itc: Default ID Token claims
+    :return: User information or None
     """
-    itc = id_token_claims(session)
+    if def_itc:
+        itc = def_itc
+    else:
+        itc = {}
+
+    itc.update(id_token_claims(session))
+
     if not itc:
         return None
 

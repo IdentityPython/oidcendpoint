@@ -6,8 +6,10 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.key_jar import build_keyjar
+from oidcendpoint.id_token import IDToken
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import verify_id_token
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.endpoint_context import EndpointContext
@@ -43,6 +45,13 @@ CAPABILITIES = {
     "request_parameter_supported": True,
     "request_uri_parameter_supported": True,
 }
+
+CLAIMS = {
+    "id_token": {
+        "given_name": {"essential": True},
+        "nickname": None
+        }
+    }
 
 AUTH_REQ = AuthorizationRequest(client_id='client_1',
                                 redirect_uri='https://example.com/cb',
@@ -117,6 +126,15 @@ class TestEndpoint(object):
                 'uri_path': 'static/jwks.json',
                 'key_defs': KEYDEFS
             },
+            "id_token": {
+                "class": IDToken,
+                "kwargs": {
+                    "default_claims": {
+                        "email": {"essential": True},
+                        "email_verified": {"essential": True}
+                    }
+                }
+            },
             'endpoint': {
                 'provider_config': {
                     'path': '{}/.well-known/openid-configuration',
@@ -167,6 +185,8 @@ class TestEndpoint(object):
             'response_types': ['code', 'token', 'code id_token', 'id_token',
                                'code id_token token']
         }
+        endpoint_context.keyjar.import_jwks(
+            endpoint_context.keyjar.export_jwks(True, ''), conf['issuer'])
         self.endpoint = Authorization(endpoint_context)
 
     def test_init(self):
@@ -274,3 +294,18 @@ class TestEndpoint(object):
         assert 'id_token' in _frag_msg
         assert 'code' in _frag_msg
         assert 'access_token' in _frag_msg
+
+    def test_id_token_claims(self):
+        _req = AUTH_REQ_DICT.copy()
+        _req['claims'] = CLAIMS
+        _req['response_type'] = 'code id_token token'
+        _req['nonce'] = 'rnd_nonce'
+        _pr_resp = self.endpoint.parse_request(_req)
+        _resp = self.endpoint.process_request(_pr_resp)
+        idt = verify_id_token(_resp['response_args'],
+                              keyjar=self.endpoint.endpoint_context.keyjar)
+        assert idt
+        # from claims
+        assert 'given_name' in _resp['response_args']['__verified_id_token']
+        # from config
+        assert 'email' in _resp['response_args']['__verified_id_token']
