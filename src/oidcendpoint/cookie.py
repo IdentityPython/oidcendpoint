@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import json
 import logging
 import os
 import time
@@ -9,10 +10,12 @@ from urllib.parse import urlparse
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptojwt import b64d
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jwe.utils import split_ctx_and_tag
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
+from cryptojwt.utils import b64e
 
 from oidcendpoint import rndstr
 from oidcendpoint.exception import InvalidCookieSign
@@ -41,19 +44,19 @@ def safe_str_cmp(a, b):
     return r == 0
 
 
-def _expiration(timeout, time_format=None):
-    """
-    Return an expiration time
-
-    :param timeout: When
-    :param time_format: The format of the returned value
-    :return: A timeout date
-    """
-    if timeout == "now":
-        return time_util.instant(time_format)
-    else:
-        # validity time should match lifetime of assertions
-        return time_util.in_a_while(minutes=timeout, time_format=time_format)
+# def _expiration(timeout, time_format=None):
+#     """
+#     Return an expiration time
+#
+#     :param timeout: When
+#     :param time_format: The format of the returned value
+#     :return: A timeout date
+#     """
+#     if timeout == "now":
+#         return time_util.instant(time_format)
+#     else:
+#         # validity time should match lifetime of assertions
+#         return time_util.in_a_while(minutes=timeout, time_format=time_format)
 
 
 def cookie_signature(key, *parts):
@@ -444,3 +447,17 @@ def append_cookie(kaka1, kaka2):
                 continue
             kaka1[name][key] = value
     return kaka1
+
+
+def new_cookie(endpoint_context, cookie_name=None, typ="sso", **kwargs):
+    if endpoint_context.cookie_dealer:
+        _val = as_unicode(b64e(as_bytes(json.dumps(kwargs))))
+        return endpoint_context.cookie_dealer.create_cookie(
+            _val, typ=typ, cookie_name=cookie_name,
+            ttl=endpoint_context.sso_ttl)
+    else:
+        return None
+
+
+def cookie_value(b64):
+    return json.loads(as_unicode(b64d(as_bytes(b64))))

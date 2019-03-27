@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import time
@@ -11,6 +12,7 @@ from oidcmsg.oidc import RegistrationResponse
 
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.id_token import ACRlevel
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.id_token import get_sign_and_encrypt_algorithms
 from oidcendpoint.oidc import userinfo
@@ -71,7 +73,10 @@ conf = {
     'template_dir': 'template',
     'id_token': {
         'class': IDToken,
-        'kwargs': {'foo':'bar'}
+        'kwargs': {
+            'foo': 'bar',
+            'acr_list': ['loa1', 'loa2']
+        }
     }
 }
 
@@ -92,41 +97,35 @@ class TestEndpoint(object):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
         info = self.endpoint_context.idtoken.payload(session_info)
         assert info['payload'] == {
-            'acr': '2', 'sub': '1234567890', 'nonce': 'nonce'
+            'sub': '1234567890', 'nonce': 'nonce'
         }
         assert info['lifetime'] == 300
-
 
     def test_id_token_payload_1(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
         info = self.endpoint_context.idtoken.payload(session_info)
         assert info['payload'] == {
-            'acr': '2', 'nonce': 'nonce',
-            'sub': '1234567890'
+            'nonce': 'nonce', 'sub': '1234567890'
         }
         assert info['lifetime'] == 300
-
 
     def test_id_token_payload_with_code(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
         info = self.endpoint_context.idtoken.payload(session_info, code='ABCDEFGHIJKLMNOP')
         assert info['payload'] == {
-            'acr': '2', 'nonce': 'nonce',
-            'c_hash': '5-i4nCch0pDMX1VCVJHs1g',
+            'nonce': 'nonce', 'c_hash': '5-i4nCch0pDMX1VCVJHs1g',
             'sub': '1234567890'
         }
         assert info['lifetime'] == 300
-
 
     def test_id_token_payload_with_access_token(self):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
         info = self.endpoint_context.idtoken.payload(session_info, access_token='012ABCDEFGHIJKLMNOP')
         assert info['payload'] == {
-            'acr': '2', 'nonce': 'nonce',
-            'at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
+            'nonce': 'nonce', 'at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
             'sub': '1234567890'
         }
         assert info['lifetime'] == 300
@@ -135,12 +134,10 @@ class TestEndpoint(object):
         session_info = {'authn_req': AREQN, 'sub': '1234567890'}
 
         info = self.endpoint_context.idtoken.payload(session_info, access_token='012ABCDEFGHIJKLMNOP',
-                               code='ABCDEFGHIJKLMNOP')
+                                                     code='ABCDEFGHIJKLMNOP')
         assert info['payload'] == {
-            'acr': '2', 'nonce': 'nonce',
-            'at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
-            'c_hash': '5-i4nCch0pDMX1VCVJHs1g',
-            'sub': '1234567890'
+            'nonce': 'nonce','at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
+            'c_hash': '5-i4nCch0pDMX1VCVJHs1g', 'sub': '1234567890'
         }
         assert info['lifetime'] == 300
 
@@ -149,27 +146,31 @@ class TestEndpoint(object):
 
         info = self.endpoint_context.idtoken.payload(session_info, user_info={'given_name': 'Diana'})
         assert info['payload'] == {
-            'acr': '2', 'nonce': 'nonce',
-            'given_name': 'Diana', 'sub': '1234567890'
+            'nonce': 'nonce', 'given_name': 'Diana', 'sub': '1234567890'
         }
         assert info['lifetime'] == 300
 
-
     def test_id_token_payload_many_0(self):
-        session_info = {'authn_req': AREQN, 'sub': '1234567890'}
+        areq = copy.copy(AREQN)
+        areq['claims'] = {'id_token': {'acr': {'value': 'loa2'}}}
+
+        session_info = {
+            'authn_req': AREQN, 'sub': '1234567890',
+            'claims': {'id_token': {'acr': {'value': 'loa2'}}}
+        }
 
         info = self.endpoint_context.idtoken.payload(
             session_info, user_info={'given_name': 'Diana'},
-            access_token='012ABCDEFGHIJKLMNOP', code='ABCDEFGHIJKLMNOP')
+            access_token='012ABCDEFGHIJKLMNOP', code='ABCDEFGHIJKLMNOP'
+        )
         assert info['payload'] == {
-            'acr': '2', 'nonce': 'nonce',
+            'acr': 'loa2', 'nonce': 'nonce',
             'given_name': 'Diana',
             'at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
             'c_hash': '5-i4nCch0pDMX1VCVJHs1g',
             'sub': '1234567890'
         }
         assert info['lifetime'] == 300
-
 
     def test_sign_encrypt_id_token(self):
         client_info = RegistrationResponse(
@@ -252,3 +253,25 @@ class TestEndpoint(object):
                                                sign=True)
         # default signing alg
         assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS512'}
+
+
+def test_acr_level():
+    acr_lev = ACRlevel(['bronze', 'silver', 'gold'])
+
+    assert acr_lev.verify({'essential': True, 'value': 'bronze'}, 'gold') == 'bronze'
+    assert acr_lev.verify({'essential': True}, 'gold') == 'gold'
+    assert acr_lev.verify({'essential': True}) == 'bronze'
+
+    assert acr_lev.verify({'value': 'bronze'}, 'gold') == 'bronze'
+
+    assert acr_lev.verify({'values': ['bronze', 'al1']}, 'gold') == 'bronze'
+
+    with pytest.raises(ValueError):
+        acr_lev.verify({'values': ['al1', 'al2']}, 'gold')
+
+
+def test_no_acr_levels():
+    acr_lev = ACRlevel()
+    assert acr_lev.verify({'essential': True}) == ''
+    with pytest.raises(ValueError):
+        acr_lev.verify({'values': ['al1', 'al2']})

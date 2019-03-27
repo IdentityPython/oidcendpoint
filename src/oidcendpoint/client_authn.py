@@ -1,6 +1,7 @@
 import base64
 import logging
 
+from cryptojwt.exception import BadSignature
 from cryptojwt.exception import Invalid
 from cryptojwt.exception import MissingKey
 from cryptojwt.jwt import utc_time_sans_frac
@@ -9,6 +10,7 @@ from cryptojwt.utils import as_unicode
 
 from cryptojwt.jwt import JWT
 from oidcmsg.oidc import AuthnToken
+from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint import rndstr
@@ -32,16 +34,6 @@ class UnknownOrNoAuthnMethod(Exception):
     pass
 
 
-# ========================================================================
-def assertion_jwt(cli, keys, audience, algorithm, lifetime=600):
-    _now = utc_time_sans_frac()
-
-    at = AuthnToken(iss=cli.client_id, sub=cli.client_id,
-                    aud=audience, jti=rndstr(32),
-                    exp=_now + lifetime, iat=_now)
-    return at.to_jwt(key=keys, algorithm=algorithm)
-
-
 class ClientAuthnMethod(object):
     def __init__(self, endpoint_context=None):
         """
@@ -63,10 +55,15 @@ def basic_authn(authn):
     if not authn.startswith("Basic "):
         raise AuthnFailure("Wrong type of authorization token")
 
-    (_id, _secret) = as_unicode(
-        base64.b64decode(as_bytes(authn[6:]))).split(":")
-
-    return {'id': _id, 'secret': _secret}
+    _tok = as_bytes(authn[6:])
+    # Will raise ValueError type exception if not base64 encoded
+    _tok = base64.b64decode(_tok)
+    part = as_unicode(_tok).split(":")
+    if len(part) == 2:
+        (_id, _secret) = part
+        return {'id': _id, 'secret': _secret}
+    else:
+        raise ValueError('Illegal token')
 
 
 class ClientSecretBasic(ClientAuthnMethod):
@@ -132,7 +129,7 @@ class JWSAuthnMethod(ClientAuthnMethod):
         _jwt = JWT(self.endpoint_context.keyjar)
         try:
             ca_jwt = _jwt.unpack(request["client_assertion"])
-        except (Invalid, MissingKey) as err:
+        except (Invalid, MissingKey, BadSignature) as err:
             logger.info("%s" % sanitize(err))
             raise AuthnFailure("Could not verify client_assertion.")
 
@@ -141,7 +138,7 @@ class JWSAuthnMethod(ClientAuthnMethod):
         except AttributeError:
             logger.debug("authntoken: %s" % sanitize(ca_jwt))
 
-        request['parsed_client_assertion'] = ca_jwt
+        request[verified_claim_name('client_assertion')] = ca_jwt
 
         try:
             client_id = kwargs["client_id"]
@@ -239,7 +236,6 @@ def verify_client(endpoint_context, request, authorization_info):
         try:
             _token = auth_info['token']
         except KeyError:
-            pass
             logger.warning('Unknown client ID')
         else:
             sinfo = endpoint_context.sdb[_token]

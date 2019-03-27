@@ -1,17 +1,28 @@
 import base64
 
+import pytest
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
 from cryptojwt.key_jar import build_keyjar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
+from oidcendpoint.session import SessionInfo
+from oidcmsg.oidc import AuthorizationRequest
 
 from oidcendpoint import JWT_BEARER
+from oidcendpoint.client_authn import AuthnFailure
+from oidcendpoint.client_authn import BearerBody
+from oidcendpoint.client_authn import BearerHeader
 from oidcendpoint.client_authn import ClientSecretBasic
 from oidcendpoint.client_authn import ClientSecretJWT
 from oidcendpoint.client_authn import ClientSecretPost
+from oidcendpoint.client_authn import JWSAuthnMethod
 from oidcendpoint.client_authn import PrivateKeyJWT
+from oidcendpoint.client_authn import basic_authn
+from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import NotForMe
+from oidcendpoint.oidc.token import AccessToken
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -27,7 +38,13 @@ conf = {
     "grant_expires_in": 300,
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
-    "endpoint": {},
+    "endpoint": {
+        'token': {
+            'path': 'token',
+            'class': AccessToken,
+            'kwargs': {}
+        }
+    },
     'template_dir': 'template',
     'jwks':
         {
@@ -105,3 +122,219 @@ def test_private_key_jwt():
 
     assert authn_info['client_id'] == client_id
     assert 'jwt' in authn_info
+
+
+def test_wrong_type():
+    with pytest.raises(AuthnFailure):
+        ClientSecretBasic(endpoint_context).verify({}, 'Foppa toffel')
+
+
+def test_csb_wrong_secret():
+    _token = '{}:{}'.format(client_id, 'pillow')
+    token = as_unicode(base64.b64encode(as_bytes(_token)))
+
+    authz_token = 'Basic {}'.format(token)
+
+    with pytest.raises(AuthnFailure):
+        ClientSecretBasic(endpoint_context).verify({}, authz_token)
+
+
+def test_client_secret_post_wrong_secret():
+    request = {'client_id': client_id, 'client_secret': 'pillow'}
+
+    with pytest.raises(AuthnFailure):
+        ClientSecretPost(endpoint_context).verify(request)
+
+
+def test_bearerheader():
+    request = {}
+    authorization_info = 'Bearer 1234567890'
+    assert BearerHeader(endpoint_context).verify(
+        request, authorization_info) == {'token': '1234567890'}
+
+
+def test_bearerheader_wrong_type():
+    request = {}
+    authorization_info = 'Thrower 1234567890'
+    with pytest.raises(AuthnFailure):
+        BearerHeader(endpoint_context).verify(
+            request, authorization_info)
+
+
+def test_bearer_body():
+    request = {'access_token': '1234567890'}
+    assert BearerBody(endpoint_context).verify(request) == {'token': '1234567890'}
+
+
+def test_bearer_body_no_token():
+    request = {}
+    with pytest.raises(AuthnFailure):
+        BearerBody(endpoint_context).verify(request)
+
+
+def test_jws_authn_method_wrong_key():
+    client_keyjar = KeyJar()
+    client_keyjar[conf['issuer']] = KEYJAR.issuer_keys['']
+    # Fake symmetric key
+    client_keyjar.add_symmetric('', 'client_secret:client_secret', ['sig'])
+
+    _jwt = JWT(client_keyjar, iss=client_id, sign_alg='HS256')
+    _assertion = _jwt.pack({'aud': [conf['issuer']]})
+
+    request = {
+        'client_assertion': _assertion,
+        'client_assertion_type': JWT_BEARER
+    }
+
+    with pytest.raises(AuthnFailure):
+        JWSAuthnMethod(endpoint_context).verify(request)
+
+
+def test_jws_authn_method_aud_iss():
+    client_keyjar = KeyJar()
+    client_keyjar[conf['issuer']] = KEYJAR.issuer_keys['']
+    # The only own key the client has a this point
+    client_keyjar.add_symmetric('', client_secret, ['sig'])
+
+    _jwt = JWT(client_keyjar, iss=client_id, sign_alg='HS256')
+    # Audience is OP issuer ID
+    aud = conf['issuer']
+    _assertion = _jwt.pack({'aud': [aud]})
+
+    request = {
+        'client_assertion': _assertion,
+        'client_assertion_type': JWT_BEARER
+    }
+
+    assert JWSAuthnMethod(endpoint_context).verify(request)
+
+
+def test_jws_authn_method_aud_token_endpoint():
+    client_keyjar = KeyJar()
+    client_keyjar[conf['issuer']] = KEYJAR.issuer_keys['']
+    # The only own key the client has a this point
+    client_keyjar.add_symmetric('', client_secret, ['sig'])
+
+    _jwt = JWT(client_keyjar, iss=client_id, sign_alg='HS256')
+
+    # audience is OP token endpoint - that's OK
+    aud = '{}token'.format(conf['issuer'])
+    _assertion = _jwt.pack({'aud': [aud]})
+
+    request = {
+        'client_assertion': _assertion,
+        'client_assertion_type': JWT_BEARER
+    }
+
+    assert JWSAuthnMethod(endpoint_context).verify(request)
+
+
+def test_jws_authn_method_aud_not_me():
+    client_keyjar = KeyJar()
+    client_keyjar[conf['issuer']] = KEYJAR.issuer_keys['']
+    # The only own key the client has a this point
+    client_keyjar.add_symmetric('', client_secret, ['sig'])
+
+    _jwt = JWT(client_keyjar, iss=client_id, sign_alg='HS256')
+
+    # Other audiences not OK
+    aud = 'https://example.org'
+
+    _assertion = _jwt.pack({'aud': [aud]})
+
+    request = {
+        'client_assertion': _assertion,
+        'client_assertion_type': JWT_BEARER
+    }
+
+    with pytest.raises(NotForMe):
+        JWSAuthnMethod(endpoint_context).verify(request)
+
+
+def test_basic_auth():
+    _token = '{}:{}'.format(client_id, client_secret)
+    token = as_unicode(base64.b64encode(as_bytes(_token)))
+
+    res = basic_authn('Basic {}'.format(token))
+    assert res
+
+
+def test_basic_auth_wrong_label():
+    _token = '{}:{}'.format(client_id, client_secret)
+    token = as_unicode(base64.b64encode(as_bytes(_token)))
+
+    with pytest.raises(AuthnFailure):
+        basic_authn('Expanded {}'.format(token))
+
+
+def test_basic_auth_wrong_token():
+    _token = '{}:{}:foo'.format(client_id, client_secret)
+    token = as_unicode(base64.b64encode(as_bytes(_token)))
+    with pytest.raises(ValueError):
+        basic_authn('Basic {}'.format(token))
+
+    _token = '{}:{}'.format(client_id, client_secret)
+    with pytest.raises(ValueError):
+        basic_authn('Basic {}'.format(_token))
+
+    _token = '{}{}'.format(client_id, client_secret)
+    token = as_unicode(base64.b64encode(as_bytes(_token)))
+    with pytest.raises(ValueError):
+        basic_authn('Basic {}'.format(token))
+
+
+def test_verify_client_jws_authn_method():
+    client_keyjar = KeyJar()
+    client_keyjar[conf['issuer']] = KEYJAR.issuer_keys['']
+    # The only own key the client has a this point
+    client_keyjar.add_symmetric('', client_secret, ['sig'])
+
+    _jwt = JWT(client_keyjar, iss=client_id, sign_alg='HS256')
+    # Audience is OP issuer ID
+    aud = conf['issuer']
+    _assertion = _jwt.pack({'aud': [aud]})
+
+    request = {
+        'client_assertion': _assertion,
+        'client_assertion_type': JWT_BEARER
+    }
+
+    res = verify_client(endpoint_context, request, '')
+    assert res['method'] == 'private_key_jwt'
+    assert res['client_id'] == 'client_id'
+
+
+def test_verify_client_bearer_body():
+    request = {'access_token': '1234567890', 'client_id': client_id}
+    sinfo = SessionInfo(authn_req=AuthorizationRequest(client_id= client_id))
+    endpoint_context.sdb['1234567890'] = sinfo
+    res = verify_client(endpoint_context, request, '')
+    assert set(res.keys()) == {'token', 'method','client_id'}
+    assert res['method'] == 'bearer_body'
+
+
+def test_verify_client_client_secret_post():
+    request = {'client_id': client_id, 'client_secret': client_secret}
+    res = verify_client(endpoint_context, request, '')
+    assert set(res.keys()) == {'method','client_id'}
+    assert res['method'] == 'client_secret_post'
+
+
+def test_verify_client_client_secret_basic():
+    _token = '{}:{}'.format(client_id, client_secret)
+    token = as_unicode(base64.b64encode(as_bytes(_token)))
+    authz_token = 'Basic {}'.format(token)
+    res = verify_client(endpoint_context, {}, authz_token)
+    assert set(res.keys()) == {'method','client_id'}
+    assert res['method'] == 'client_secret_basic'
+
+
+def test_verify_client_bearer_header():
+    token = 'Bearer 1234567890'
+
+    sinfo = SessionInfo(authn_req=AuthorizationRequest(client_id= client_id))
+    endpoint_context.sdb['1234567890'] = sinfo
+
+    res = verify_client(endpoint_context, {}, token)
+    assert set(res.keys()) == {'token', 'method','client_id'}
+    assert res['method'] == 'bearer_header'

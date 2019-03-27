@@ -10,26 +10,43 @@ from oidcendpoint.userinfo import userinfo_in_id_token_claims
 
 logger = logging.getLogger(__name__)
 
-ACR_LISTS = [
-    ["0", "1", "2", "3", "4"],
-]
 
+class ACRlevel(object):
+    def __init__(self, acr_list=None):
+        # acr_list is expected to be an ordered list of ACRs
+        # from low to high
+        self.acr_list = acr_list or []
 
-def verify_acr_level(req, level):
-    if req is None:
-        return level
-    elif "values" in req:
-        for _r in req["values"]:
-            for alist in ACR_LISTS:
-                try:
-                    if alist.index(_r) <= alist.index(level):
-                        return level
-                except ValueError:
-                    pass
-    else:  # Required or Optional
-        return level
+    def verify(self, req, default=''):
+        if default and default not in self.acr_list:
+            raise ValueError("An ACR I do not support")
 
-    raise AccessDenied("", req)
+        if req is None:
+            if default:
+                return default
+            elif len(self.acr_list):
+                return self.acr_list[0]
+            else:
+                return ''
+
+        if "value" in req:
+            if req['value'] in self.acr_list:
+                return req['value']
+        elif "values" in req:
+            for _r in req["values"]:
+                if _r in self.acr_list:
+                    return _r
+        else:
+            # If essential or not doesn't matter if I don't know about
+            # ACRs then I don't.
+            if default:
+                return default
+            elif len(self.acr_list):
+                return self.acr_list[0]
+            else:
+                return ''
+
+        raise ValueError("An ACR I do not support")
 
 
 DEF_SIGN_ALG = {
@@ -91,17 +108,18 @@ def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
 
 
 class IDToken(object):
-    def __init__(self, endpoint_context, **kwargs):
+    def __init__(self, endpoint_context, acr_list=None, **kwargs):
         self.endpoint_context = endpoint_context
+        self.acr_level = ACRlevel(acr_list)
         self.kwargs = kwargs
 
-    def payload(self, session, loa="2", alg="RS256", code=None,
+    def payload(self, session, def_acr="", alg="RS256", code=None,
                 access_token=None, user_info=None, auth_time=0,
                 lifetime=300, extra_claims=None):
         """
 
         :param session: Session information
-        :param loa: Level of Assurance/Authentication context
+        :param def_acr: Default Assurance/Authentication context class reference
         :param alg: Which signing algorithm to use for the IdToken
         :param code: Access grant
         :param access_token: Access Token
@@ -127,13 +145,12 @@ class IDToken(object):
                 if key == "auth_time":
                     _args["auth_time"] = auth_time
                 elif key == "acr":
-                    # ["2","http://id.incommon.org/assurance/bronze"]
-                    _args["acr"] = verify_acr_level(val, loa)
+                    _args["acr"] = self.acr_level.verify(val, def_acr)
         else:
             if auth_time:
                 _args["auth_time"] = auth_time
-            if loa:
-                _args["acr"] = loa
+            if def_acr:
+                _args["acr"] = def_acr
 
         if user_info:
             try:
@@ -197,7 +214,8 @@ class IDToken(object):
 
         _authn_event = session_info['authn_event']
 
-        _idt_info = self.payload(session_info, loa=_authn_event["authn_info"],
+        _idt_info = self.payload(session_info,
+                                 def_acr=_authn_event["authn_info"],
                                  alg=alg_dict['sign_alg'], code=code,
                                  access_token=access_token, user_info=user_info,
                                  auth_time=_authn_event["authn_time"],

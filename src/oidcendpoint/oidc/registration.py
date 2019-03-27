@@ -23,7 +23,7 @@ from oidcendpoint import rndstr
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
-from oidcendpoint.util import new_cookie
+from oidcendpoint.cookie import new_cookie
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",

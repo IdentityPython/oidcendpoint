@@ -2,26 +2,12 @@ import importlib
 import json
 import logging
 
-from cryptojwt.utils import as_bytes
-from cryptojwt.utils import as_unicode
-from cryptojwt.utils import b64e
-
 logger = logging.getLogger(__name__)
 
 OAUTH2_NOCACHE_HEADERS = [
     ('Pragma', 'no-cache'),
     ('Cache-Control', 'no-store'),
 ]
-
-
-def new_cookie(endpoint_context, cookie_name=None, **kwargs):
-    if endpoint_context.cookie_dealer:
-        _val = as_unicode(b64e(as_bytes(json.dumps(kwargs))))
-        return endpoint_context.cookie_dealer.create_cookie(
-            _val, typ="sso", cookie_name=cookie_name,
-            ttl=endpoint_context.sso_ttl)
-    else:
-        return None
 
 
 def modsplit(s):

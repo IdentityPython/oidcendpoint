@@ -1,11 +1,9 @@
 import inspect
 import logging
-import time
-
 import sys
 
 from oidcendpoint import sanitize
-from oidcendpoint.exception import ToOld
+from oidcendpoint.cookie import cookie_value
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +19,12 @@ class AuthzHandling(object):
     def __call__(self, *args, **kwargs):
         return ""
 
+    def set(self, uid, client_id, permission):
+        try:
+            self.permdb[uid][client_id] = permission
+        except KeyError:
+            self.permdb[uid] = {client_id:permission}
+
     def permissions(self, cookie=None, **kwargs):
         if cookie is None:
             return None
@@ -31,29 +35,16 @@ class AuthzHandling(object):
             if val is None:
                 return None
             else:
-                uid, _ts, typ = val
+                b64, _ts, typ = val
 
-            if typ == "uam":  # shortlived
-                _now = int(time.time())
-                if _now > (int(_ts) + int(self.cookie_dealer.cookie_ttl * 60)):
-                    logger.debug("Authentication timed out")
-                    raise ToOld("%d > (%d + %d)" % (
-                        _now, int(_ts),
-                        int(self.cookie_dealer.cookie_ttl * 60)))
-            else:
-                if "max_age" in kwargs and kwargs["max_age"]:
-                    _now = int(time.time())
-                    if _now > (int(_ts) + int(kwargs["max_age"])):
-                        logger.debug("Authentication too old")
-                        raise ToOld("%d > (%d + %d)" % (
-                            _now, int(_ts), int(kwargs["max_age"])))
+            info = cookie_value(b64)
+            return self.get(info['sub'], info['client_id'])
 
-            return self.permdb[uid]
-
-
-class UserInfoConsent(AuthzHandling):
-    def __call__(self, user, userinfo, **kwargs):
-        pass
+    def get(self, uid, client_id):
+        try:
+            return self.permdb[uid][client_id]
+        except KeyError:
+            return None
 
 
 class Implicit(AuthzHandling):
@@ -62,6 +53,9 @@ class Implicit(AuthzHandling):
         self.permission = permission
 
     def permissions(self, cookie=None, **kwargs):
+        return self.permission
+
+    def get(self, uid, client_id):
         return self.permission
 
 

@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.key_jar import build_keyjar
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import init_key_jar
@@ -11,6 +12,7 @@ from oidcendpoint import rndstr
 from oidcendpoint import user_info
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
@@ -135,6 +137,9 @@ class TestEndpoint(object):
                 'kwargs':{
                     'db_file': full_path('users.json')
                 }
+            },
+            'id_token': {
+                'class': IDToken,
             }
         }
 
@@ -160,3 +165,26 @@ class TestEndpoint(object):
         assert _info['ttype'] == 'T'
         assert _info['phone_number'] == '+46 90 7865000'
         assert set(_info['aud']) == {'client_1', 'https://example.org/appl'}
+
+    def test_info(self):
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
+                                   uid='diana')
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
+            key=session_id)
+
+        handler = self.endpoint.endpoint_context.sdb.handler.handler['access_token']
+        sid, token_type = handler.info(_dic['access_token'])
+        assert token_type == 'T'
+        assert sid
+
+    def test_is_expired(self):
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
+                                   uid='diana')
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
+            key=session_id)
+
+        handler = self.endpoint.endpoint_context.sdb.handler.handler['access_token']
+        assert handler.is_expired(_dic['access_token']) is False
+
+        assert handler.is_expired(_dic['access_token'],
+                                  utc_time_sans_frac() + 4000) is True

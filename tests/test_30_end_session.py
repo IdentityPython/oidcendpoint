@@ -2,6 +2,8 @@ import copy
 import json
 import os
 from http.cookies import SimpleCookie
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
@@ -25,7 +27,7 @@ from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcendpoint.util import new_cookie
+from oidcendpoint.cookie import new_cookie
 
 ISS = "https://example.com/"
 
@@ -175,7 +177,10 @@ class TestEndpoint(object):
                 'session': {
                     'path': '{}/end_session',
                     'class': Session,
-                    'kwargs': {'signing_alg': 'ES256'}
+                    'kwargs': {
+                        'signing_alg': 'ES256',
+                        'logout_verify_url': '{}/verify_logout'.format(ISS)
+                    }
                 }
             },
             "authentication": {
@@ -282,7 +287,9 @@ class TestEndpoint(object):
         # returns a signed JWT to be put in a verification web page shown to
         # the user
 
-        jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
+        p = urlparse(resp['redirect_location'])
+        qs = parse_qs(p.query)
+        jwt_info = self.session_endpoint.unpack_signed_jwt(qs['sjwt'][0])
 
         assert jwt_info['state'] == 'abcde'
         assert jwt_info['user'] == 'diana'
@@ -341,7 +348,9 @@ class TestEndpoint(object):
         # returns a signed JWT to be put in a verification web page shown to
         # the user
 
-        jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
+        p = urlparse(resp['redirect_location'])
+        qs = parse_qs(p.query)
+        jwt_info = self.session_endpoint.unpack_signed_jwt(qs['sjwt'][0])
 
         assert jwt_info['state'] == 'abcde'
         assert jwt_info['user'] == 'diana'
@@ -365,7 +374,9 @@ class TestEndpoint(object):
                 "state": 'abcde'
             }, cookie=cookie)
 
-        jwt_info = self.session_endpoint.unpack_signed_jwt(resp['sjwt'])
+        p = urlparse(resp['redirect_location'])
+        qs = parse_qs(p.query)
+        jwt_info = self.session_endpoint.unpack_signed_jwt(qs['sjwt'][0])
 
         assert jwt_info['state'] == 'abcde'
         assert jwt_info['user'] == 'diana'

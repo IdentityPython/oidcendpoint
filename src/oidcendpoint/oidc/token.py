@@ -16,7 +16,7 @@ from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
-from oidcendpoint.util import new_cookie
+from oidcendpoint.cookie import new_cookie
 
 logger = logging.getLogger(__name__)
 

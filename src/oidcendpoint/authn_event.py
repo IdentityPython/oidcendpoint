@@ -15,7 +15,7 @@ class AuthnEvent(Message):
 
     def valid(self, now=0):
         if now:
-            return self['valid_until'] > time_sans_frac()
+            return self['valid_until'] > now
         else:
             return self['valid_until'] > time_sans_frac()
 

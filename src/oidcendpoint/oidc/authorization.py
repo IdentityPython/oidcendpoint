@@ -33,7 +33,7 @@ from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
-from oidcendpoint.util import new_cookie
+from oidcendpoint.cookie import new_cookie
 
 logger = logging.getLogger(__name__)
 

@@ -1,24 +1,27 @@
 import json
 import os
 from http.cookies import SimpleCookie
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
-from cryptojwt.key_jar import build_keyjar
-from oidcendpoint.id_token import IDToken
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import verify_id_token
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.authorization import inputs
+from oidcendpoint.oidc.authorization import re_authenticate
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_authn.user import UserAuthnMethod
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
@@ -50,8 +53,8 @@ CLAIMS = {
     "id_token": {
         "given_name": {"essential": True},
         "nickname": None
-        }
     }
+}
 
 AUTH_REQ = AuthorizationRequest(client_id='client_1',
                                 redirect_uri='https://example.com/cb',
@@ -309,3 +312,15 @@ class TestEndpoint(object):
         assert 'given_name' in _resp['response_args']['__verified_id_token']
         # from config
         assert 'email' in _resp['response_args']['__verified_id_token']
+
+    def test_re_authenticate(self):
+        request = {'prompt': 'login'}
+        authn = UserAuthnMethod(self.endpoint.endpoint_context)
+        assert re_authenticate(request, authn)
+
+
+def test_inputs():
+    elems = inputs({'foo': 'bar', 'home': 'stead'})
+    print(elems)
+    assert elems == """<input type="hidden" name="foo" value="bar"/>
+<input type="hidden" name="home" value="stead"/>"""
