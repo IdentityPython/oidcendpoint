@@ -1,4 +1,3 @@
-import copy
 import json
 import os
 import time
@@ -12,12 +11,12 @@ from oidcmsg.oidc import RegistrationResponse
 
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.id_token import ACRlevel
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.id_token import get_sign_and_encrypt_algorithms
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
@@ -69,13 +68,19 @@ conf = {
             'kwargs': {'db_file': 'users.json'}
         }
     },
+    "authentication": {
+        'anon': {
+            'acr': INTERNETPROTOCOLPASSWORD,
+            'class': 'oidcendpoint.user_authn.user.NoAuthn',
+            'kwargs': {'user': 'diana'}
+        }
+    },
     'client_authn': verify_client,
     'template_dir': 'template',
     'id_token': {
         'class': IDToken,
         'kwargs': {
-            'foo': 'bar',
-            'acr_list': ['loa1', 'loa2']
+            'foo': 'bar'
         }
     }
 }
@@ -151,12 +156,8 @@ class TestEndpoint(object):
         assert info['lifetime'] == 300
 
     def test_id_token_payload_many_0(self):
-        areq = copy.copy(AREQN)
-        areq['claims'] = {'id_token': {'acr': {'value': 'loa2'}}}
-
         session_info = {
-            'authn_req': AREQN, 'sub': '1234567890',
-            'claims': {'id_token': {'acr': {'value': 'loa2'}}}
+            'authn_req': AREQN, 'sub': '1234567890'
         }
 
         info = self.endpoint_context.idtoken.payload(
@@ -164,7 +165,7 @@ class TestEndpoint(object):
             access_token='012ABCDEFGHIJKLMNOP', code='ABCDEFGHIJKLMNOP'
         )
         assert info['payload'] == {
-            'acr': 'loa2', 'nonce': 'nonce',
+            'nonce': 'nonce',
             'given_name': 'Diana',
             'at_hash': 'bKkyhbn1CC8IMdavzOV-Qg',
             'c_hash': '5-i4nCch0pDMX1VCVJHs1g',
@@ -254,24 +255,3 @@ class TestEndpoint(object):
         # default signing alg
         assert algs == {'sign': True, 'encrypt': False, 'sign_alg': 'RS512'}
 
-
-def test_acr_level():
-    acr_lev = ACRlevel(['bronze', 'silver', 'gold'])
-
-    assert acr_lev.verify({'essential': True, 'value': 'bronze'}, 'gold') == 'bronze'
-    assert acr_lev.verify({'essential': True}, 'gold') == 'gold'
-    assert acr_lev.verify({'essential': True}) == 'bronze'
-
-    assert acr_lev.verify({'value': 'bronze'}, 'gold') == 'bronze'
-
-    assert acr_lev.verify({'values': ['bronze', 'al1']}, 'gold') == 'bronze'
-
-    with pytest.raises(ValueError):
-        acr_lev.verify({'values': ['al1', 'al2']}, 'gold')
-
-
-def test_no_acr_levels():
-    acr_lev = ACRlevel()
-    assert acr_lev.verify({'essential': True}) == ''
-    with pytest.raises(ValueError):
-        acr_lev.verify({'values': ['al1', 'al2']})

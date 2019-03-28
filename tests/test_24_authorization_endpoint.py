@@ -6,27 +6,45 @@ from urllib.parse import urlparse
 
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
+from cryptojwt.utils import as_bytes
+from cryptojwt.utils import b64e
+from oidcmsg.exception import ParameterError
+from oidcmsg.exception import URIError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
 from oidcmsg.time_util import in_a_while
+from oidcservice.exception import InvalidRequest
 
+from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import NoSuchAuthentication
+from oidcendpoint.exception import RedirectURIError
+from oidcendpoint.exception import ToOld
+from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.authorization import acr_claims
+from oidcendpoint.oidc.authorization import create_authn_response
+from oidcendpoint.oidc.authorization import get_uri
 from oidcendpoint.oidc.authorization import inputs
+from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.authorization import re_authenticate
+from oidcendpoint.oidc.authorization import verify_uri
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.session import SessionInfo
 from oidcendpoint.user_authn.user import UserAuthnMethod
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
-    {"type": "RSA", "key": '', "use": ["sig"]},
-    {"type": "EC", "crv": "P-256", "use": ["sig"]}
+    {"type": "RSA", "key": '', "use": ["sig"]}
+    # {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
 RESPONSE_TYPES_SUPPORTED = [
@@ -72,6 +90,18 @@ def full_path(local_file):
 
 
 USERINFO_db = json.loads(open(full_path('users.json')).read())
+
+
+FORM_POST = """<html>
+  <head>
+    <title>Submit This Form</title>
+  </head>
+  <body onload="javascript:document.forms[0].submit()">
+    <form method="post" action=https://example.com/cb>
+        <input type="hidden" name="foo" value="bar"/>
+    </form>
+  </body>
+</html>"""
 
 
 class SimpleCookieDealer(object):
@@ -167,7 +197,7 @@ class TestEndpoint(object):
             },
             "authentication": {
                 'anon': {
-                    'acr': INTERNETPROTOCOLPASSWORD,
+                    'acr': 'http://www.swamid.se/policy/assurance/al1',
                     'class': 'oidcendpoint.user_authn.user.NoAuthn',
                     'kwargs': {'user': 'diana'}
                 }
@@ -178,8 +208,17 @@ class TestEndpoint(object):
             },
             'template_dir': 'template'
         }
-        endpoint_context = EndpointContext(
-            conf, cookie_dealer=SimpleCookieDealer('foo'))
+        cookie_conf = {
+            'symkey': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+            'default_values': {
+                'name': 'oidcop',
+                'domain': "127.0.0.1",
+                'path': '/',
+                'max_age': 3600
+            }
+        }
+        cookie_dealer = CookieDealer(**cookie_conf)
+        endpoint_context = EndpointContext(conf, cookie_dealer=cookie_dealer)
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
@@ -318,9 +357,331 @@ class TestEndpoint(object):
         authn = UserAuthnMethod(self.endpoint.endpoint_context)
         assert re_authenticate(request, authn)
 
+    def test_id_token_acr(self):
+        _req = AUTH_REQ_DICT.copy()
+        _req['claims'] = {
+            'id_token': {
+                'acr': {
+                    'value': 'http://www.swamid.se/policy/assurance/al1'
+                }
+            }
+        }
+        _req['response_type'] = 'code id_token token'
+        _req['nonce'] = 'rnd_nonce'
+        _pr_resp = self.endpoint.parse_request(_req)
+        _resp = self.endpoint.process_request(_pr_resp)
+        res = verify_id_token(_resp['response_args'],
+                              keyjar=self.endpoint.endpoint_context.keyjar)
+        assert res
+        res = _resp['response_args'][verified_claim_name('id_token')]
+        assert res['acr'] == 'http://www.swamid.se/policy/assurance/al1'
+
+    def test_verify_uri_unknown_client(self):
+        request = {'redirect_uri': 'https://rp.example.com/cb'}
+        with pytest.raises(UnknownClient):
+            verify_uri(self.endpoint.endpoint_context, request, 'redirect_uri')
+
+    def test_verify_uri_fragment(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {'redirect_uri': ['https://rp.example.com/auth_cb']}
+        request = {'redirect_uri': 'https://rp.example.com/cb#foobar'}
+        with pytest.raises(URIError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_verify_uri_noregistered(self):
+        _ec = self.endpoint.endpoint_context
+        request = {'redirect_uri': 'https://rp.example.com/cb'}
+
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_verify_uri_unregistered(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [('https://rp.example.com/auth_cb', {})]
+        }
+
+        request = {'redirect_uri': 'https://rp.example.com/cb'}
+
+        with pytest.raises(RedirectURIError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_verify_uri_qp_match(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [
+                ('https://rp.example.com/cb', {'foo': ['bar']})]
+        }
+
+        request = {'redirect_uri': 'https://rp.example.com/cb?foo=bar'}
+
+        verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_verify_uri_qp_mismatch(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [
+                ('https://rp.example.com/cb', {'foo': ['bar']})]
+        }
+
+        request = {'redirect_uri': 'https://rp.example.com/cb?foo=bob'}
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+        request = {'redirect_uri': 'https://rp.example.com/cb?foo=bar&foo=kex'}
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+        request = {'redirect_uri': 'https://rp.example.com/cb'}
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+        request = {'redirect_uri': 'https://rp.example.com/cb?foo=bar&level=low'}
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_verify_uri_qp_missing(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [
+                ('https://rp.example.com/cb',
+                 {'foo': ['bar'], 'state': ['low']})]
+        }
+
+        request = {'redirect_uri': 'https://rp.example.com/cb?foo=bar'}
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_verify_uri_qp_missing_val(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [
+                ('https://rp.example.com/cb',
+                 {'foo': ['bar', 'low']})]
+        }
+
+        request = {'redirect_uri': 'https://rp.example.com/cb?foo=bar'}
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_verify_uri_no_registered_qp(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [('https://rp.example.com/cb', {})]
+        }
+
+        request = {'redirect_uri': 'https://rp.example.com/cb?foo=bob'}
+        with pytest.raises(ValueError):
+            verify_uri(_ec, request, 'redirect_uri', 'client_id')
+
+    def test_get_uri(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [('https://rp.example.com/cb', {})]
+        }
+
+        request = {
+            'redirect_uri': 'https://rp.example.com/cb',
+            'client_id': 'client_id'
+        }
+
+        assert get_uri(_ec, request, 'redirect_uri') == 'https://rp.example.com/cb'
+
+    def test_get_uri_no_redirect_uri(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [('https://rp.example.com/cb', {})]
+        }
+
+        request = {'client_id': 'client_id'}
+
+        assert get_uri(_ec, request, 'redirect_uri') == 'https://rp.example.com/cb'
+
+    def test_get_uri_no_registered(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [('https://rp.example.com/cb', {})]
+        }
+
+        request = {'client_id': 'client_id'}
+
+        with pytest.raises(ParameterError):
+            get_uri(_ec, request, 'post_logout_redirect_uri')
+
+    def test_get_uri_more_then_one_registered(self):
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb['client_id'] = {
+            'redirect_uris': [('https://rp.example.com/cb', {}),
+                              ('https://rp.example.org/authz_cb', {'foo': 'bar'})]
+        }
+
+        request = {'client_id': 'client_id'}
+
+        with pytest.raises(ParameterError):
+            get_uri(_ec, request, 'redirect_uri')
+
+    def test_create_authn_response(self):
+        request = AuthorizationRequest(
+            client_id='client_id', redirect_uri='https://rp.example.com/cb',
+            response_type=['id_token'], state='state', nonce='nonce',
+            scope='openid'
+        )
+
+        _ec = self.endpoint.endpoint_context
+        _ec.sdb['session_id'] = SessionInfo(
+            authn_req=request, uid='diana', sub='abcdefghijkl',
+            authn_event={'authn_info': 'loa1', 'uid': 'diana',
+                         'authn_time': utc_time_sans_frac()})
+        _ec.cdb['client_id'] = {
+            'client_id': 'client_id',
+            'redirect_uris': [('https://rp.example.com/cb', {})],
+            'id_token_signed_response_alg': 'ES256'
+        }
+
+        resp = create_authn_response(self.endpoint, request, 'session_id')
+        assert isinstance(resp['response_args'], AuthorizationErrorResponse)
+
+    def test_setup_auth(self):
+        request = AuthorizationRequest(
+            client_id='client_id', redirect_uri='https://rp.example.com/cb',
+            response_type=['id_token'], state='state', nonce='nonce',
+            scope='openid'
+        )
+        redirect_uri = request['redirect_uri']
+        cinfo = {
+            'client_id': 'client_id',
+            'redirect_uris': [('https://rp.example.com/cb', {})],
+            'id_token_signed_response_alg': 'RS256'
+        }
+
+        kaka = self.endpoint.endpoint_context.cookie_dealer.create_cookie(
+            'value', 'sso'
+        )
+
+        res = self.endpoint.setup_auth(request, redirect_uri, cinfo, kaka)
+        assert set(res.keys()) == {'authn_event', 'identity', 'user'}
+
+    def test_setup_auth_error(self):
+        request = AuthorizationRequest(
+            client_id='client_id', redirect_uri='https://rp.example.com/cb',
+            response_type=['id_token'], state='state', nonce='nonce',
+            scope='openid'
+        )
+        redirect_uri = request['redirect_uri']
+        cinfo = {
+            'client_id': 'client_id',
+            'redirect_uris': [('https://rp.example.com/cb', {})],
+            'id_token_signed_response_alg': 'RS256'
+        }
+
+        item = self.endpoint.endpoint_context.authn_broker.db['anon']
+        item['method'].fail = NoSuchAuthentication
+
+        res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
+        assert set(res.keys()) == {'function', 'args'}
+
+        item['method'].fail = ToOld
+
+        res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
+        assert set(res.keys()) == {'function', 'args'}
+
+        item['method'].file = ''
+
+    def test_setup_auth_user(self):
+        request = AuthorizationRequest(
+            client_id='client_id', redirect_uri='https://rp.example.com/cb',
+            response_type=['id_token'], state='state', nonce='nonce',
+            scope='openid'
+        )
+        redirect_uri = request['redirect_uri']
+        cinfo = {
+            'client_id': 'client_id',
+            'redirect_uris': [('https://rp.example.com/cb', {})],
+            'id_token_signed_response_alg': 'RS256'
+        }
+        _ec = self.endpoint.endpoint_context
+        _ec.sdb['session_id'] = SessionInfo(
+            authn_req=request, uid='diana', sub='abcdefghijkl',
+            authn_event={'authn_info': 'loa1', 'uid': 'diana',
+                         'authn_time': utc_time_sans_frac()})
+
+        item = _ec.authn_broker.db['anon']
+        item['method'].user = b64e(
+            as_bytes(json.dumps({'uid':'krall', 'sid':'session_id'})))
+
+        res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
+        assert set(res.keys()) == {'authn_event', 'identity', 'user'}
+        assert res['identity']['uid'] == 'krall'
+
+    def test_setup_auth_session_revoked(self):
+        request = AuthorizationRequest(
+            client_id='client_id', redirect_uri='https://rp.example.com/cb',
+            response_type=['id_token'], state='state', nonce='nonce',
+            scope='openid'
+        )
+        redirect_uri = request['redirect_uri']
+        cinfo = {
+            'client_id': 'client_id',
+            'redirect_uris': [('https://rp.example.com/cb', {})],
+            'id_token_signed_response_alg': 'RS256'
+        }
+        _ec = self.endpoint.endpoint_context
+        _ec.sdb['session_id'] = SessionInfo(
+            authn_req=request, uid='diana', sub='abcdefghijkl',
+            authn_event={'authn_info': 'loa1', 'uid': 'diana',
+                         'authn_time': utc_time_sans_frac()},
+            revoked=True)
+
+        item = _ec.authn_broker.db['anon']
+        item['method'].user = b64e(
+            as_bytes(json.dumps({'uid':'krall', 'sid':'session_id'})))
+
+        res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
+        assert set(res.keys()) == {'args', 'function'}
+
+    def test_response_mode_form_post(self):
+        request = {'response_mode': 'form_post'}
+        info = {'response_args': AuthorizationResponse(foo='bar'),
+                'return_uri':'https://example.com/cb'}
+        info = self.endpoint.response_mode(request, **info)
+        assert set(info.keys()) == {'response_args', 'return_uri',
+                                    'response_msg'}
+        assert info['response_msg'] == FORM_POST
+
+    def test_response_mode_fragment(self):
+        request = {'response_mode': 'fragment'}
+        self.endpoint.response_mode(request, fragment_enc=True)
+
+        with pytest.raises(InvalidRequest):
+            self.endpoint.response_mode(request, fragment_enc=False)
+
+        info = self.endpoint.response_mode(request)
+        assert set(info.keys()) == {'fragment_enc'}
+
+    def test_check_session_iframe(self):
+        self.endpoint.endpoint_context.provider_info[
+            'check_session_iframe'] = 'https://example.com/csi'
+        _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
+        _resp = self.endpoint.process_request(_pr_resp)
+        assert 'session_state' in _resp['response_args']
+
 
 def test_inputs():
     elems = inputs({'foo': 'bar', 'home': 'stead'})
     print(elems)
     assert elems == """<input type="hidden" name="foo" value="bar"/>
 <input type="hidden" name="home" value="stead"/>"""
+
+
+def test_acr_claims():
+    assert acr_claims({'claims': {'id_token': {'acr': {'value': 'foo'}}}}) == ['foo']
+    assert acr_claims({'claims': {'id_token': {'acr': {'values': ['foo', 'bar']}}}}) == ['foo', 'bar']
+    assert acr_claims({'claims': {'id_token': {'acr': {'values': ['foo']}}}}) == ['foo']
+    assert acr_claims({'claims': {'id_token': {'acr': {'essential': True}}}}) is None
+
+
+def test_join_query():
+    redirect_uris = [('https://rp.example.com/cb',
+                      {'foo': ['bar'], 'state': ['low']})]
+    uri = join_query(*redirect_uris[0])
+    assert uri == 'https://rp.example.com/cb?foo=bar&state=low'

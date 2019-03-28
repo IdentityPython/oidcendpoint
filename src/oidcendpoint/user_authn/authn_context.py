@@ -22,22 +22,6 @@ class AuthnBroker(object):
         self.db = {}
         self.acr2id = {}
 
-    @staticmethod
-    def exact(a, b):
-        return a == b
-
-    @staticmethod
-    def minimum(a, b):
-        return b >= a
-
-    @staticmethod
-    def maximum(a, b):
-        return b <= a
-
-    @staticmethod
-    def better(a, b):
-        return b > a
-
     def __setitem__(self, key, info):
         """
         Adds a new authentication method.
@@ -66,55 +50,13 @@ class AuthnBroker(object):
         item = self.db[key]
         return item['method'], item['acr']
 
-    @staticmethod
-    def _cmp(item0, item1):
-        v0 = item0[0]
-        v1 = item1[0]
-        if v0 > v1:
-            return 1
-        elif v0 == v1:
-            return 0
-        else:
-            return -1
-
-    def _pick_by_class_ref(self, acr, comparision_type="exact"):
-        func = getattr(self, comparision_type)
-
+    def _pick_by_class_ref(self, acr):
         try:
             _ids = self.acr2id[acr]
         except KeyError:
             return []
         else:
-            _item = self.db[_ids[0]]
-            _level = _item["level"]
-            if comparision_type != "better":
-                if _item["method"]:
-                    res = [(_level, _item["method"], _item["acr"])]
-                else:
-                    res = []
-            else:
-                res = []
-
-            for ref in _ids[1:]:
-                item = self.db[ref]
-                res.append((item["level"], item["method"], item["acr"]))
-                if func(_level, item["level"]):
-                    _level = item["level"]
-            res_other = []
-            if comparision_type != "exact":
-                for id, _dic in self.db.items():
-                    if id in _ids:
-                        continue
-                    elif func(_level, _dic["level"]):
-                        if _dic["method"]:
-                            _val = (_dic["level"], _dic["method"], _dic["acr"])
-                            if _val not in res:
-                                res_other.append(_val)
-            res.extend(res_other)
-            # sort on level
-            res.sort(key=cmp_to_key(self._cmp), reverse=True)
-
-            return [(b, c) for a, b, c in res]
+            return [self.db[_i] for _i in _ids]
 
     def get_method(self, cls_name):
         """
@@ -131,25 +73,20 @@ class AuthnBroker(object):
     def get_method_by_id(self, id):
         return self[id]
 
-    def pick(self, acr=None, comparision_type="minimum"):
+    def pick(self, acr=None):
         """
-        Given the authentication context find zero or more places where
-        the user could be sent next. Ordered according to security level.
+        Given the authentication context find zero or more authn methods
+        that could be used.
 
         :param acr: The authentication class reference requested
-        :param comparision_type: If the caller wants exact, at a minimum,
-            ... this level
         :return: An URL
         """
 
-        if not comparision_type:
-            comparision_type = "minimum"
-
         if acr is None:
             # Anything else doesn't make sense
-            return self._pick_by_class_ref(UNSPECIFIED, "minimum")
+            return self.db.values()
         else:
-            return self._pick_by_class_ref(acr, comparision_type)
+            return self._pick_by_class_ref(acr)
 
     @staticmethod
     def match(requested, provided):
@@ -158,7 +95,7 @@ class AuthnBroker(object):
         else:
             return False
 
-    def getAcrValuesString(self):
+    def get_acr_value_string(self):
         acr_values = None
         for item in self.db.values():
             if acr_values is None:
@@ -195,49 +132,35 @@ class AuthnBroker(object):
             return None
 
 
-def pick_auth(endpoint_context, areq, comparision_type=""):
+def pick_auth(endpoint_context, areq):
     """
     Pick authentication method
 
     :param areq: AuthorizationRequest instance
-    :param comparision_type: How to pick the authentication method
     :return: An authentication method and its authn class ref
     """
-    if comparision_type == "any":
-        return endpoint_context.authn_broker.default()
 
     try:
         if len(endpoint_context.authn_broker) == 1:
             return endpoint_context.authn_broker.default()
         elif "acr_values" in areq:
-            if not comparision_type:
-                comparision_type = "exact"
-
             if not isinstance(areq["acr_values"], list):
                 areq["acr_values"] = [areq["acr_values"]]
-
-            for acr in areq["acr_values"]:
-                res = endpoint_context.authn_broker.pick(acr, comparision_type)
-                logger.debug("Picked AuthN broker for ACR %s: %s" % (
-                    str(acr), str(res)))
-                if res:
-                    # Return the best guess by pick.
-                    item = res[0]
-                    return item['method'], item['acr']
+            acrs = areq["acr_values"]
         else:  # same as any
             try:
                 acrs = areq["claims"]["id_token"]["acr"]["values"]
             except KeyError:
                 return endpoint_context.authn_broker.default()
-            else:
-                for acr in acrs:
-                    res = endpoint_context.authn_broker.pick(acr, comparision_type)
-                    logger.debug("Picked AuthN broker for ACR %s: %s" % (
-                        str(acr), str(res)))
-                    if res:
-                        # Return the best guess by pick.
-                        item = res[0]
-                        return item['method'], item['acr']
+
+        for acr in acrs:
+            res = endpoint_context.authn_broker.pick(acr)
+            logger.debug("Picked AuthN broker for ACR %s: %s" % (
+                str(acr), str(res)))
+            if res:
+                # Return the best guess by pick.
+                item = res[0]
+                return item['method'], item['acr']
 
     except KeyError as exc:
         logger.debug(

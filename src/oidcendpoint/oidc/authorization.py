@@ -4,6 +4,7 @@ import time
 from urllib.parse import parse_qs
 from urllib.parse import splitquery
 from urllib.parse import unquote
+from urllib.parse import urlencode
 from urllib.parse import urlparse
 
 from cryptojwt import BadSyntax
@@ -25,6 +26,7 @@ from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.cookie import compute_session_state
+from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
@@ -33,7 +35,6 @@ from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
-from oidcendpoint.cookie import new_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
 
     :param endpoint_context:
     :param request:
-    :param uri_type:
+    :param uri_type: redirect_uri/post_logout_redirect_uri
     :return: An error response if the redirect URI is faulty otherwise
         None
     """
@@ -117,55 +118,65 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
         logger.error('No client id found')
         raise UnknownClient('No client_id provided')
 
+    _redirect_uri = unquote(request[uri_type])
+
+    part = urlparse(_redirect_uri)
+    if part.fragment:
+        raise URIError("Contains fragment")
+
+    (_base, _query) = splitquery(_redirect_uri)
+    if _query:
+        _query = parse_qs(_query)
+
+    match = False
     try:
-        _redirect_uri = unquote(request[uri_type])
-
-        part = urlparse(_redirect_uri)
-        if part.fragment:
-            raise URIError("Contains fragment")
-
-        (_base, _query) = splitquery(_redirect_uri)
-        if _query:
-            _query = parse_qs(_query)
-
-        match = False
-        for regbase, rquery in endpoint_context.cdb[_cid]['{}s'.format(uri_type)]:
+        values = endpoint_context.cdb[_cid]['{}s'.format(uri_type)]
+    except KeyError:
+        raise ValueError('No registered {}'.format(uri_type))
+    else:
+        for regbase, rquery in values:
             # The URI MUST exactly match one of the Redirection URI
             if _base == regbase:
                 # every registered query component must exist in the uri
                 if rquery:
+                    if not _query:
+                        raise ValueError('Missing query part')
+
                     for key, vals in rquery.items():
-                        assert key in _query
+                        if key not in _query:
+                            raise ValueError('"{}" not in query part'.format(key))
+
                         for val in vals:
-                            assert val in _query[key]
+                            if val not in _query[key]:
+                                raise ValueError('{}={} value not in query part'.format(key,val))
+
                 # and vice versa, every query component in the uri
                 # must be registered
                 if _query:
-                    if rquery is None:
-                        raise ValueError
+                    if not rquery:
+                        raise ValueError('No registered query part')
+
                     for key, vals in _query.items():
-                        assert key in rquery
+                        if key not in rquery:
+                            raise ValueError('"{}" extra in query part'.format(key))
                         for val in vals:
-                            assert val in rquery[key]
+                            if val not in rquery[key]:
+                                raise ValueError('Extra {}={} value in query part'.format(key, val))
                 match = True
                 break
         if not match:
             raise RedirectURIError("Doesn't match any registered uris")
 
-    except Exception:
-        try:
-            _cinfo = endpoint_context.cdb[str(_cid)]
-        except KeyError:
-            raise ValueError('Unknown client: {}'.format(_cid))
-        else:
-            logger.info("Registered {}s: {}".format(uri_type, sanitize(_cinfo)))
-            raise RedirectURIError(
-                "Faulty {}: {}".format(uri_type, request[uri_type]))
-
 
 def join_query(base, queryp):
+    """
+
+    :param base: URL base
+    :param queryp: query part as a dictionary
+    :return:
+    """
     if queryp:
-        return '{}?{}'.format(base, queryp)
+        return '{}?{}'.format(base, urlencode(queryp, doseq=True))
     else:
         return base
 
@@ -412,27 +423,25 @@ class Authorization(Endpoint):
             acrs = [acr]
 
         if acrs:
+            tup = (None, None)
             # If acr claims are present the picked acr value MUST match
             # one of the given
-            tup = (None, None)
             for acr in acrs:
-                res = _context.authn_broker.pick(acr, "exact")
+                res = _context.authn_broker.pick(acr)
                 logger.debug("Picked AuthN broker for ACR %s: %s" % (
                     str(acr), str(res)))
                 if res:  # Return the best guess by pick.
-                    tup = res[0]
+                    tup = res[0]['method'], res[0]['acr']
                     break
             authn, authn_class_ref = tup
         else:
             authn, authn_class_ref = pick_auth(_context, request)
-            if not authn:
-                authn, authn_class_ref = pick_auth(_context, request, "better")
-                if not authn:
-                    authn, authn_class_ref = pick_auth(_context, request, "any")
 
         if authn is None:
-            return {'error': "access_denied", 'return_uri': redirect_uri,
-                    'return_type': request["response_type"]}
+            return {
+                'error': "access_denied", 'return_uri': redirect_uri,
+                'return_type': request["response_type"]
+            }
         else:
             logger.info('Authentication class: {}, acr: {}'.format(
                 authn.__class__.__name__, authn_class_ref))
@@ -486,15 +495,15 @@ class Authorization(Endpoint):
             _ts = 0
         else:
             if identity:
-                try:
+                try:  # If identity['uid'] is in fact a base64 encoded JSON string
                     _id = b64d(as_bytes(identity['uid']))
                 except BadSyntax:
                     pass
                 else:
-                    _info = json.loads(as_unicode(_id))
+                    identity = json.loads(as_unicode(_id))
 
                     try:
-                        session = self.endpoint_context.sdb[_info['sid']]
+                        session = self.endpoint_context.sdb[identity['sid']]
                     except KeyError:
                         identity = None
                     else:
@@ -546,7 +555,7 @@ class Authorization(Endpoint):
                                          authn_info=authn_class_ref,
                                          time_stamp=_ts)
         try:
-            authn_event['valid_until'] = time.time()+authn.kwargs['expires_in']
+            authn_event['valid_until'] = time.time() + authn.kwargs['expires_in']
         except KeyError:
             pass
 
@@ -562,15 +571,21 @@ class Authorization(Endpoint):
                 inputs=inputs(kwargs["response_args"].to_dict()),
                 action=kwargs["return_uri"])
             kwargs['response_msg'] = msg
-            return kwargs
-        elif resp_mode == 'fragment' and not kwargs['fragment_enc']:
-            # Can't be done
-            raise InvalidRequest("wrong response_mode")
-        elif resp_mode == 'query' and kwargs['fragment_enc']:
-            # Can't be done
-            raise InvalidRequest("wrong response_mode")
+        elif resp_mode == 'fragment':
+            if 'fragment_enc' in kwargs:
+                if not kwargs['fragment_enc']:
+                    # Can't be done
+                    raise InvalidRequest("wrong response_mode")
+            else:
+                kwargs['fragment_enc'] = True
+        elif resp_mode == 'query':
+            if 'fragment_enc' in kwargs:
+                if kwargs['fragment_enc']:
+                    # Can't be done
+                    raise InvalidRequest("wrong response_mode")
         else:
             raise InvalidRequest("Unknown response_mode")
+        return kwargs
 
     def error_response(self, response_info, error, error_description):
         resp = AuthorizationErrorResponse(

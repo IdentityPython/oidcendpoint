@@ -19,6 +19,7 @@ from oidcendpoint.exception import FailedAuthentication, OnlyForTestingWarning
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import InvalidCookieSign
+from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import ToOld
 from oidcendpoint.util import instantiate
 
@@ -366,6 +367,7 @@ class NoAuthn(UserAuthnMethod):
     def __init__(self, user, endpoint_context=None):
         UserAuthnMethod.__init__(self, endpoint_context)
         self.user = user
+        self.fail = None
 
     def authenticated_as(self, cookie=None, authorization="", **kwargs):
         """
@@ -375,6 +377,9 @@ class NoAuthn(UserAuthnMethod):
         :param kwargs: extra key word arguments
         :return:
         """
+
+        if self.fail:
+            raise self.fail()
 
         return {"uid": self.user}, time.time()
 

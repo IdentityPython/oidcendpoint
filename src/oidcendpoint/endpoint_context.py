@@ -307,7 +307,7 @@ class EndpointContext(object):
 
         # acr_values
         if self.authn_broker:
-            acr_values = self.authn_broker.getAcrValuesString()
+            acr_values = self.authn_broker.get_acr_value_string()
             if acr_values is not None:
                 _provider_info["acr_values_supported"] = acr_values
 
