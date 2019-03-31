@@ -56,10 +56,13 @@ logger = logging.getLogger(__name__)
 
 def match_sp_sep(first, second):
     """
+    Verify that all the values in 'first' appear in 'second'.
+    The values can either be in the form of lists or as space separated
+    items.
 
     :param first:
     :param second:
-    :return:
+    :return: True/False
     """
     if isinstance(first, list):
         one = [set(v.split(" ")) for v in first]
@@ -71,7 +74,8 @@ def match_sp_sep(first, second):
     else:
         other = [{v} for v in second.split(" ")]
 
-    if not any(rt in one for rt in other):
+    # all values in one must appear in other
+    if any(rt not in other for rt in one):
         return False
     return True
 
@@ -175,24 +179,7 @@ class Registration(Endpoint):
                     "sector_id"] = self._verify_sector_identifier(request)
             except InvalidSectorIdentifier as err:
                 return ResponseMessage(error="invalid_configuration_parameter",
-                                       error_description=err)
-        elif "redirect_uris" in request:
-            if len(request["redirect_uris"]) > 1:
-                # check that the hostnames are the same
-                host = ""
-                for url in request["redirect_uris"]:
-                    part = urlparse(url)
-                    _host = part.netloc.split(":")[0]
-                    if not host:
-                        host = _host
-                    else:
-                        try:
-                            assert host == _host
-                        except AssertionError:
-                            return ResponseMessage(
-                                error="invalid_configuration_parameter",
-                                error_description="'sector_identifier_uri' "
-                                                  "must be registered")
+                                       error_description=str(err))
 
         for item in ["policy_uri", "logo_uri", "tos_uri"]:
             if item in request:
@@ -228,24 +215,19 @@ class Registration(Endpoint):
             if item in request:
                 t[item] = request[item]
 
+        # if it can't load keys because the URL is false it will
+        # just silently fail. Waiting for better times.
+        _context.keyjar.load_keys(client_id,
+                                  jwks_uri=t['jwks_uri'],
+                                  jwks=t['jwks'])
         try:
-            _context.keyjar.load_keys(client_id,
-                                      jwks_uri=t['jwks_uri'],
-                                      jwks=t['jwks'])
-            try:
-                n_keys = len(_context.keyjar[client_id])
-                msg = "found {} keys for client_id={}"
-                logger.debug(msg.format(n_keys, client_id))
-            except KeyError:
-                pass
-        except Exception as err:
-            logger.error(
-                "Failed to load client keys: %s" % sanitize(request.to_dict()))
-            logger.error("%s", err)
-            logger.debug('Verify SSL: {}'.format(_context.keyjar.verify_ssl))
-            return ClientRegistrationErrorResponse(
-                error="invalid_configuration_parameter",
-                error_description="%s" % err)
+            n_keys = 0
+            for kb in _context.keyjar[client_id]:
+                n_keys += len(kb.keys())
+            msg = "found {} keys for client_id={}"
+            logger.debug(msg.format(n_keys, client_id))
+        except KeyError:
+            pass
 
         return _cinfo
 
@@ -269,10 +251,11 @@ class Registration(Endpoint):
             must_https = False
 
         for uri in registration_request["redirect_uris"]:
+            _custom = False
             p = urlparse(uri)
             if client_type == "native":
                 if p.scheme not in ['http', 'https']:  # Custom scheme
-                    pass
+                    _custom = True
                 elif p.scheme == "http" and p.hostname in ["localhost",
                                                            "127.0.0.1"]:
                     pass
@@ -285,14 +268,20 @@ class Registration(Endpoint):
             elif must_https and p.scheme != "https":
                 raise InvalidRedirectURIError(
                     "None https redirect_uri not allowed")
+            elif p.scheme not in ['http', 'https']:  # Custom scheme
+                raise InvalidRedirectURIError(
+                    "Custom redirect_uri not allowed for web client")
             elif p.fragment:
                 raise InvalidRedirectURIError("redirect_uri contains fragment")
 
-            base, query = splitquery(uri)
-            if query:
-                verified_redirect_uris.append((base, parse_qs(query)))
+            if _custom is True:  # Can not verify a custom scheme
+                verified_redirect_uris.append((uri, {}))
             else:
-                verified_redirect_uris.append((base, query))
+                base, query = splitquery(uri)
+                if query:
+                    verified_redirect_uris.append((base, parse_qs(query)))
+                else:
+                    verified_redirect_uris.append((base, {}))
 
         return verified_redirect_uris
 
@@ -307,13 +296,13 @@ class Registration(Endpoint):
         """
         si_url = request["sector_identifier_uri"]
         try:
-            res = self.endpoint_context.http(si_url)
-        except ConnectionError as err:
+            res = self.endpoint_context.httpc.get(si_url)
+        except Exception as err:
             logger.error(err)
             res = None
 
         if not res:
-            raise InvalidSectorIdentifier("Couldn't open sector_identifier_uri")
+            raise InvalidSectorIdentifier("Couldn't read from sector_identifier_uri")
 
         logger.debug("sector_identifier_uri => %s", sanitize(res.text))
 
@@ -353,13 +342,9 @@ class Registration(Endpoint):
     def client_registration_setup(self, request, new_id=True, set_secret=True):
         try:
             request.verify()
-        except MessageException as err:
-            if "type" not in request:
-                return ResponseMessage(error="invalid_type",
-                                       error_description="%s" % err)
-            else:
-                return ResponseMessage(error="invalid_configuration_parameter",
-                                       error_description="%s" % err)
+        except (MessageException, ValueError) as err:
+            return ResponseMessage(error="invalid_configuration_request",
+                                   error_description="%s" % err)
 
         request.rm_blanks()
         try:
@@ -441,7 +426,12 @@ class Registration(Endpoint):
 
     def process_request(self, request=None, new_id=True, set_secret=True,
                         **kwargs):
-        reg_resp = self.client_registration_setup(request, new_id, set_secret)
+        try:
+            reg_resp = self.client_registration_setup(request, new_id,
+                                                      set_secret)
+        except Exception as err:
+            return ResponseMessage(error="invalid_configuration_request",
+                                   error_description="%s" % err)
 
         if 'error' in reg_resp:
             return reg_resp

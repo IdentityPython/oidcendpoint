@@ -1,20 +1,18 @@
 import copy
 import json
 import os
-from http.cookies import SimpleCookie
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 import pytest
-from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.key_jar import build_keyjar
 from oidcmsg.message import Message
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
-from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.cookie import CookieDealer
+from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.oidc import userinfo
@@ -27,7 +25,6 @@ from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcendpoint.cookie import new_cookie
 
 ISS = "https://example.com/"
 
@@ -79,58 +76,6 @@ def full_path(local_file):
 
 
 USERINFO_db = json.loads(open(full_path('users.json')).read())
-
-
-class SimpleCookieDealer(object):
-    def __init__(self, name=''):
-        self.name = name
-
-    def create_cookie(self, value, typ, **kwargs):
-        cookie = SimpleCookie()
-        timestamp = str(utc_time_sans_frac())
-
-        _payload = "::".join([value, timestamp, typ])
-
-        bytes_load = _payload.encode("utf-8")
-        bytes_timestamp = timestamp.encode("utf-8")
-
-        cookie_payload = [bytes_load, bytes_timestamp]
-        cookie[self.name] = (b"|".join(cookie_payload)).decode('utf-8')
-        try:
-            ttl = kwargs['ttl']
-        except KeyError:
-            pass
-        else:
-            cookie[self.name]["expires"] = in_a_while(seconds=ttl)
-        return cookie
-
-    def get_cookie_value(self, cookie=None, cookie_name=None):
-        if not cookie_name:
-            cookie_name = self.name
-
-        if cookie is None or cookie_name is None:
-            return None
-        else:
-            if isinstance(cookie, list):
-                for kaka in cookie:
-                    try:
-                        info, timestamp = kaka[cookie_name].value.split('|')
-                    except (TypeError, AssertionError):
-                        return None
-                    else:
-                        value = info.split("::")
-                        if timestamp == value[1]:
-                            return value
-            else:
-                try:
-                    part = cookie[cookie_name].value.split('|')
-                except (TypeError, AssertionError):
-                    return None
-                else:
-                    value = part[0].split("::")
-                    if part[1] == value[1]:
-                        return value
-        return None
 
 
 class TestEndpoint(object):
@@ -281,8 +226,8 @@ class TestEndpoint(object):
         _sid = self._get_sid()
         cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
-        resp = self.session_endpoint.process_request(
-            {"state": 'abcde'}, cookie=cookie)
+        _req_args = self.session_endpoint.parse_request({"state": 'abcde'})
+        resp = self.session_endpoint.process_request(_req_args, cookie=cookie)
 
         # returns a signed JWT to be put in a verification web page shown to
         # the user
@@ -506,72 +451,14 @@ class TestEndpoint(object):
         with pytest.raises(KeyError):
             _ = self.session_endpoint.endpoint_context.sdb[_sid]
 
-    # def test_authn_then_end_with_state(self):
-    #     _req = self.authn_endpoint.parse_request(AUTH_REQ_DICT)
-    #     _authn_resp = self.authn_endpoint.process_request(_req)
-    #     msg = self.authn_endpoint.do_response(**_authn_resp)
-    #     assert isinstance(msg, dict)
-    #     _req = self.session_endpoint.parse_request({
-    #         'state': 'STATE',
-    #         'post_logout_redirect_uri': '{}logout_cb'.format(ISS)
-    #         })
-    #
-    #     _resp = self.session_endpoint.process_request(_req,
-    #                                                   cookie=msg['cookie'])
-    #     assert _resp['sjwt']
-    #     _resp = self.session_endpoint.do_response(request=_req, **_resp)
-    #     assert _resp
-    #     # Trying to use 'code' after logout
-    #     _code = _authn_resp['response_args']['code']
-    #     _token_request = {
-    #         'client_id': 'client_1',
-    #         'redirect_uri': '{}cb'.format(ISS),
-    #         "state": 'STATE',
-    #         "grant_type": 'authorization_code',
-    #         "client_secret": 'hemligt',
-    #         'code': _code
-    #     }
-    #     _req = self.token_endpoint.parse_request(_token_request)
-    #     _resp = self.token_endpoint.process_request(_req)
-    #     assert isinstance(_resp, TokenErrorResponse)
-    #     assert _resp['error'] == 'invalid_request'
-    #
-    # def test_authn_then_end_with_id_token(self):
-    #     _req = self.authn_endpoint.parse_request(AUTH_REQ_DICT)
-    #     _authn_resp = self.authn_endpoint.process_request(_req)
-    #     msg = self.authn_endpoint.do_response(**_authn_resp)
-    #     assert isinstance(msg, dict)
-    #     _sid = self.authn_endpoint.endpoint_context.sdb.get_sid_by_kv(
-    #         'state', 'STATE')
-    #     session = self.authn_endpoint.endpoint_context.sdb[_sid]
-    #     # Create ID Token
-    #     _id_info = {'sub': session['sub']}
-    #     _jwt = JWT(key_jar=self.authn_endpoint.endpoint_context.keyjar,
-    #                iss=self.authn_endpoint.endpoint_context.issuer,
-    #                lifetime=3600)
-    #     _id_token = _jwt.pack(_id_info,
-    #                           owner=self.authn_endpoint.endpoint_context.issuer,
-    #                           recv='client_id')
-    #     _req = self.session_endpoint.parse_request({
-    #         'id_token_hint': _id_token,
-    #         'post_logout_redirect_uri': '{}logout_cb'.format(ISS)
-    #         })
-    #     _resp = self.session_endpoint.process_request(_req,
-    #                                                   cookie=msg['cookie'])
-    #     assert _resp['response_args'] == '{}logout_cb'.format(ISS)
-    #     _resp = self.session_endpoint.do_response(request=_req, **_resp)
-    #     assert _resp
-    #     # Trying to use 'code' after logout
-    #     _code = _authn_resp['response_args']['code']
-    #     _token_request = {
-    #         'client_id': 'client_1',
-    #         'redirect_uri': '{}cb'.format(ISS),
-    #         "state": 'STATE',
-    #         "grant_type": 'authorization_code',
-    #         "client_secret": 'hemligt',
-    #         'code': _code
-    #     }
-    #     _req = self.token_endpoint.parse_request(_token_request)
-    #     _resp = self.token_endpoint.process_request(request=_req)
-    #     assert isinstance(_resp, TokenErrorResponse)
-    #     assert _resp['error'] == 'invalid_request'
+    def test_do_verified_logout(self, requests_mock):
+        requests_mock.post('https://example.com/bc_logout', text='OK')
+        self._code_auth('1234567')
+        _cdb = self.session_endpoint.endpoint_context.cdb
+        _cdb['client_1']['backchannel_logout_uri'] = 'https://example.com/bc_logout'
+        _cdb['client_1']['client_id'] = 'client_1'
+
+        _sid = self._get_sid()
+
+        res = self.session_endpoint.do_verified_logout(_sid, 'client_1')
+        assert res == []

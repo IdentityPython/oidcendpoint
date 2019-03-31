@@ -66,7 +66,7 @@ setup(
         "jinja2"
         ],
     tests_require=[
-        "pytest"
+        "pytest", "requests_mock", 'pytest-localserver'
         ],
     zip_safe=False,
     cmdclass={'test': PyTest},

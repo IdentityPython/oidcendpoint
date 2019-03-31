@@ -1,18 +1,17 @@
 # -*- coding: latin-1 -*-
 import json
+
 import pytest
-
-from cryptojwt.key_jar import build_keyjar
-
 from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import RegistrationResponse
 
+from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.registration import match_sp_sep
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.oidc import userinfo
-from oidcendpoint.endpoint_context import EndpointContext
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},
@@ -45,7 +44,6 @@ msg = {
                       "https://client.example.org/callback2"],
     "client_name": "My Example",
     "client_name#ja-Jpan-JP": "クライアント名",
-    "logo_uri": "https://client.example.org/logo.png",
     "subject_type": "pairwise",
     "token_endpoint_auth_method": "client_secret_basic",
     "jwks_uri": "https://client.example.org/my_public_keys.jwks",
@@ -53,8 +51,13 @@ msg = {
     "userinfo_encrypted_response_enc": "A128CBC-HS256",
     "contacts": ["ve7jtb@example.org", "mary@example.org"],
     "request_uris": [
+        "https://client.example.org/rf.txt#qpXaRLh_n93TT",
         "https://client.example.org/rf.txt"
-        "#qpXaRLh_n93TTR9F252ValdatUQvQiJi5BDub2BeznA"]
+    ],
+    "post_logout_redirect_uris": [
+        'https://rp.example.com/pl?foo=bar',
+        'https://rp.example.com/pl',
+    ]
 }
 
 CLI_REQ = RegistrationRequest(**msg)
@@ -128,3 +131,92 @@ class TestEndpoint(object):
         assert isinstance(msg, dict)
         _msg = json.loads(msg['response'])
         assert _msg
+
+    def test_register_unsupported_str(self):
+        _msg = msg.copy()
+        _msg['id_token_signed_response_alg'] = 'XYZ256'
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert _resp['error'] == 'invalid_request'
+
+    def test_register_unsupported_set(self):
+        _msg = msg.copy()
+        _msg['grant_types'] = ['authorization_code', 'external']
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert _resp['error'] == 'invalid_request'
+
+    def test_register_post_logout_redirect_uri_with_fragment(self):
+        _msg = msg.copy()
+        _msg['post_logout_redirect_uris'] = ['https://rp.example.com/pl#fragment']
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert _resp['error'] == 'invalid_configuration_parameter'
+
+    def test_register_redirect_uri_with_fragment(self):
+        _msg = msg.copy()
+        _msg['post_logout_redirect_uris'] = ['https://rp.example.com/cb#fragment']
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert _resp['error'] == 'invalid_configuration_parameter'
+
+    def test_register_sector_identifier_uri(self):
+        _msg = msg.copy()
+        _msg['sector_identifier_uri'] = 'https://rp.example.com/si#fragment'
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert _resp['error'] == 'invalid_configuration_parameter'
+
+    def test_register_alg_keys(self):
+        _msg = msg.copy()
+        _msg['id_token_signed_response_alg'] = 'RS256'
+        _msg['userinfo_signed_response_alg'] = 'ES256'
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert 'response_args' in _resp
+
+    def test_register_custom_redirect_uri_web(self):
+        _msg = msg.copy()
+        _msg['redirect_uris'] = ['custom://cb.example.com']
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert 'error' in _resp
+
+    def test_register_custom_redirect_uri_native(self):
+        _msg = msg.copy()
+        _msg['redirect_uris'] = ['custom://cb.example.com']
+        _msg['application_type'] = 'native'
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert 'response_args' in _resp
+
+    def test_sector_uri_missing_redirect_uri(self, httpserver):
+        _msg = msg.copy()
+        _msg['redirect_uris'] = ['custom://cb.example.com']
+        _msg['application_type'] = 'native'
+        _msg['sector_identifier_uri'] = httpserver.url
+
+        httpserver.serve_content(json.dumps(['https://example.com',
+                                             'https://example.org']),
+                                 headers={'Content-Type': 'application/json'})
+        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert 'error' in _resp
+
+    def test_incorrect_request(self):
+        _msg = msg.copy()
+        _msg['default_max_age'] = 'five'
+        with pytest.raises(ValueError):
+            self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+
+
+def test_match_sp_sep():
+    assert match_sp_sep('foo bar', 'bar foo')
+    assert match_sp_sep(['foo', 'bar'], 'bar foo')
+    assert match_sp_sep('foo bar', ['bar', 'foo'])
+    assert match_sp_sep(['foo', 'bar'], ['bar', 'foo'])
+
+    assert match_sp_sep('foo bar exp', 'bar foo') is False
+    assert match_sp_sep(['foo', 'bar', 'exp'], 'bar foo') is False
+    assert match_sp_sep('foo bar exp', ['bar', 'foo']) is False
+    assert match_sp_sep(['foo', 'bar', 'exp'], ['bar', 'foo']) is False

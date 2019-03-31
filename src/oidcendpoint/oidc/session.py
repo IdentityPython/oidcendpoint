@@ -63,28 +63,6 @@ class Session(Endpoint):
     response_placement = 'url'
     endpoint_name = 'end_session_endpoint'
 
-    def do_response(self, response_args=None, request=None, error='', **kwargs):
-        """
-        Gather response information
-
-        :param response_args: Things that should be in the response
-        :param request: The original request
-        :param error: Possible error message
-        :param kwargs: Extra keyword arguments
-        :return: A dictionary with 2 keys 'response' and ' http_headers'
-        """
-        if error:
-            return Endpoint.do_response(self, response_args, request,
-                                        error, **kwargs)
-
-        http_headers = [('Content-type', URL_ENCODED)]
-        http_headers.extend(OAUTH2_NOCACHE_HEADERS)
-
-        _resp = '{}?{}'.format(self.kwargs['logout_uri'],
-                               urlencode(kwargs))
-
-        return {'response': _resp, 'http_headers': http_headers}
-
     def do_back_channel_logout(self, cinfo, sub, sid):
         """
 

@@ -2,6 +2,8 @@ import json
 import os
 
 import pytest
+from cryptojwt.jwt import utc_time_sans_frac
+
 from oidcendpoint import user_info
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
@@ -135,11 +137,27 @@ class TestEndpoint(object):
         assert self.endpoint
 
     def test_parse(self):
-        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
-                                   uid='userID')
+        session_id = setup_session(
+            self.endpoint.endpoint_context, AUTH_REQ, uid='userID',
+            authn_event={'authn_info': 'loa1', 'uid': 'diana',
+                         'authn_time': utc_time_sans_frac(),
+                         'valid_until': utc_time_sans_frac() + 3600})
         _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
             key=session_id)
         _req = self.endpoint.parse_request(
             {}, auth="Bearer {}".format(_dic['access_token']))
 
         assert set(_req.keys()) == {'client_id', 'access_token'}
+
+    def test_process_request(self):
+        session_id = setup_session(
+            self.endpoint.endpoint_context, AUTH_REQ, uid='userID',
+            authn_event={'authn_info': 'loa1', 'uid': 'diana',
+                         'authn_time': utc_time_sans_frac(),
+                         'valid_until': utc_time_sans_frac() + 3600})
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
+            key=session_id)
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(_dic['access_token']))
+        resp = self.endpoint.process_request(_req)
+        assert resp
