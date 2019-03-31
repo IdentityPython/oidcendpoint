@@ -88,16 +88,17 @@ class Endpoint(object):
             if isinstance(request, dict):
                 req = self.request_cls(**request)
             else:
+                _cls_inst = self.request_cls()
                 if self.request_format == 'jwt':
-                    req = self.request_cls().deserialize(
+                    req = _cls_inst.deserialize(
                         request, "jwt", keyjar=self.endpoint_context.keyjar,
                         verify=self.endpoint_context.verify_ssl, **kwargs)
                 elif self.request_format == 'url':
                     parts = urlparse(request)
                     scheme, netloc, path, params, query, fragment = parts[:6]
-                    req = self.request_cls().deserialize(query, 'urlencoded')
+                    req = _cls_inst.deserialize(query, 'urlencoded')
                 else:
-                    req = self.request_cls().deserialize(request,
+                    req = _cls_inst.deserialize(request,
                                                          self.request_format)
         else:
             req = self.request_cls()

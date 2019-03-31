@@ -108,24 +108,6 @@ class AccessToken(Endpoint):
 
         return by_schema(AccessTokenResponse, **_info)
 
-    def _refresh_access_token(self, req, **kwargs):
-        _sdb = self.endpoint_context.sdb
-
-        client_id = str(req['client_id'])
-
-        if req["grant_type"] != "refresh_token":
-            return self.error_cls(error='invalid_request',
-                                  error_description='Wrong grant_type')
-
-        rtoken = req["refresh_token"]
-        try:
-            _info = _sdb.refresh_token(rtoken, client_id=client_id)
-        except ExpiredToken:
-            return self.error_cls(error="invalid_request",
-                                  error_description="Refresh token is expired")
-
-        return by_schema(AccessTokenResponse, **_info)
-
     def client_authentication(self, request, auth=None, **kwargs):
         try:
             auth_info = verify_client(self.endpoint_context, request, auth)
@@ -164,16 +146,6 @@ class AccessToken(Endpoint):
             if state != request['state']:
                 logger.error('State value mismatch')
                 return self.error_cls(error="unauthorized_client")
-
-        if "refresh_token" in request:
-            request = RefreshAccessTokenRequest(**request.to_dict())
-
-            try:
-                keyjar = self.endpoint_context.keyjar
-            except AttributeError:
-                keyjar = ""
-
-            request.verify(keyjar=keyjar, opponent_id=client_id)
 
         if "client_id" not in request:  # Optional for access token request
             request["client_id"] = client_id

@@ -1,21 +1,20 @@
 import json
-
 import os
-import pytest
-import time
 
-from oidcendpoint.session import setup_session
+import pytest
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RefreshAccessTokenRequest
 
-from oidcendpoint.oidc import userinfo
 from oidcendpoint.client_authn import verify_client
+from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
+from oidcendpoint.oidc.refresh_token import RefreshAccessToken
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -55,6 +54,10 @@ TOKEN_REQ = AccessTokenRequest(client_id='client_1',
                                state='STATE',
                                grant_type='authorization_code',
                                client_secret='hemligt')
+
+REFRESH_TOKEN_REQ = RefreshAccessTokenRequest(grant_type="refresh_token",
+                                              client_id='client_1',
+                                              client_secret='hemligt')
 
 TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
 
@@ -102,6 +105,11 @@ class TestEndpoint(object):
                 'token': {
                     'path': '{}/token',
                     'class': AccessToken,
+                    'kwargs': {}
+                },
+                'refresh_token': {
+                    'path': '{}/token',
+                    'class': RefreshAccessToken,
                     'kwargs': {}
                 },
                 'userinfo': {
@@ -173,4 +181,3 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
         msg = self.endpoint.do_response(request=_req, **_resp)
         assert isinstance(msg, dict)
-
