@@ -13,16 +13,17 @@ from jinja2 import FileSystemLoader
 from oidcmsg.oidc import IdToken
 from oidcmsg.oidc import SCOPE2CLAIMS
 
-from oidcendpoint import authz, util
+from oidcendpoint import authz
 from oidcendpoint import rndstr
+from oidcendpoint import util
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
-from oidcendpoint.user_authn.authn_context import AuthnBroker
-from oidcendpoint.util import build_endpoints, instantiate
+from oidcendpoint.user_authn.authn_context import populate_authn_broker
+from oidcendpoint.util import build_endpoints
 
 logger = logging.getLogger(__name__)
 
@@ -72,35 +73,6 @@ def add_path(url, path):
             return '{}{}'.format(url, path)
         else:
             return '{}/{}'.format(url, path)
-
-
-def populate_authn_broker(methods, endpoint_context, template_handler=None):
-    """
-
-    :param methods: Authentication method specifications
-    :param endpoint_context:
-    :param template_handler: A class used to render templates
-    :return:
-    """
-    authn_broker = AuthnBroker()
-
-    for id, authn_spec in methods.items():
-        try:
-            _args = authn_spec['kwargs']
-        except KeyError:
-            _args = {}
-
-        if 'template' in _args:
-            _args['template_handler'] = template_handler
-
-        _args['endpoint_context'] = endpoint_context
-
-        args = {'method': instantiate(authn_spec['class'], **_args)}
-        args.update({k: v for k, v in authn_spec.items() if k not in ['class', 'kwargs']})
-
-        authn_broker[id] = args
-
-    return authn_broker
 
 
 class EndpointContext(object):

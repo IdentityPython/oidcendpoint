@@ -1,5 +1,6 @@
 import logging
-from functools import cmp_to_key
+
+from oidcendpoint.util import instantiate
 
 __author__ = 'Roland Hedberg'
 
@@ -28,11 +29,11 @@ class AuthnBroker(object):
 
         :param value: A dictionary with metadata and configuration information
         """
-        
+
         for attr in ['acr', 'method']:
             if attr not in info:
                 raise ValueError('Required attribute "{}" missing'.format(attr))
-            
+
         self.db[key] = info
         try:
             self.acr2id[info['acr']].append(key)
@@ -47,8 +48,7 @@ class AuthnBroker(object):
             del self.acr2id[_acr]
 
     def __getitem__(self, key):
-        item = self.db[key]
-        return item['method'], item['acr']
+        return self.db[key]
 
     def _pick_by_class_ref(self, acr):
         try:
@@ -71,7 +71,7 @@ class AuthnBroker(object):
                 yield spec["method"]
 
     def get_method_by_id(self, id):
-        return self[id]
+        return self[id]['method']
 
     def pick(self, acr=None):
         """
@@ -87,13 +87,6 @@ class AuthnBroker(object):
             return self.db.values()
         else:
             return self._pick_by_class_ref(acr)
-
-    @staticmethod
-    def match(requested, provided):
-        if requested == provided:
-            return True
-        else:
-            return False
 
     def get_acr_value_string(self):
         acr_values = None
@@ -112,27 +105,14 @@ class AuthnBroker(object):
     def __len__(self):
         return len(self.db.keys())
 
-    def pick_by_path(self, path):
-        for key, item in self.db.items():
-            _method = item['method']
-            try:
-                _path = _method.action
-            except AttributeError:
-                continue
-            else:
-                if _path == path:
-                    return _method
-        raise KeyError('No authn method at that path')
-
     def default(self):
         if len(self.db) >= 1:
-            item = list(self.db.values())[0]
-            return item['method'], item['acr']
+            return list(self.db.values())[0]
         else:
             return None
 
 
-def pick_auth(endpoint_context, areq):
+def pick_auth(endpoint_context, areq, all=False):
     """
     Pick authentication method
 
@@ -158,13 +138,47 @@ def pick_auth(endpoint_context, areq):
             logger.debug("Picked AuthN broker for ACR %s: %s" % (
                 str(acr), str(res)))
             if res:
-                # Return the best guess by pick.
-                item = res[0]
-                return item['method'], item['acr']
+                if all:
+                    return res
+                else:
+                    # Return the first guess by pick.
+                    return res[0]
 
     except KeyError as exc:
         logger.debug(
-            "An error occured while picking the authN broker: %s" % str(exc))
+            "An error occurred while picking the authN broker: %s" % str(exc))
 
-    # return the best I have
-    return None, None
+    return None
+
+
+def init_method(authn_spec, endpoint_context, template_handler=None):
+    try:
+        _args = authn_spec['kwargs']
+    except KeyError:
+        _args = {}
+
+    if 'template' in _args:
+        _args['template_handler'] = template_handler
+
+    _args['endpoint_context'] = endpoint_context
+
+    args = {'method': instantiate(authn_spec['class'], **_args)}
+    args.update({k: v for k, v in authn_spec.items() if k not in ['class', 'kwargs']})
+    return args
+
+
+def populate_authn_broker(methods, endpoint_context, template_handler=None):
+    """
+
+    :param methods: Authentication method specifications
+    :param endpoint_context:
+    :param template_handler: A class used to render templates
+    :return:
+    """
+    authn_broker = AuthnBroker()
+
+    for id, authn_spec in methods.items():
+        args = init_method(authn_spec, endpoint_context, template_handler)
+        authn_broker[id] = args
+
+    return authn_broker

@@ -1,22 +1,17 @@
 import logging
 
-from cryptojwt.jwe.exception import JWEException
-from cryptojwt.jws.exception import NoSuitableSigningKeys
-
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AccessTokenResponse
 from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.oidc import TokenErrorResponse
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import verify_client
+from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
-from oidcendpoint.cookie import new_cookie
 
 logger = logging.getLogger(__name__)
 

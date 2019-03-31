@@ -148,7 +148,7 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
 
                         for val in vals:
                             if val not in _query[key]:
-                                raise ValueError('{}={} value not in query part'.format(key,val))
+                                raise ValueError('{}={} value not in query part'.format(key, val))
 
                 # and vice versa, every query component in the uri
                 # must be registered
@@ -406,47 +406,47 @@ class Authorization(Endpoint):
 
         return request
 
-    def pick_authn_method(self, request, redirect_uri, acr=None):
-        """
-        Which ACR (Authentication context class reference) to use can
-        either be specified in the request, more specifically in the claims
-        parameter or in the call to this method.
-
-        :param request: The authorization/authentication request
-        :param redirect_uri: Where the auth response should be returned to.
-        :param acr: Authentication context class reference
-        :return: 
-        """
-        _context = self.endpoint_context
-        acrs = acr_claims(request)
-        if acrs == [] and acr:
-            acrs = [acr]
-
-        if acrs:
-            tup = (None, None)
-            # If acr claims are present the picked acr value MUST match
-            # one of the given
-            for acr in acrs:
-                res = _context.authn_broker.pick(acr)
-                logger.debug("Picked AuthN broker for ACR %s: %s" % (
-                    str(acr), str(res)))
-                if res:  # Return the best guess by pick.
-                    tup = res[0]['method'], res[0]['acr']
-                    break
-            authn, authn_class_ref = tup
-        else:
-            authn, authn_class_ref = pick_auth(_context, request)
-
-        if authn is None:
-            return {
-                'error': "access_denied", 'return_uri': redirect_uri,
-                'return_type': request["response_type"]
-            }
-        else:
-            logger.info('Authentication class: {}, acr: {}'.format(
-                authn.__class__.__name__, authn_class_ref))
-
-        return authn, authn_class_ref
+    # def pick_authn_method(self, request, redirect_uri, acr=None):
+    #     """
+    #     Which ACR (Authentication context class reference) to use can
+    #     either be specified in the request, more specifically in the claims
+    #     parameter or in the call to this method.
+    #
+    #     :param request: The authorization/authentication request
+    #     :param redirect_uri: Where the auth response should be returned to.
+    #     :param acr: Authentication context class reference
+    #     :return:
+    #     """
+    #     _context = self.endpoint_context
+    #     acrs = acr_claims(request)
+    #     if acrs == [] and acr:
+    #         acrs = [acr]
+    #
+    #     res = None
+    #     if acrs:
+    #         # If acr claims are present the picked acr value MUST match
+    #         # one of the given
+    #         for acr in acrs:
+    #             res = _context.authn_broker.pick(acr)
+    #             logger.debug("Picked AuthN broker for ACR %s: %s" % (
+    #                 str(acr), str(res)))
+    #             if res:  # Return the first one.
+    #                 res = res[0]
+    #     else:
+    #         res = pick_auth(_context, request)
+    #
+    #     if not res:
+    #         return {
+    #             'error': "access_denied",
+    #             "error_description": 'ACR I do not support',
+    #             'return_uri': redirect_uri,
+    #             'return_type': request["response_type"]
+    #         }
+    #
+    #     logger.info('Authentication class: {}, acr: {}'.format(
+    #         res['method'].__class__.__name__, res['acr']))
+    #
+    #     return res
 
     def setup_auth(self, request, redirect_uri, cinfo, cookie, acr=None,
                    **kwargs):
@@ -464,14 +464,23 @@ class Authorization(Endpoint):
         try:
             auth_id = kwargs['auth_method_id']
         except KeyError:
-            _res = self.pick_authn_method(request, redirect_uri, acr)
-        else:
-            _res = self.endpoint_context.authn_broker.get_method_by_id(auth_id)
+            if acr:
+                res = self.endpoint_context.authn_broker.pick(acr)
+            else:
+                res = pick_auth(self.endpoint_context, request)
 
-        if isinstance(_res, dict):  # error message
-            return _res
+            if not res:
+                return {
+                    'error': "access_denied",
+                    "error_description": 'ACR I do not support',
+                    'return_uri': redirect_uri,
+                    'return_type': request["response_type"]
+                }
         else:
-            authn, authn_class_ref = _res
+            res = self.endpoint_context.authn_broker[auth_id]
+
+        authn = res['method']
+        authn_class_ref = res['acr']
 
         try:
             try:

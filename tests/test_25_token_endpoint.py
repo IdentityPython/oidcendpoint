@@ -169,6 +169,23 @@ class TestEndpoint(object):
         assert _resp
         assert set(_resp.keys()) == {'http_headers', 'response_args'}
 
+    def test_process_request_using_code_twice(self):
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
+                                   uid='user', acr=INTERNETPROTOCOLPASSWORD)
+        _token_request = TOKEN_REQ_DICT.copy()
+        _context = self.endpoint.endpoint_context
+        _token_request['code'] = _context.sdb[session_id]['code']
+        _context.sdb.update(session_id, user='diana')
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        # 2nd time used
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        assert _resp
+        assert set(_resp.keys()) == {'error', 'error_description'}
+
     def test_do_response(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
                                    uid='user', acr=INTERNETPROTOCOLPASSWORD)

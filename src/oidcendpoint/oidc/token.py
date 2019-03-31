@@ -111,7 +111,6 @@ class AccessToken(Endpoint):
     def client_authentication(self, request, auth=None, **kwargs):
         try:
             auth_info = verify_client(self.endpoint_context, request, auth)
-            msg = ''
         except Exception as err:
             msg = "Failed to verify client due to: {}".format(err)
             logger.error(msg)
@@ -161,15 +160,11 @@ class AccessToken(Endpoint):
         :param kwargs:
         :return: Dictionary with response information
         """
-        if isinstance(request, AccessTokenRequest):
-            try:
-                response_args = self._access_token(request, **kwargs)
-            except JWEException as err:
-                return self.error_cls(error="invalid_request",
-                                      error_description="%s" % err)
-
-        else:
-            response_args = self._refresh_access_token(request, **kwargs)
+        try:
+            response_args = self._access_token(request, **kwargs)
+        except JWEException as err:
+            return self.error_cls(error="invalid_request",
+                                  error_description="%s" % err)
 
         if isinstance(response_args, ResponseMessage):
             return response_args
