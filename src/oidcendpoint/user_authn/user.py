@@ -105,30 +105,6 @@ class UserAuthnMethod(object):
 
             return {"uid": uid}, _ts
 
-    def generate_return_url(self, return_to, uid, path=""):
-        """
-        :param return_to: If it starts with '/' it's an absolute path otherwise
-        a relative path.
-        :param uid:
-        :param path: The verify path
-        """
-        if return_to.startswith("http"):
-            up = urlsplit(return_to)
-            _path = up.path
-        else:
-            up = None
-            _path = return_to
-
-        if not _path.startswith("/"):
-            p = path.split("/")
-            p[-1] = _path
-            _path = "/".join(p)
-
-        if up:
-            _path = urlunsplit([up[0], up[1], _path, up[3], up[4]])
-
-        return create_return_url(_path, uid, **{self.query_param: "true"})
-
     def verify(self, *args, **kwargs):
         """
         Callback to verify user input
@@ -160,60 +136,6 @@ class UserAuthnMethod(object):
             return True
         else:
             return False
-
-
-def url_encode_params(params=None):
-    if not isinstance(params, dict):
-        raise InstantiationError("You must pass in a dictionary!")
-    params_list = []
-    for k, v in params.items():
-        if isinstance(v, list):
-            params_list.extend([(k, x) for x in v])
-        else:
-            params_list.append((k, v))
-    return urlencode(params_list)
-
-
-def create_return_url(base, query, **kwargs):
-    """
-    Add a query string plus extra parameters to a base URL which may contain
-    a query part already.
-
-    :param base: redirect_uri may contain a query part, no fragment allowed.
-    :param query: Old query part as a string
-    :param kwargs: extra query parameters
-    :return: Constructed URL
-    """
-    part = urlsplit(base)
-    if part.fragment:
-        raise ValueError("Base URL contained parts it shouldn't")
-
-    for key, values in parse_qs(query).items():
-        if key in kwargs:
-            if isinstance(kwargs[key], str):
-                kwargs[key] = [kwargs[key]]
-            kwargs[key].extend(values)
-        else:
-            kwargs[key] = values
-
-    if part.query:
-        for key, values in parse_qs(part.query).items():
-            if key in kwargs:
-                if isinstance(kwargs[key], str):
-                    kwargs[key] = [kwargs[key]]
-                kwargs[key].extend(values)
-            else:
-                kwargs[key] = values
-
-        _url_base = base.split("?")[0]
-    else:
-        _url_base = base
-
-    logger.debug("kwargs: %s" % sanitize(kwargs))
-    if kwargs:
-        return "%s?%s" % (_url_base, url_encode_params(kwargs))
-    else:
-        return _url_base
 
 
 def create_signed_jwt(issuer, keyjar, sign_alg='RS256', **kwargs):

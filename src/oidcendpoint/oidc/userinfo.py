@@ -1,6 +1,7 @@
 import json
 import logging
 
+from cryptojwt.exception import MissingValue
 from oidcmsg import oidc
 from cryptojwt.jwt import JWT
 from oidcmsg.message import Message
@@ -22,14 +23,18 @@ class UserInfo(Endpoint):
     response_placement = 'body'
     endpoint_name = 'userinfo_endpoint'
 
-    def do_response(self, response_args=None, request=None, **kwargs):
+    def do_response(self, response_args=None, request=None, client_id='',
+                    **kwargs):
 
         if 'error' in kwargs and kwargs['error']:
             return Endpoint.do_response(self, response_args, request, **kwargs)
 
         _context = self.endpoint_context
+        if not client_id:
+            raise MissingValue('client_id')
+
         # Should I return a JSON or a JWT ?
-        _cinfo = _context.cdb[kwargs['client_id']]
+        _cinfo = _context.cdb[client_id]
 
         # default is not to sign or encrypt
         try:
@@ -53,8 +58,7 @@ class UserInfo(Endpoint):
                        sign=sign, sign_alg=sign_alg, encrypt=encrypt,
                        enc_enc=enc_enc, enc_alg=enc_alg)
 
-            resp = _jwt.pack(response_args['response'],
-                             recv=kwargs['client_id'])
+            resp = _jwt.pack(response_args, recv=client_id)
             content_type = 'application/jwt'
         else:
             if isinstance(response_args, dict):

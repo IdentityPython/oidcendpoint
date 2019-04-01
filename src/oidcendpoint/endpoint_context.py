@@ -77,7 +77,8 @@ def add_path(url, path):
 
 class EndpointContext(object):
     def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
-                 cwd='', cookie_dealer=None, httpc=None, cookie_name=None, jwks_uri_path=None):
+                 cwd='', cookie_dealer=None, httpc=None, cookie_name=None,
+                 jwks_uri_path=None):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
@@ -144,6 +145,21 @@ class EndpointContext(object):
         if self.keyjar is None or self.keyjar.owners() == []:
             args = {k:v for k,v in conf['jwks'].items() if k != 'uri_path'}
             self.keyjar = init_key_jar(**args)
+
+        try:
+            _conf = conf['cookie_dealer']
+        except KeyError:
+            pass
+        else:
+            try:
+                kwargs = _conf['kwargs']
+            except KeyError:
+                kwargs = {}
+
+            if isinstance(_conf['class'], str):
+                self.cookie_dealer = util.importer(_conf['class'])(**kwargs)
+            else:
+                self.cookie_dealer = _conf['class'](**kwargs)
 
         if session_db:
             self.sdb = session_db

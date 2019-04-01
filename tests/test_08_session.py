@@ -312,6 +312,25 @@ class TestSessionDB(object):
         assert info2["sub"] == \
                '56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec'
 
+    def test_match_session(self):
+        ae1 = create_authn_event("uid", "salt")
+        sid = self.sdb.create_authz_session(ae1, AREQ, client_id='client_id')
+        self.sdb[sid]['sub'] = 'sub'
+        self.sdb.sso_db.map_sid2uid(sid, 'uid')
+
+        res = self.sdb.match_session('uid', client_id='client_id')
+        assert res == sid
+
+    def test_get_token(self):
+        ae1 = create_authn_event("uid", "salt")
+        sid = self.sdb.create_authz_session(ae1, AREQ, client_id='client_id')
+        self.sdb[sid]['sub'] = 'sub'
+        self.sdb.sso_db.map_sid2uid(sid, 'uid')
+
+        grant = self.sdb.get_token(sid)
+        assert self.sdb.is_valid(grant)
+        assert self.sdb.handler.type(grant) == 'A'
+
 
 KEYDEFS = [
     {"type": "RSA", "key": '', "use": ["sig"]},

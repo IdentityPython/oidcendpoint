@@ -2,17 +2,16 @@ import json
 import os
 
 import pytest
-from cryptojwt.jwt import utc_time_sans_frac
-
-from oidcendpoint import user_info
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RefreshAccessTokenRequest
 
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
+from oidcendpoint.oidc.refresh_token import RefreshAccessToken
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
@@ -55,6 +54,10 @@ TOKEN_REQ = AccessTokenRequest(client_id='client_1',
                                state='STATE',
                                grant_type='authorization_code',
                                client_secret='hemligt')
+
+REFRESH_TOKEN_REQ = RefreshAccessTokenRequest(grant_type="refresh_token",
+                                              client_id='client_1',
+                                              client_secret='hemligt')
 
 TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
 
@@ -104,23 +107,28 @@ class TestEndpoint(object):
                     'class': AccessToken,
                     'kwargs': {}
                 },
+                'refresh_token': {
+                    'path': '{}/token',
+                    'class': RefreshAccessToken,
+                    'kwargs': {}
+                },
                 'userinfo': {
                     'path': '{}/userinfo',
                     'class': userinfo.UserInfo,
-                    'kwargs': {}
+                    'kwargs': {'db_file': 'users.json'}
                 }
             },
-            'userinfo': {
-                'class': user_info.UserInfo,
-                'kwargs': {'db_file': full_path('users.json')}
-            },
-            'client_authn': verify_client,
             "authentication": {
                 'anon': {
                     'acr': INTERNETPROTOCOLPASSWORD,
                     'class': 'oidcendpoint.user_authn.user.NoAuthn',
                     'kwargs': {'user': 'diana'}
             }},
+            "userinfo": {
+                'class': UserInfo,
+                'kwargs': {'db': {}}
+            },
+            'client_authn': verify_client,
             'template_dir': 'template'
         }
         endpoint_context = EndpointContext(conf)
@@ -131,96 +139,63 @@ class TestEndpoint(object):
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token']
         }
-        self.endpoint = userinfo.UserInfo(endpoint_context)
+        self.token_endpoint = AccessToken(endpoint_context)
+        self.refresh_token_endpoint = RefreshAccessToken(endpoint_context)
 
     def test_init(self):
-        assert self.endpoint
+        assert self.refresh_token_endpoint
 
-    def test_parse(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid='userID',
-            authn_event={'authn_info': 'loa1', 'uid': 'diana',
-                         'authn_time': utc_time_sans_frac(),
-                         'valid_until': utc_time_sans_frac() + 3600})
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
-            key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic['access_token']))
+    def test_do_refresh_access_token(self):
+        areq = AUTH_REQ.copy()
+        areq['scope'] = ['openid', 'offline_access']
+        _cntx = self.token_endpoint.endpoint_context
+        session_id = setup_session(_cntx, areq,
+                                   uid='user', acr=INTERNETPROTOCOLPASSWORD)
+        _cntx.sdb.update(session_id, user='diana')
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request['code'] = _cntx.sdb[session_id]['code']
+        _req = self.token_endpoint.parse_request(_token_request)
+        _resp = self.token_endpoint.process_request(request=_req)
 
-        assert set(_req.keys()) == {'client_id', 'access_token'}
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request['refresh_token'] = _resp['response_args']['refresh_token']
+        _req = self.refresh_token_endpoint.parse_request(_request.to_json())
+        _resp = self.refresh_token_endpoint.process_request(request=_req)
+        assert set(_resp.keys()) == {'response_args', 'http_headers'}
+        assert set(_resp['response_args'].keys()) == {
+            'access_token', 'token_type', 'expires_in', 'refresh_token',
+            'id_token'
+        }
+        msg = self.refresh_token_endpoint.do_response(request=_req, **_resp)
+        assert isinstance(msg, dict)
 
-    def test_process_request(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid='userID',
-            authn_event={'authn_info': 'loa1', 'uid': 'diana',
-                         'authn_time': utc_time_sans_frac(),
-                         'valid_until': utc_time_sans_frac() + 3600})
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
-            key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic['access_token']))
-        args = self.endpoint.process_request(_req)
-        assert args
 
-    def test_process_request_not_allowed(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid='userID',
-            authn_event={'authn_info': 'loa1', 'uid': 'diana',
-                         'authn_time': utc_time_sans_frac() - 7200,
-                         'valid_until': utc_time_sans_frac() - 3600})
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
-            key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic['access_token']))
-        args = self.endpoint.process_request(_req)
-        assert set(args['response_args'].keys()) == {'error', 'error_description'}
+    def test_do_2nd_refresh_access_token(self):
+        areq = AUTH_REQ.copy()
+        areq['scope'] = ['openid', 'offline_access']
+        _cntx = self.token_endpoint.endpoint_context
+        session_id = setup_session(_cntx, areq,
+                                   uid='user', acr=INTERNETPROTOCOLPASSWORD)
+        _cntx.sdb.update(session_id, user='diana')
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request['code'] = _cntx.sdb[session_id]['code']
+        _req = self.token_endpoint.parse_request(_token_request)
+        _resp = self.token_endpoint.process_request(request=_req)
 
-    def test_process_request_offline_access(self):
-        auth_req = AUTH_REQ.copy()
-        auth_req['scope'] = ['openid', 'offline_access']
-        session_id = setup_session(
-            self.endpoint.endpoint_context, auth_req, uid='userID',
-            authn_event={'authn_info': 'loa1', 'uid': 'diana',
-                         'authn_time': utc_time_sans_frac() - 7200,
-                         'valid_until': utc_time_sans_frac() - 3600})
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
-            key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic['access_token']))
-        args = self.endpoint.process_request(_req)
-        assert set(args['response_args'].keys()) == {'sub'}
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request['refresh_token'] = _resp['response_args']['refresh_token']
+        _req = self.refresh_token_endpoint.parse_request(_request.to_json())
+        _resp = self.refresh_token_endpoint.process_request(request=_req)
 
-    def test_do_response(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid='userID',
-            authn_event={'authn_info': 'loa1', 'uid': 'diana',
-                         'authn_time': utc_time_sans_frac(),
-                         'valid_until': utc_time_sans_frac() + 3600})
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
-            key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic['access_token']))
-        args = self.endpoint.process_request(_req)
-        assert args
-        res = self.endpoint.do_response(request=_req, **args)
-        assert res
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request['refresh_token'] = _resp['response_args']['refresh_token']
+        _req = self.refresh_token_endpoint.parse_request(_request.to_json())
+        _resp = self.refresh_token_endpoint.process_request(request=_req)
 
-    def test_do_signed_response(self):
-        self.endpoint.endpoint_context.cdb[
-            'client_1']['userinfo_signed_response_alg'] = 'ES256'
-
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid='userID',
-            authn_event={
-                'authn_info': 'loa1', 'uid': 'diana',
-                'authn_time': utc_time_sans_frac(),
-                'valid_until': utc_time_sans_frac() + 3600
-            })
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(
-            key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic['access_token']))
-        args = self.endpoint.process_request(_req)
-        assert args
-        res = self.endpoint.do_response(request=_req, **args)
-        assert res
+        assert set(_resp.keys()) == {'response_args', 'http_headers'}
+        assert set(_resp['response_args'].keys()) == {
+            'access_token', 'token_type', 'expires_in', 'refresh_token',
+            'id_token'
+        }
+        msg = self.refresh_token_endpoint.do_response(request=_req, **_resp)
+        assert isinstance(msg, dict)

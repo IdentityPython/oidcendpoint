@@ -90,6 +90,13 @@ def pairwise_id(sub, sector_identifier, seed):
 
 
 def dict_match(a, b):
+    """
+    Check if all attribute/value pairs in a also appears in b
+
+    :param a: A dictionary
+    :param b: A dictionary
+    :return: True/False
+    """
     res = []
     for k, v in a.items():
         try:
