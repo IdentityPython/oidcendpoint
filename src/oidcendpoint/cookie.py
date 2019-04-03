@@ -44,21 +44,6 @@ def safe_str_cmp(a, b):
     return r == 0
 
 
-# def _expiration(timeout, time_format=None):
-#     """
-#     Return an expiration time
-#
-#     :param timeout: When
-#     :param time_format: The format of the returned value
-#     :return: A timeout date
-#     """
-#     if timeout == "now":
-#         return time_util.instant(time_format)
-#     else:
-#         # validity time should match lifetime of assertions
-#         return time_util.in_a_while(minutes=timeout, time_format=time_format)
-
-
 def cookie_signature(key, *parts):
     """Generates a cookie signature.
 
@@ -69,11 +54,11 @@ def cookie_signature(key, *parts):
        :returns: hexdigest of the HMAC
     """
 
-    sha1 = hmac.new(as_bytes(key), digestmod=hashlib.sha1)
+    sha = hmac.new(as_bytes(key), digestmod=hashlib.sha3_256)
     for part in parts:
         if part:
-            sha1.update(as_bytes(part))
-    return str(sha1.hexdigest())
+            sha.update(as_bytes(part))
+    return str(sha.hexdigest())
 
 
 def verify_cookie_signature(sig, key, *parts):

@@ -4,6 +4,29 @@ import json
 __author__ = 'rolandh'
 
 
+def dict_subset(a, b):
+    for attr, values in a.items():
+        try:
+            _val = b[attr]
+        except KeyError:
+            return False
+        else:
+            if isinstance(_val, list):
+                if isinstance(values, list):
+                    if not set(values).issubset(set(_val)):
+                        return False
+                else:
+                    if values not in _val:
+                        return False
+            else:
+                if isinstance(values, list):
+                    return False
+                else:
+                    if values != _val:
+                        return False
+    return True
+
+
 class UserInfo(object):
     """ Read only interface to a user info store """
 
@@ -47,3 +70,10 @@ class UserInfo(object):
             return self.filter(self.db[user_id], user_info_claims)
         except KeyError:
             return {}
+
+    def search(self, **kwargs):
+        for uid, args in self.db.items():
+            if dict_subset(kwargs, args):
+                return uid
+
+        raise KeyError('No matching user')

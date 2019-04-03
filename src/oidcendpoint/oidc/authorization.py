@@ -226,7 +226,7 @@ def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
         except KeyError:
             pass
 
-    for attr in ["ui_locales", "acr_values"]:
+    for attr in ["ui_locales", "acr_values", 'login_hint']:
         try:
             authn_args[attr] = request[attr]
         except KeyError:
@@ -405,48 +405,6 @@ class Authorization(Endpoint):
             request['redirect_uri'] = redirect_uri
 
         return request
-
-    # def pick_authn_method(self, request, redirect_uri, acr=None):
-    #     """
-    #     Which ACR (Authentication context class reference) to use can
-    #     either be specified in the request, more specifically in the claims
-    #     parameter or in the call to this method.
-    #
-    #     :param request: The authorization/authentication request
-    #     :param redirect_uri: Where the auth response should be returned to.
-    #     :param acr: Authentication context class reference
-    #     :return:
-    #     """
-    #     _context = self.endpoint_context
-    #     acrs = acr_claims(request)
-    #     if acrs == [] and acr:
-    #         acrs = [acr]
-    #
-    #     res = None
-    #     if acrs:
-    #         # If acr claims are present the picked acr value MUST match
-    #         # one of the given
-    #         for acr in acrs:
-    #             res = _context.authn_broker.pick(acr)
-    #             logger.debug("Picked AuthN broker for ACR %s: %s" % (
-    #                 str(acr), str(res)))
-    #             if res:  # Return the first one.
-    #                 res = res[0]
-    #     else:
-    #         res = pick_auth(_context, request)
-    #
-    #     if not res:
-    #         return {
-    #             'error': "access_denied",
-    #             "error_description": 'ACR I do not support',
-    #             'return_uri': redirect_uri,
-    #             'return_type': request["response_type"]
-    #         }
-    #
-    #     logger.info('Authentication class: {}, acr: {}'.format(
-    #         res['method'].__class__.__name__, res['acr']))
-    #
-    #     return res
 
     def setup_auth(self, request, redirect_uri, cinfo, cookie, acr=None,
                    **kwargs):
@@ -750,6 +708,15 @@ class Authorization(Endpoint):
 
         if proposed_user(request_info):
             kwargs['req_user'] = proposed_user(request_info)
+        else:
+            try:
+                _login_hint = request_info['login_hint']
+            except KeyError:
+                pass
+            else:
+                if self.endpoint_context.login_hint_lookup:
+                    kwargs['req_user'] = self.endpoint_context.login_hint_lookup[
+                        _login_hint]
 
         info = self.setup_auth(request_info, request_info["redirect_uri"],
                                cinfo, cookie, **kwargs)

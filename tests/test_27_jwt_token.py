@@ -163,7 +163,7 @@ class TestEndpoint(object):
         _info = _verifier.unpack(_dic['access_token'])
 
         assert _info['ttype'] == 'T'
-        assert _info['phone_number'] == '+46 90 7865000'
+        assert _info['phone_number'] == '+46907865000'
         assert set(_info['aud']) == {'client_1', 'https://example.org/appl'}
 
     def test_info(self):

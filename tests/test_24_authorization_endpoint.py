@@ -665,6 +665,26 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(_pr_resp)
         assert 'session_state' in _resp['response_args']
 
+    def test_setup_auth_user_hint(self):
+        request = AuthorizationRequest(
+            client_id='client_id', redirect_uri='https://rp.example.com/cb',
+            response_type=['id_token'], state='state', nonce='nonce',
+            scope='openid', login_hint='tel:0907865204'
+        )
+        redirect_uri = request['redirect_uri']
+        cinfo = {
+            'client_id': 'client_id',
+            'redirect_uris': [('https://rp.example.com/cb', {})],
+            'id_token_signed_response_alg': 'RS256'
+        }
+
+        item = self.endpoint.endpoint_context.authn_broker.db['anon']
+        item['method'].fail = NoSuchAuthentication
+
+        res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
+        assert set(res.keys()) == {'function', 'args'}
+        assert 'login_hint' in res['args']
+
 
 def test_inputs():
     elems = inputs({'foo': 'bar', 'home': 'stead'})

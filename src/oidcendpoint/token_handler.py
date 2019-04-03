@@ -17,6 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 def lv_pack(*args):
+    """
+    Serializes using length:value format
+
+    :param args: values
+    :return: string
+    """
     s = []
     for a in args:
         s.append('{}:{}'.format(len(a), a))
@@ -24,6 +30,12 @@ def lv_pack(*args):
 
 
 def lv_unpack(txt):
+    """
+    Deserializes a string of the length:value format
+
+    :param txt: The input string
+    :return: a list og values
+    """
     txt = txt.strip()
     res = []
     while txt:

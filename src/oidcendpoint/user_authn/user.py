@@ -187,7 +187,6 @@ class UserPassJinja2(UserAuthnMethod):
              'production environment'),
             OnlyForTestingWarning)
 
-        #template = self.template_handler.get_template(self.template)
         _ec = self.endpoint_context
         # Stores information need afterwards in a signed JWT that then
         # appears as a hidden input in the form
@@ -203,13 +202,6 @@ class UserPassJinja2(UserAuthnMethod):
             else:
                 _label = '{}_label'.format(attr)
                 _kwargs[_label] = LABELS[_uri]
-
-        # try:
-        #     _action = _kwargs['verify_endpoint']
-        # except:
-        #     _action = self.url_endpoint
-        # else:
-        #     del kwargs['verify_endpoint']
 
         return self.template_handler.render(self.template, action=self.action,
                                             token=jws, **_kwargs)
