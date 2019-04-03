@@ -75,6 +75,36 @@ def add_path(url, path):
             return '{}/{}'.format(url, path)
 
 
+def init_user_info(conf, cwd):
+    try:
+        kwargs = conf['kwargs']
+    except KeyError:
+        kwargs = {}
+
+    if 'db_file' in kwargs:
+        kwargs['db_file'] = os.path.join(cwd, kwargs['db_file'])
+
+    if isinstance(conf['class'], str):
+        return util.importer(conf['class'])(**kwargs)
+    else:
+        return conf['class'](**kwargs)
+
+
+def init_service(conf, endpoint_context=None):
+    try:
+        kwargs = conf['kwargs']
+    except KeyError:
+        kwargs = {}
+
+    if endpoint_context:
+        kwargs['endpoint_context'] = endpoint_context
+
+    if isinstance(conf['class'], str):
+        return util.importer(conf['class'])(**kwargs)
+    else:
+        return conf['class'](**kwargs)
+
+
 class EndpointContext(object):
     def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
                  cwd='', cookie_dealer=None, httpc=None, cookie_name=None,
@@ -102,6 +132,8 @@ class EndpointContext(object):
         self.id_token_schema = IdToken
         self.endpoint_to_authn_method = {}
         self.cookie_dealer = cookie_dealer
+        self.login_hint_lookup = None
+
         if cookie_name:
             self.cookie_name = cookie_name
         elif 'cookie_name' in conf:
@@ -151,15 +183,9 @@ class EndpointContext(object):
         except KeyError:
             pass
         else:
-            try:
-                kwargs = _conf['kwargs']
-            except KeyError:
-                kwargs = {}
-
-            if isinstance(_conf['class'], str):
-                self.cookie_dealer = util.importer(_conf['class'])(**kwargs)
-            else:
-                self.cookie_dealer = _conf['class'](**kwargs)
+            if self.cookie_dealer:  # already defined
+                raise ValueError('Cookie Dealer already defined')
+            self.cookie_dealer = init_service(_conf)
 
         if session_db:
             self.sdb = session_db
@@ -203,10 +229,7 @@ class EndpointContext(object):
         except KeyError:
             self.authz = authz.Implicit(self)
         else:
-            if 'args' in authz_spec:
-                self.authz = authz_spec['class'](**authz_spec['args'])
-            else:
-                self.authz = authz.factory(self, authz_spec['name'])
+            self.authz = init_service(authz_spec, self)
 
         try:
             _authn = conf['authentication']
@@ -218,37 +241,27 @@ class EndpointContext(object):
 
         try:
             _conf = conf['id_token']
-            try:
-                kwargs = _conf['kwargs']
-            except KeyError:
-                kwargs = {}
-
-            if isinstance(_conf['class'], str):
-                self.idtoken = util.importer(_conf['class'])(self, **kwargs)
-            else:
-                self.idtoken = _conf['class'](self, **kwargs)
         except KeyError:
             self.idtoken = IDToken(self)
+        else:
+            self.idtoken = init_service(_conf, self)
 
         try:
             _conf = conf['userinfo']
         except KeyError:
             pass
         else:
-            try:
-                kwargs = _conf['kwargs']
-            except KeyError:
-                kwargs = {}
-
-            if 'db_file' in kwargs:
-                kwargs['db_file'] = os.path.join(self.cwd, kwargs['db_file'])
-
-            if isinstance(_conf['class'], str):
-                self.userinfo = util.importer(_conf['class'])(**kwargs)
-            else:
-                self.userinfo = _conf['class'](**kwargs)
-
+            self.userinfo = init_user_info(_conf, self.cwd)
             self.sdb.userinfo = self.userinfo
+
+        try:
+            _conf = conf['login_hint_lookup']
+        except KeyError:
+            pass
+        else:
+            self.login_hint_lookup = init_service(_conf)
+            if self.userinfo:
+                self.login_hint_lookup.user_info = self.userinfo
 
         self.provider_info = self.create_providerinfo(_cap)
 
