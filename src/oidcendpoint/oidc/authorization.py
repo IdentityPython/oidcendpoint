@@ -406,19 +406,7 @@ class Authorization(Endpoint):
 
         return request
 
-    def setup_auth(self, request, redirect_uri, cinfo, cookie, acr=None,
-                   **kwargs):
-        """
-
-        :param request: The authorization/authentication request
-        :param redirect_uri:
-        :param cinfo: client info
-        :param cookie:
-        :param acr: Default ACR, if nothing else is specified
-        :param kwargs:
-        :return:
-        """
-
+    def pick_authn_method(self, request, redirect_uri, acr=None, **kwargs):
         try:
             auth_id = kwargs['auth_method_id']
         except KeyError:
@@ -436,6 +424,23 @@ class Authorization(Endpoint):
                 }
         else:
             res = self.endpoint_context.authn_broker[auth_id]
+
+        return res
+
+    def setup_auth(self, request, redirect_uri, cinfo, cookie, acr=None,
+                   **kwargs):
+        """
+
+        :param request: The authorization/authentication request
+        :param redirect_uri:
+        :param cinfo: client info
+        :param cookie:
+        :param acr: Default ACR, if nothing else is specified
+        :param kwargs:
+        :return:
+        """
+
+        res = self.pick_authn_method(request, redirect_uri, acr, **kwargs)
 
         authn = res['method']
         authn_class_ref = res['acr']

@@ -26,6 +26,7 @@ from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import IDToken
+from oidcendpoint.login_hint import LoginHint2Acrs
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.authorization import acr_claims
@@ -39,6 +40,9 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import SessionInfo
+from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_authn.authn_context import init_method
+from oidcendpoint.user_authn.user import NoAuthn
 from oidcendpoint.user_authn.user import UserAuthnMethod
 from oidcendpoint.user_info import UserInfo
 
@@ -206,19 +210,29 @@ class TestEndpoint(object):
                 'class': UserInfo,
                 'kwargs': {'db': USERINFO_db}
             },
-            'template_dir': 'template'
-        }
-        cookie_conf = {
-            'symkey': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
-            'default_values': {
-                'name': 'oidcop',
-                'domain': "127.0.0.1",
-                'path': '/',
-                'max_age': 3600
+            'template_dir': 'template',
+            'cookie_dealer': {
+                'class': CookieDealer,
+                'kwargs':{
+                    'symkey': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+                    'default_values': {
+                        'name': 'oidcop',
+                        'domain': "127.0.0.1",
+                        'path': '/',
+                        'max_age': 3600
+                    }
+                }
+            },
+            'login_hint2acrs':{
+                'class': LoginHint2Acrs,
+                'kwargs': {
+                    'scheme_map': {
+                        'email': [INTERNETPROTOCOLPASSWORD]
+                    }
+                }
             }
         }
-        cookie_dealer = CookieDealer(**cookie_conf)
-        endpoint_context = EndpointContext(conf, cookie_dealer=cookie_dealer)
+        endpoint_context = EndpointContext(conf)
         endpoint_context.cdb['client_1'] = {
             "client_secret": 'hemligt',
             "redirect_uris": [("https://example.com/cb", None)],
@@ -665,7 +679,7 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(_pr_resp)
         assert 'session_state' in _resp['response_args']
 
-    def test_setup_auth_user_hint(self):
+    def test_setup_auth_login_hint(self):
         request = AuthorizationRequest(
             client_id='client_id', redirect_uri='https://rp.example.com/cb',
             response_type=['id_token'], state='state', nonce='nonce',
@@ -684,6 +698,38 @@ class TestEndpoint(object):
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
         assert set(res.keys()) == {'function', 'args'}
         assert 'login_hint' in res['args']
+
+    def test_setup_auth_login_hint2acrs(self):
+        request = AuthorizationRequest(
+            client_id='client_id', redirect_uri='https://rp.example.com/cb',
+            response_type=['id_token'], state='state', nonce='nonce',
+            scope='openid', login_hint='email:foo@bar'
+        )
+        redirect_uri = request['redirect_uri']
+        cinfo = {
+            'client_id': 'client_id',
+            'redirect_uris': [('https://rp.example.com/cb', {})],
+            'id_token_signed_response_alg': 'RS256'
+        }
+
+        method_spec = {
+            'acr': INTERNETPROTOCOLPASSWORD,
+            'kwargs': {'user': 'knoll'},
+            'class': NoAuthn
+        }
+        self.endpoint.endpoint_context.authn_broker['foo'] = init_method(
+            method_spec, None)
+
+        item = self.endpoint.endpoint_context.authn_broker.db['anon']
+        item['method'].fail = NoSuchAuthentication
+        item = self.endpoint.endpoint_context.authn_broker.db['foo']
+        item['method'].fail = NoSuchAuthentication
+
+        res = self.endpoint.pick_authn_method(request, redirect_uri)
+        assert set(res.keys()) == {'method', 'acr'}
+        assert res['acr'] == INTERNETPROTOCOLPASSWORD
+        assert isinstance(res['method'], NoAuthn)
+        assert res['method'].user == 'knoll'
 
 
 def test_inputs():

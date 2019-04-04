@@ -263,6 +263,13 @@ class EndpointContext(object):
             if self.userinfo:
                 self.login_hint_lookup.user_info = self.userinfo
 
+        try:
+            _conf = conf['login_hint2acrs']
+        except KeyError:
+            self.login_hint2acrs = None
+        else:
+            self.login_hint2acrs = init_service(_conf)
+
         self.provider_info = self.create_providerinfo(_cap)
 
         # which signing/encryption algorithms to use in what context

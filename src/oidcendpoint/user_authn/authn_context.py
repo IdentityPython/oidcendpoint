@@ -1,5 +1,7 @@
 import logging
 
+from oidcmsg.oidc import verified_claim_name
+
 from oidcendpoint.util import instantiate
 
 __author__ = 'Roland Hedberg'
@@ -117,13 +119,15 @@ def pick_auth(endpoint_context, areq, all=False):
     Pick authentication method
 
     :param areq: AuthorizationRequest instance
-    :return: An authentication method and its authn class ref
+    :return: A dictionary with the authentication method and its authn class ref
     """
 
+    acrs = []
     try:
         if len(endpoint_context.authn_broker) == 1:
             return endpoint_context.authn_broker.default()
-        elif "acr_values" in areq:
+
+        if "acr_values" in areq:
             if not isinstance(areq["acr_values"], list):
                 areq["acr_values"] = [areq["acr_values"]]
             acrs = areq["acr_values"]
@@ -131,7 +135,24 @@ def pick_auth(endpoint_context, areq, all=False):
             try:
                 acrs = areq["claims"]["id_token"]["acr"]["values"]
             except KeyError:
-                return endpoint_context.authn_broker.default()
+                try:
+                    _ith = areq[verified_claim_name("id_token_hint")]
+                except KeyError:
+                    try:
+                        _hint = areq['login_hint']
+                    except KeyError:
+                        pass
+                    else:
+                        if endpoint_context.login_hint2acrs:
+                            acrs = endpoint_context.login_hint2acrs(_hint)
+                else:
+                    try:
+                        acrs = [_ith['acr']]
+                    except KeyError:
+                        pass
+
+                if not acrs:
+                    return endpoint_context.authn_broker.default()
 
         for acr in acrs:
             res = endpoint_context.authn_broker.pick(acr)
