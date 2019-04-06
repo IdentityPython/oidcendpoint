@@ -1,6 +1,7 @@
 import json
 import logging
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 from cryptojwt import as_unicode
 from cryptojwt import b64d
@@ -9,6 +10,7 @@ from cryptojwt.jws.jws import factory
 from cryptojwt.jws.utils import alg2keytype
 from cryptojwt.jwt import JWT
 from cryptojwt.utils import as_bytes
+from future.backports.urllib.parse import parse_qs
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
@@ -16,13 +18,11 @@ from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc.session import BACK_CHANNEL_LOGOUT_EVENT
 from oidcmsg.oidc.session import EndSessionRequest
 
-from oidcendpoint import URL_ENCODED
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.authorization import verify_uri
-from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,15 @@ def do_front_channel_logout_iframe(cinfo, iss, sid):
         flsr = False
 
     if flsr:
-        _query = urlencode({'iss': iss, 'sid': sid})
+        _query = {'iss': iss, 'sid': sid}
+        if '?' in frontchannel_logout_uri:
+            p = urlparse(frontchannel_logout_uri)
+            _args = parse_qs(p.query)
+            _args.update(_query)
+            _query = _args
+
         _iframe = '<iframe src="{}?{}">'.format(frontchannel_logout_uri,
-                                                _query)
+                                                urlencode(_query, doseq=True))
     else:
         _iframe = '<iframe src="{}">'.format(frontchannel_logout_uri)
 
@@ -197,6 +203,10 @@ class Session(Endpoint):
         _cntx = self.endpoint_context
         _sdb = _cntx.sdb
 
+        if 'post_logout_redirect_uri' in request:
+            if 'id_token_hint' not in request:
+                raise InvalidRequest(
+                    "If post_logout_redirect_uri then id_token_hint is a MUST")
         _cookie_name = self.endpoint_context.cookie_name['session']
         try:
             part = self.endpoint_context.cookie_dealer.get_cookie_value(
