@@ -145,9 +145,10 @@ class Endpoint(object):
 
     def client_authentication(self, request, auth=None, **kwargs):
         """
+        Do client authentication
 
         :param endpoint_context: A
-        :py:class:`oidcendpoint.endpoint_context.SrvInfo` instance
+            :py:class:`oidcendpoint.endpoint_context.SrvInfo` instance
         :param request: Parsed request, a self.request_cls class instance
         :param authn: Authorization info
         :return: client_id or raise and exception

@@ -49,6 +49,15 @@ class RefreshAccessToken(Endpoint):
         return by_schema(AccessTokenResponse, **_info)
 
     def client_authentication(self, request, auth=None, **kwargs):
+        """
+        Deal with client authentication
+
+        :param request: The refresh access token request
+        :param auth: Client authentication information
+        :param kwargs: Extra keyword arguments
+        :return: dictionary containing client id, client authentication method
+            and possibly access token.
+        """
         try:
             auth_info = verify_client(self.endpoint_context, request, auth)
             msg = ''
