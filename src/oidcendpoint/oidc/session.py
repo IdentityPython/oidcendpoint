@@ -280,7 +280,9 @@ class Session(Endpoint):
         try:
             _uri = request['post_logout_redirect_uri']
         except KeyError:
-            _uri = join_query(*_cinfo['post_logout_redirect_uris'][0])
+            _uri = "{}/{}".format(_cntx.issuer,
+                                  self.kwargs['post_logout_uri_path'])
+            # _uri = join_query(*_cinfo['post_logout_redirect_uris'][0])
         else:
             verify_uri(_cntx, request, 'post_logout_redirect_uri',
                        client_id=client_id)
