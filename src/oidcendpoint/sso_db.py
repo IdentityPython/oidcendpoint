@@ -9,8 +9,10 @@ class SSODb(object):
     possibly several session IDs.
     Each user can be represented by more then one sub claim and every sub claim
     can appear in more the one session.
-    So, we have chains like this:
+    So, we have chains like this::
+
         session id->subject id->user id
+
     """
 
     def __init__(self, db=None):
@@ -117,7 +119,7 @@ class SSODb(object):
 
         :param sid: Session ID
         :param sub: Subject identifier
-´        """
+´       """
         self.remove('sub2sid', sub, sid)
         self.remove('sid2sub', sid, sub)
 
@@ -127,7 +129,7 @@ class SSODb(object):
 
         :param sid: Session ID
         :param uid: User identifier
-´        """
+´       """
         self.remove('uid2sid', uid, sid)
         self.remove('sid2uid', sid, uid)
 
