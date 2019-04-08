@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 import pytest
 from cryptojwt.key_jar import build_keyjar
+from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import verified_claim_name
@@ -123,6 +124,7 @@ class TestEndpoint(object):
                     'path': '{}/end_session',
                     'class': Session,
                     'kwargs': {
+                        'post_logout_uri_path': 'post_logout',
                         'signing_alg': 'ES256',
                         'logout_verify_url': '{}/verify_logout'.format(ISS)
                     }
@@ -145,7 +147,17 @@ class TestEndpoint(object):
             #     'register': 'oidcreg'
             # }
         }
-        self.cd = CookieDealer('abcdefghijklmnopqrstuvxyz')
+        cookie_conf = {
+            'sign_key': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+            'default_values': {
+                'name': 'oidcop',
+                'domain': "127.0.0.1",
+                'path': '/',
+                'max_age': 3600
+            }
+        }
+
+        self.cd = CookieDealer(**cookie_conf)
         endpoint_context = EndpointContext(conf, cookie_dealer=self.cd,
                                            keyjar=KEYJAR)
         endpoint_context.cdb = {
@@ -236,10 +248,9 @@ class TestEndpoint(object):
         qs = parse_qs(p.query)
         jwt_info = self.session_endpoint.unpack_signed_jwt(qs['sjwt'][0])
 
-        assert jwt_info['state'] == 'abcde'
         assert jwt_info['user'] == 'diana'
         assert jwt_info['client_id'] == 'client_1'
-        assert jwt_info['redirect_uri'] == 'https://client1.example.com/logout_cb?state=abcde'
+        assert jwt_info['redirect_uri'] == 'https://example.com/post_logout'
 
     def test_end_session_endpoint_with_wrong_cookie(self):
         self._code_auth('1234567')
@@ -297,10 +308,9 @@ class TestEndpoint(object):
         qs = parse_qs(p.query)
         jwt_info = self.session_endpoint.unpack_signed_jwt(qs['sjwt'][0])
 
-        assert jwt_info['state'] == 'abcde'
         assert jwt_info['user'] == 'diana'
         assert jwt_info['client_id'] == 'client_1'
-        assert jwt_info['redirect_uri'] == 'https://client1.example.com/logout_cb?state=abcde'
+        assert jwt_info['redirect_uri'] == 'https://example.com/post_logout'
 
     def test_end_session_endpoint_with_post_logout_redirect_uri(self):
         self._code_auth('1234567')
@@ -313,35 +323,37 @@ class TestEndpoint(object):
             *self.session_endpoint.endpoint_context.cdb[
                 'client_1']["post_logout_redirect_uris"][0])
 
-        resp = self.session_endpoint.process_request(
-            {
-                "post_logout_redirect_uri": post_logout_redirect_uri,
-                "state": 'abcde'
-            }, cookie=cookie)
+        with pytest.raises(InvalidRequest):
+            self.session_endpoint.process_request(
+                {
+                    "post_logout_redirect_uri": post_logout_redirect_uri,
+                    "state": 'abcde'
+                }, cookie=cookie)
 
-        p = urlparse(resp['redirect_location'])
-        qs = parse_qs(p.query)
-        jwt_info = self.session_endpoint.unpack_signed_jwt(qs['sjwt'][0])
-
-        assert jwt_info['state'] == 'abcde'
-        assert jwt_info['user'] == 'diana'
-        assert jwt_info['client_id'] == 'client_1'
-        assert jwt_info['redirect_uri'] == 'https://client1.example.com/logout_cb?state=abcde'
 
     def test_end_session_endpoint_with_wrong_post_logout_redirect_uri(self):
         self._code_auth('1234567')
         self._code_auth2('abcdefg')
+
+        id_token = self._auth_with_id_token('1234567')
+
         _sdb = self.session_endpoint.endpoint_context.sdb
         _sid = self._get_sid()
         cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
         post_logout_redirect_uri = 'https://demo.example.com/log_out'
 
+        msg = Message(id_token=id_token)
+        verify_id_token(
+            msg, keyjar=self.session_endpoint.endpoint_context.keyjar)
+
         with pytest.raises(RedirectURIError):
             self.session_endpoint.process_request(
                 {
                     "post_logout_redirect_uri": post_logout_redirect_uri,
-                    "state": 'abcde'
+                    "state": 'abcde',
+                    "id_token_hint": id_token,
+                    verified_claim_name('id_token_hint'): msg[verified_claim_name('id_token')]
                 }, cookie=cookie)
 
     def test_back_channel_logout_no_uri(self):

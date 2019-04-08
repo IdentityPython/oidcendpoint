@@ -214,7 +214,7 @@ class TestEndpoint(object):
             'cookie_dealer': {
                 'class': CookieDealer,
                 'kwargs':{
-                    'symkey': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+                    'sign_key': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
                     'default_values': {
                         'name': 'oidcop',
                         'domain': "127.0.0.1",
