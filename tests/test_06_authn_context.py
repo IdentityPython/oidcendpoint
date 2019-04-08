@@ -2,6 +2,7 @@ import json
 import os
 
 import pytest
+from cryptojwt.jwk.hmac import SYMKey
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.authn_event import AuthnEvent
@@ -155,7 +156,7 @@ class TestAuthnBrokerEC():
             'template_dir': 'template'
         }
         cookie_conf = {
-            'symkey': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+            'sign_key': SYMKey(k='ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch'),
             'default_values': {
                 'name': 'oidcop',
                 'domain': "127.0.0.1",

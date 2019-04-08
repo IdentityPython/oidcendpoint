@@ -130,7 +130,7 @@ class TestAuthz(object):
             # }
         }
         cookie_conf = {
-            'symkey': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+            'sign_key': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
             'default_values': {
                 'name': 'oidcop',
                 'domain': "127.0.0.1",

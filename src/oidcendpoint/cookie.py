@@ -1,6 +1,5 @@
 import base64
 import hashlib
-import hmac
 import json
 import logging
 import os
@@ -8,19 +7,20 @@ import time
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse
 
-from cryptography.exceptions import InvalidTag
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt import b64d
-from cryptojwt.jwe.exception import JWEException
+from cryptojwt.exception import VerificationError
+from cryptojwt.jwe.aes import AES_GCMEncrypter
 from cryptojwt.jwe.utils import split_ctx_and_tag
+from cryptojwt.jwk.hmac import SYMKey
+from cryptojwt.jwk.jwk import key_from_jwk_dict
+from cryptojwt.jws.hmac import HMACSigner
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64e
-
-from oidcendpoint import rndstr
-from oidcendpoint.exception import InvalidCookieSign
-from oidcmsg import time_util
 from oidcmsg.time_util import in_a_while
+
+from oidcendpoint.util import lv_pack
+from oidcendpoint.util import lv_unpack
 
 __author__ = 'Roland Hedberg'
 
@@ -33,66 +33,105 @@ CORS_HEADERS = [
 ]
 
 
-# 'Stolen' from Werkzeug
-def safe_str_cmp(a, b):
-    """Compare two strings in constant time."""
-    if len(a) != len(b):
-        return False
-    r = 0
-    for c, d in zip(a, b):
-        r |= ord(c) ^ ord(d)
-    return r == 0
-
-
-def cookie_signature(key, *parts):
-    """Generates a cookie signature.
-
-       :param key: The HMAC key to use.
-       :type key: bytes
-       :param parts: List of parts to include in the MAC
-       :type parts: list of bytes or strings
-       :returns: hexdigest of the HMAC
+def sign_enc_payload(load, timestamp=0, sign_key=None, enc_key=None,
+                     sign_alg='SHA256'):
     """
 
-    sha = hmac.new(as_bytes(key), digestmod=hashlib.sha3_256)
-    for part in parts:
-        if part:
-            sha.update(as_bytes(part))
-    return str(sha.hexdigest())
-
-
-def verify_cookie_signature(sig, key, *parts):
-    """Constant time verifier for signatures
-
-       :param sig: The signature hexdigest to check
-       :type sig: str
-       :param key: The HMAC key to use.
-       :type key: bytes
-       :param parts: List of parts to include in the MAC
-       :type parts: list of bytes or strings
-       :raises: `InvalidCookieSign` when the signature is wrong
+    :param load: The basic information in the payload
+    :param timestamp: A timestamp (seconds since epoch)
+    :param sym_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param sign_alg: Which signing algorithm to use
+    :return: Signed and/or encrypted payload
     """
-    return safe_str_cmp(as_unicode(sig), cookie_signature(key, *parts))
+
+    # Just sign, sign and encrypt or just encrypt
+
+    if timestamp:
+        timestamp = str(timestamp)
+    else:
+        timestamp = str(int(time.time()))
+
+    bytes_load = load.encode("utf-8")
+    bytes_timestamp = timestamp.encode("utf-8")
+
+    if sign_key:
+        signer = HMACSigner(algorithm=sign_alg)
+        mac = signer.sign(bytes_load + bytes_timestamp, sign_key.key)
+    else:
+        mac = b''
+
+    if enc_key:
+        if len(enc_key.key) not in [16, 24, 32]:
+            raise ValueError('Wrong size of enc_key')
+
+        encrypter = AES_GCMEncrypter(key=enc_key.key)
+        iv = os.urandom(12)
+        if mac:
+            msg = lv_pack(load, timestamp, base64.b64encode(mac).decode('utf-8'))
+        else:
+            msg = lv_pack(load, timestamp)
+
+        enc_msg = encrypter.encrypt(msg.encode('utf-8'), iv)
+        ctx, tag = split_ctx_and_tag(enc_msg)
+
+        cookie_payload = [bytes_timestamp,
+                          base64.b64encode(iv),
+                          base64.b64encode(ctx),
+                          base64.b64encode(tag)]
+    else:
+        cookie_payload = [bytes_timestamp, bytes_load, base64.b64encode(mac)]
+
+    return (b"|".join(cookie_payload)).decode('utf-8')
 
 
-def _make_hashed_key(parts, hashfunc='sha256'):
+def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg='SHA256'):
     """
-    Construct a key via hashing the parts
+    Verifies the value of a cookie
 
-    If the parts do not have enough entropy of their
-    own, this doesn't help.
-
-    The size of the hash digest determines the size.
+    :param content: The parts of the payload
+    :param sym_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param sign_alg: Which signing algorithm to was used
+    :return: A tuple with basic information and a timestamp
     """
-    h = hashlib.new(hashfunc)
-    for part in parts:
-        if part:
-            h.update(as_bytes(part))
-    return h.digest()
+
+    if parts is None:
+        return None
+    elif len(parts) == 3:
+        # verify the cookie signature
+        timestamp, load, b64_mac = parts
+        mac = base64.b64decode(b64_mac)
+        verifier = HMACSigner(algorithm=sign_alg)
+        if verifier.verify(load.encode('utf-8') + timestamp.encode('utf-8'),
+                           mac, sign_key.key):
+            return load, timestamp
+        else:
+            raise VerificationError()
+    elif len(parts) == 4:
+        b_timestamp = parts[0]
+        iv = base64.b64decode(parts[1])
+        ciphertext = base64.b64decode(parts[2])
+        tag = base64.b64decode(parts[3])
+
+        decrypter = AES_GCMEncrypter(key=enc_key.key)
+        msg = decrypter.decrypt(ciphertext, iv, tag=tag)
+        p = lv_unpack(msg.decode('utf-8'))
+        load = p[0]
+        timestamp = p[1]
+        if len(p) == 3:
+            verifier = HMACSigner(algorithm=sign_alg)
+            if verifier.verify(load.encode('utf-8') + timestamp.encode('utf-8'),
+                               base64.b64decode(p[2]), sign_key.key):
+                return load, timestamp
+        else:
+            return load, timestamp
+    return None
 
 
-def make_cookie_content(name, load, seed, domain=None, path=None, timestamp="",
-                        enc_key=None, max_age=0):
+def make_cookie_content(name, load, sign_key, domain=None, path=None,
+                        timestamp="", enc_key=None, max_age=0,
+                        sign_alg='SHA256'):
     """
     Create and return a cookies content
 
@@ -110,14 +149,14 @@ def make_cookie_content(name, load, seed, domain=None, path=None, timestamp="",
     :type name: text
     :param load: Cookie load
     :type load: text
-    :param seed: A seed key for the HMAC function
-    :type seed: byte string
+    :param sign_key: A sign_key key for payload signing
+    :type sign_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param domain: The domain of the cookie
     :param path: The path specification for the cookie
     :param timestamp: A time stamp
     :type timestamp: text
-    :param enc_key: The key to use for cookie encryption.
-    :type enc_key: byte string
+    :param enc_key: The key to use for payload encryption.
+    :type enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param max_age: The time in seconds for when a cookie will be deleted
     :type max_age: int
     :return: A SimpleCookie instance
@@ -125,35 +164,10 @@ def make_cookie_content(name, load, seed, domain=None, path=None, timestamp="",
     if not timestamp:
         timestamp = str(int(time.time()))
 
-    bytes_load = load.encode("utf-8")
-    bytes_timestamp = timestamp.encode("utf-8")
+    _cookie_value = sign_enc_payload(load, timestamp, sign_key=sign_key,
+                                     enc_key=enc_key, sign_alg=sign_alg)
 
-    if enc_key:
-        # Make sure the key is 256-bit long, for AES-128-SIV
-        #
-        # This should go away once we push the keysize requirements up
-        # to the top level APIs.
-        key = _make_hashed_key((enc_key, seed))
-
-        # key = AESGCM.generate_key(bit_length=128)
-        aesgcm = AESGCM(key)
-        iv = os.urandom(12)
-
-        # timestamp does not need to be encrypted, just MAC'ed,
-        # so we add it to 'Associated Data' only.
-        ct = split_ctx_and_tag(aesgcm.encrypt(iv, bytes_load, bytes_timestamp))
-
-        ciphertext, tag = ct
-        cookie_payload = [bytes_timestamp,
-                          base64.b64encode(iv),
-                          base64.b64encode(ciphertext),
-                          base64.b64encode(tag)]
-    else:
-        cookie_payload = [
-            bytes_load, bytes_timestamp,
-            cookie_signature(seed, load, timestamp).encode('utf-8')]
-
-    content = {name: {"value": (b"|".join(cookie_payload)).decode('utf-8')}}
+    content = {name: {"value": _cookie_value}}
     if path is not None:
         content[name]["path"] = path
     if domain is not None:
@@ -167,11 +181,12 @@ def make_cookie_content(name, load, seed, domain=None, path=None, timestamp="",
     return content
 
 
-def make_cookie(name, payload, seed, domain=None, path=None, timestamp="",
-                enc_key=None, max_age=0):
-    content = make_cookie_content(name, payload, seed, domain=domain, path=path,
+def make_cookie(name, payload, sign_key, domain=None, path=None, timestamp="",
+                enc_key=None, max_age=0, sign_alg='SHA256'):
+    content = make_cookie_content(name, payload, sign_key, domain=domain, path=path,
                                   timestamp=timestamp, enc_key=enc_key,
-                                  max_age=max_age)
+                                  max_age=max_age, sign_alg=sign_alg)
+
     cookie = SimpleCookie()
     for name, args in content.items():
         cookie[name] = args['value']
@@ -181,61 +196,6 @@ def make_cookie(name, payload, seed, domain=None, path=None, timestamp="",
             cookie[name][key] = value
 
     return cookie
-
-
-def parse_cookie(name, seed, kaka, enc_key=None):
-    """Parses and verifies a cookie value
-
-    Parses a cookie created by `make_cookie` and verifies
-    it has not been tampered with.
-
-    You need to provide the same `seed` and `enc_key`
-    used when creating the cookie, otherwise the verification
-    fails. See `make_cookie` for details about the verification.
-
-    :param seed: A seed key used for the HMAC signature
-    :type seed: bytes
-    :param kaka: The cookie
-    :param enc_key: The encryption key used.
-    :type enc_key: bytes or None
-    :raises InvalidCookieSign: When verification fails.
-    :return: A tuple consisting of (payload, timestamp) or None if parsing fails
-    """
-    if not kaka:
-        return None
-
-    seed = as_unicode(seed)
-
-    parts = cookie_parts(name, kaka)
-    if parts is None:
-        return None
-    elif len(parts) == 3:
-        # verify the cookie signature
-        clear_text, timestamp, sig = parts
-        if not verify_cookie_signature(sig, seed, clear_text, timestamp):
-            raise InvalidCookieSign()
-        return clear_text, timestamp
-    elif len(parts) == 4:
-        # encrypted and signed
-        timestamp = parts[0]
-        iv = base64.b64decode(parts[1])
-        ciphertext = base64.b64decode(parts[2])
-        tag = base64.b64decode(parts[3])
-        ct = ciphertext + tag
-
-        # Make sure the key is 32-Bytes long
-        key = _make_hashed_key((enc_key, seed))
-        aesgcm = AESGCM(key)
-
-        # timestamp does not need to be encrypted, just MAC'ed,
-        # so we add it to 'Associated Data' only.
-        aad = timestamp.encode('utf-8')
-        try:
-            cleartext = aesgcm.decrypt(iv, ct, aad)
-        except (JWEException, InvalidTag) as err:
-            raise InvalidCookieSign('{}'.format(err))
-        return cleartext.decode('utf-8'), timestamp
-    return None
 
 
 def cookie_parts(name, kaka):
@@ -255,29 +215,73 @@ def cookie_parts(name, kaka):
         return None
 
 
+def parse_cookie(name, sign_key, kaka, enc_key=None, sign_alg='SHA256'):
+    """Parses and verifies a cookie value
+
+    Parses a cookie created by `make_cookie` and verifies
+    it has not been tampered with.
+
+    You need to provide the same `sign_key` and `enc_key`
+    used when creating the cookie, otherwise the verification
+    fails. See `make_cookie` for details about the verification.
+
+    :param seed: A signing key used to create the signature
+    :type seed: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param kaka: The cookie
+    :param enc_key: The encryption key used.
+    :type enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance or None
+    :raises InvalidCookieSign: When verification fails.
+    :return: A tuple consisting of (payload, timestamp) or None if parsing fails
+    """
+    if not kaka:
+        return None
+
+    parts = cookie_parts(name, kaka)
+
+    return ver_dec_content(parts, sign_key, enc_key, sign_alg)
+
+
+def import_jwk(filename):
+    with open(filename) as jwk_file:
+        jwk_dict = json.loads(jwk_file.read())
+        return key_from_jwk_dict(jwk_dict)
+
+
 class CookieDealer(object):
     """
     Functionality that an entity that deals with cookies need to have
     access to.
     """
 
-    def __init__(self, symkey='', seed_file='seed.txt', default_values=None):
-        self.symkey = as_bytes(symkey)
+    def __init__(self, sign_key='', enc_key='', sign_alg='SHA256',
+                 default_values=None, sign_jwk='', enc_jwk=''):
+
+        if sign_key:
+            if isinstance(sign_key, SYMKey):
+                self.sign_key = sign_key
+            else:
+                self.sign_key = SYMKey(k=sign_key)
+        elif sign_jwk:
+            self.sign_key = import_jwk(sign_jwk)
+        else:
+            self.sign_key = None
+
+        self.sign_alg = sign_alg
+
+        if enc_key:
+            if isinstance(enc_key, SYMKey):
+                self.enc_key = enc_key
+            else:
+                self.enc_key = SYMKey(k=enc_key)
+        elif enc_jwk:
+            self.enc_key = import_jwk(enc_jwk)
+        else:
+            self.enc_key = None
 
         if not default_values:
             default_values = {'path': '', 'domain': '', 'max_age': 0}
 
         self.default_value = default_values
-
-        # Need to be able to restart the OP and still use the same seed
-        if os.path.isfile(seed_file):
-            _seed = open(seed_file).read()
-        else:
-            _seed = rndstr(48)
-            with open(seed_file, "w") as f:
-                f.write(_seed)
-
-        self.seed = as_bytes(_seed)
 
     def delete_cookie(self, cookie_name=None):
         """
@@ -331,9 +335,9 @@ class CookieDealer(object):
             cookie_payload = "::".join([value[0], timestamp, typ])
 
         cookie = make_cookie(
-            cookie_name, cookie_payload, self.seed,
-            timestamp=timestamp, enc_key=self.symkey, max_age=ttl,
-            **c_args)
+            cookie_name, cookie_payload, self.sign_key,
+            timestamp=timestamp, enc_key=self.enc_key, max_age=ttl,
+            sign_alg=self.sign_alg, **c_args)
 
         return cookie
 
@@ -352,8 +356,8 @@ class CookieDealer(object):
             return None
         else:
             try:
-                info, timestamp = parse_cookie(cookie_name, self.seed, cookie,
-                                               self.symkey)
+                info, timestamp = parse_cookie(cookie_name, self.sign_key, cookie,
+                                               self.enc_key, self.sign_alg)
             except (TypeError, AssertionError):
                 return None
             else:
@@ -363,7 +367,7 @@ class CookieDealer(object):
         return None
 
     def append_cookie(self, cookie, name, payload, typ, domain=None, path=None,
-                      timestamp="", enc_key=None, max_age=0):
+                      timestamp="", max_age=0):
         """
         Adds a cookie to a SimpleCookie instance
 
@@ -374,7 +378,6 @@ class CookieDealer(object):
         :param domain:
         :param path:
         :param timestamp:
-        :param enc_key:
         :param max_age:
         :return:
         """
@@ -386,9 +389,10 @@ class CookieDealer(object):
         except TypeError:
             _payload = "::".join([payload[0], timestamp, typ])
 
-        content = make_cookie_content(name, _payload, self.seed, domain=domain,
+        content = make_cookie_content(name, _payload, self.sign_key, domain=domain,
                                       path=path, timestamp=timestamp,
-                                      enc_key=enc_key, max_age=max_age)
+                                      enc_key=self.enc_key, max_age=max_age,
+                                      sign_alg=self.sign_alg)
 
         for name, args in content.items():
             cookie[name] = args['value']

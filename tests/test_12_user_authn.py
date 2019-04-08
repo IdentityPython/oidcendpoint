@@ -68,7 +68,7 @@ class TestUserAuthn(object):
             'cookie_dealer': {
                 'class': 'oidcendpoint.cookie.CookieDealer',
                 'kwargs': {
-                    'symkey': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+                    'sign_key': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
                     'default_values': {
                         'name': 'oidc_op',
                         'domain': 'example.com',

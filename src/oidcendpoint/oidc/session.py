@@ -21,7 +21,6 @@ from oidcmsg.oidc.session import EndSessionRequest
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.authorization import verify_uri
 
 logger = logging.getLogger(__name__)
@@ -280,10 +279,15 @@ class Session(Endpoint):
         try:
             _uri = request['post_logout_redirect_uri']
         except KeyError:
-            _uri = "{}/{}".format(_cntx.issuer,
-                                  self.kwargs['post_logout_uri_path'])
-            # _uri = join_query(*_cinfo['post_logout_redirect_uris'][0])
+            if _cntx.issuer.endswith('/'):
+                _uri = "{}{}".format(_cntx.issuer,
+                                     self.kwargs['post_logout_uri_path'])
+            else:
+                _uri = "{}/{}".format(_cntx.issuer,
+                                      self.kwargs['post_logout_uri_path'])
+            plur = False
         else:
+            plur = True
             verify_uri(_cntx, request, 'post_logout_redirect_uri',
                        client_id=client_id)
 
@@ -293,7 +297,7 @@ class Session(Endpoint):
         }
 
         # redirect user to OP logout verification page
-        if 'state' in request:
+        if plur and 'state' in request:
             _uri = '{}?{}'.format(_uri, urlencode({'state': request['state']}))
             payload['state'] = request['state']
 
