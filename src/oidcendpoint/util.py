@@ -101,3 +101,32 @@ def instantiate(cls, **kwargs):
         return importer(cls)(**kwargs)
     else:
         return cls(**kwargs)
+
+
+def lv_pack(*args):
+    """
+    Serializes using length:value format
+
+    :param args: values
+    :return: string
+    """
+    s = []
+    for a in args:
+        s.append('{}:{}'.format(len(a), a))
+    return ''.join(s)
+
+
+def lv_unpack(txt):
+    """
+    Deserializes a string of the length:value format
+
+    :param txt: The input string
+    :return: a list og values
+    """
+    txt = txt.strip()
+    res = []
+    while txt:
+        l, v = txt.split(':', 1)
+        res.append(v[:int(l)])
+        txt = v[int(l):]
+    return res
