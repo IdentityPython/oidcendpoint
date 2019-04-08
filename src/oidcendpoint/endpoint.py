@@ -249,7 +249,10 @@ class Endpoint(object):
                 try:
                     fragment_enc = kwargs['fragment_enc']
                 except KeyError:
-                    fragment_enc = fragment_encoding(kwargs['return_type'])
+                    try:
+                        fragment_enc = fragment_encoding(kwargs['return_type'])
+                    except KeyError:
+                        fragment_enc = False
 
                 if fragment_enc:
                     resp = _response.request(kwargs['return_uri'], True)
