@@ -39,7 +39,7 @@ def sign_enc_payload(load, timestamp=0, sign_key=None, enc_key=None,
 
     :param load: The basic information in the payload
     :param timestamp: A timestamp (seconds since epoch)
-    :param sym_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param sign_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param sign_alg: Which signing algorithm to use
     :return: Signed and/or encrypted payload
@@ -89,8 +89,8 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg='SHA256'):
     """
     Verifies the value of a cookie
 
-    :param content: The parts of the payload
-    :param sym_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param parts: The parts of the payload
+    :param sign_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param sign_alg: Which signing algorithm to was used
     :return: A tuple with basic information and a timestamp
@@ -225,8 +225,8 @@ def parse_cookie(name, sign_key, kaka, enc_key=None, sign_alg='SHA256'):
     used when creating the cookie, otherwise the verification
     fails. See `make_cookie` for details about the verification.
 
-    :param seed: A signing key used to create the signature
-    :type seed: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
+    :param sign_key: A signing key used to create the signature
+    :type sign_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param kaka: The cookie
     :param enc_key: The encryption key used.
     :type enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance or None
