@@ -1,5 +1,6 @@
 import json
 import logging
+from urllib.parse import parse_qs
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
@@ -10,7 +11,6 @@ from cryptojwt.jws.jws import factory
 from cryptojwt.jws.utils import alg2keytype
 from cryptojwt.jwt import JWT
 from cryptojwt.utils import as_bytes
-from future.backports.urllib.parse import parse_qs
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
