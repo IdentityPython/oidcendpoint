@@ -75,7 +75,7 @@ class IDToken(object):
 
     def payload(self, session, acr="", alg="RS256", code=None,
                 access_token=None, user_info=None, auth_time=0,
-                lifetime=DEF_LIFETIME, extra_claims=None):
+                lifetime=None, extra_claims=None):
         """
 
         :param session: Session information
@@ -91,6 +91,9 @@ class IDToken(object):
         """
 
         _args = {'sub': session['sub']}
+
+        if lifetime is None:
+            lifetime = DEF_LIFETIME
 
         if auth_time:
             _args["auth_time"] = auth_time
@@ -135,7 +138,7 @@ class IDToken(object):
 
     def sign_encrypt(self, session_info, client_id, code=None,
                      access_token=None, user_info=None, sign=True,
-                     encrypt=False, extra_claims=None):
+                     encrypt=False, lifetime=None, extra_claims=None):
         """
         Signed and or encrypt a IDToken
 
@@ -164,8 +167,7 @@ class IDToken(object):
                                  alg=alg_dict['sign_alg'], code=code,
                                  access_token=access_token, user_info=user_info,
                                  auth_time=_authn_event["authn_time"],
-                                 lifetime=self.kwargs.get('lifetime', DEF_LIFETIME),
-                                 extra_claims=extra_claims)
+                                 lifetime=lifetime, extra_claims=extra_claims)
 
         _jwt = JWT(_cntx.keyjar, iss=_cntx.issuer,
                    lifetime=_idt_info['lifetime'], **alg_dict)
@@ -187,6 +189,8 @@ class IDToken(object):
             default_idtoken_claims = self.kwargs['default_claims']
         except KeyError:
             default_idtoken_claims = None
+
+        lifetime = self.kwargs.get('lifetime')
 
         userinfo = userinfo_in_id_token_claims(_context, sess_info,
                                                default_idtoken_claims)
@@ -216,4 +220,5 @@ class IDToken(object):
 
         return self.sign_encrypt(sess_info, _client_id,
                                  sign=True, user_info=userinfo,
+                                 lifetime=lifetime,
                                  extra_claims=xargs, **kwargs)
