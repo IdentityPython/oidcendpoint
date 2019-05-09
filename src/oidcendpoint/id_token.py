@@ -16,6 +16,7 @@ DEF_SIGN_ALG = {
     "client_secret_jwt": "HS256",
     "private_key_jwt": "RS256"
 }
+DEF_LIFETIME = 300
 
 
 def get_sign_and_encrypt_algorithms(endpoint_context, client_info, payload_type,
@@ -74,7 +75,7 @@ class IDToken(object):
 
     def payload(self, session, acr="", alg="RS256", code=None,
                 access_token=None, user_info=None, auth_time=0,
-                lifetime=300, extra_claims=None):
+                lifetime=DEF_LIFETIME, extra_claims=None):
         """
 
         :param session: Session information
@@ -163,6 +164,7 @@ class IDToken(object):
                                  alg=alg_dict['sign_alg'], code=code,
                                  access_token=access_token, user_info=user_info,
                                  auth_time=_authn_event["authn_time"],
+                                 lifetime=self.kwargs.get('lifetime', DEF_LIFETIME),
                                  extra_claims=extra_claims)
 
         _jwt = JWT(_cntx.keyjar, iss=_cntx.issuer,
