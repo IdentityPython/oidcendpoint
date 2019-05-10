@@ -18,6 +18,7 @@ class JWTToken(object):
 
         self.def_aud = aud or []
         self.alg = alg
+        self.blist = {}
 
     def add_claims(self, payload, uinfo, claims):
         for attr in claims:
@@ -60,9 +61,16 @@ class JWTToken(object):
         """
         verifier = JWT(key_jar=self.key_jar, allowed_sign_algs=[self.alg])
         _payload = verifier.unpack(token)
+
         if is_expired(_payload['exp']):
             raise ToOld('Token has expired')
-        return _payload['sid'], _payload['ttype']
+        # All the token metadata
+        _res = {
+            'sid': _payload['sid'], 'type': _payload['ttype'],
+            'exp': _payload['exp'], 'handler': self,
+            'black_listed': self.is_black_listed(token)
+        }
+        return _res
 
     def is_expired(self, token, when=0):
         """
@@ -80,3 +88,6 @@ class JWTToken(object):
     def gather_args(self, sid, sdb, udb):
         _sinfo = sdb[sid]
         return {}
+
+    def is_black_listed(self, token):
+        return token in self.blist
