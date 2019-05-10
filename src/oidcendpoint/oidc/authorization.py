@@ -392,7 +392,7 @@ class Authorization(Endpoint):
         if not self.verify_response_type(request, _cinfo):
             return AuthorizationErrorResponse(
                 error="invalid_request",
-                error_description="Trying to use unregistered response_typ")
+                error_description="Trying to use unregistered response_type")
 
         # Get the redirect URI
         try:
