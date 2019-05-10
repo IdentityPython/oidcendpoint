@@ -88,7 +88,15 @@ class TestEndpoint(object):
                 'key_defs': KEYDEFS,
             },
             'token_handler_args': {
-                'code': {'lifetime': 600, 'password': rndstr(16)},
+                'jwks_def': {
+                    'private_path': 'private/token_jwks.json',
+                    'read_only': False,
+                    'key_defs': [
+                        {"type": "oct", "bytes": "24", 'use': ['enc'],
+                         'kid': 'code'}
+                    ]
+                },
+                'code': {'lifetime': 600},
                 'token': {
                     'class': 'oidcendpoint.jwt_token.JWTToken',
                     'lifetime': 3600,

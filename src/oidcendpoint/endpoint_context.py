@@ -139,8 +139,10 @@ class EndpointContext(object):
         elif 'cookie_name' in conf:
             self.cookie_name = conf['cookie_name']
         else:
-            self.cookie_name = {'session': "oidcop", 'register': 'oidc_op_rp',
-                                'session_management': "sman"}
+            self.cookie_name = {
+                'session': "oidcop", 'register': 'oidc_op_rp',
+                'session_management': "sman"
+            }
 
         for param in ['verify_ssl', 'issuer', 'sso_ttl',
                       'symkey', 'client_authn', 'id_token_schema']:
@@ -175,7 +177,7 @@ class EndpointContext(object):
             self.jwks_uri = ''
 
         if self.keyjar is None or self.keyjar.owners() == []:
-            args = {k:v for k,v in conf['jwks'].items() if k != 'uri_path'}
+            args = {k: v for k, v in conf['jwks'].items() if k != 'uri_path'}
             self.keyjar = init_key_jar(**args)
 
         try:
@@ -193,12 +195,21 @@ class EndpointContext(object):
             try:
                 _th_args = conf['token_handler_args']
             except KeyError:
-                passwd = rndstr(24)
-                _th_args = {
-                    'code': {'lifetime': 600, 'password': passwd},
-                    'token': {'lifetime': 3600, 'password': passwd},
-                    'refresh': {'lifetime': 86400, 'password': passwd}
+                # create 3 keys
+                keydef = [
+                    {"type": "oct", "bytes": "24", 'use': ['enc'], 'kid': 'code'},
+                    {"type": "oct", "bytes": "24", 'use': ['enc'], 'kid': 'token'},
+                    {"type": "oct", "bytes": "24", 'use': ['enc'], 'kid': 'refresh'}
+                ]
+
+                jwks_def = {
+                    'private_path': 'private/token_jwks.json',
+                    'key_defs': keydef, 'read_only': False
                 }
+
+                _th_args = {'jwks_def': jwks_def}
+                for typ, tid in [('code', 600), ('token', 3600), ('refresh', 86400)]:
+                    _th_args[typ] = {'lifetime': tid}
 
             self.sdb = create_session_db(self, _th_args, db=None,
                                          sso_db=SSODb())
@@ -212,9 +223,7 @@ class EndpointContext(object):
         except KeyError:
             _cap = {}
 
-        for endpoint in self.endpoint:
-            endpoint_instance = self.endpoint[endpoint]
-
+        for endpoint, endpoint_instance in self.endpoint.items():
             if endpoint_instance.provider_info:
                 _cap.update(endpoint_instance.provider_info)
 
@@ -385,6 +394,6 @@ class EndpointContext(object):
 
         for name, instance in self.endpoint.items():
             if name not in ['webfinger', 'provider_info']:
-                _pinfo['{}_endpoint'.format(name)] = instance.full_path
+                _pinfo[instance.endpoint_name] = instance.full_path
 
         return _pinfo
