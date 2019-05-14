@@ -294,8 +294,7 @@ class SessionDB(object):
         uid = self.sso_db.get_uid_by_sid(sid)
         uinfo = self.userinfo(uid, session_info['client_id'])
         return self.handler['access_token'](sid=sid, sinfo=session_info,
-                                            uinfo=uinfo,
-                                            aud=session_info['client_id'])
+                                            uinfo=uinfo)
 
     def upgrade_to_token(self, grant=None, issue_refresh=False, id_token="",
                          oidreq=None, key=None, scope=None):

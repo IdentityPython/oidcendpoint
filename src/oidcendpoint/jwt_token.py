@@ -29,11 +29,14 @@ class JWTToken(object):
             except KeyError:
                 pass
 
-    def __call__(self, sid, aud, uinfo, sinfo, **kwargs):
+    def __call__(self, sid, uinfo, sinfo, **kwargs):
         """
         Return a token.
 
         :param sid: Session id
+        :param uinfo: User information
+        :param sinfo: Session information
+        :param aud: The default audience == client_id
         :return:
         """
         payload = {'sid': sid, 'ttype': self.type, 'sub': sinfo['sub']}
@@ -47,8 +50,10 @@ class JWTToken(object):
         payload.update(kwargs)
         signer = JWT(key_jar=self.key_jar, iss=self.issuer,
                      lifetime=self.lifetime, sign_alg=self.alg)
-        _aud = [aud]
+
+        _aud = [sinfo['client_id']]
         _aud.extend(self.def_aud)
+
         return signer.pack(payload, aud=_aud)
 
     def info(self, token):

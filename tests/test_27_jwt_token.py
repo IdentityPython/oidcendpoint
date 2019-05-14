@@ -181,9 +181,9 @@ class TestEndpoint(object):
             key=session_id)
 
         handler = self.endpoint.endpoint_context.sdb.handler.handler['access_token']
-        sid, token_type = handler.info(_dic['access_token'])
-        assert token_type == 'T'
-        assert sid
+        _info = handler.info(_dic['access_token'])
+        assert _info['type'] == 'T'
+        assert _info['sid'] == session_id
 
     def test_is_expired(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,
