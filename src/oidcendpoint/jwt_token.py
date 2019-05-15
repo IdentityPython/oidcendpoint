@@ -47,10 +47,7 @@ class JWTToken(object):
         payload.update(kwargs)
         signer = JWT(key_jar=self.key_jar, iss=self.issuer,
                      lifetime=self.lifetime, sign_alg=self.alg)
-        if isinstance(aud, list):
-            _aud = aud
-        else:
-            _aud = [aud]
+        _aud = aud if isinstance(aud, list) else [aud]
         _aud.extend(self.def_aud)
         return signer.pack(payload, aud=_aud)
 
