@@ -290,12 +290,13 @@ class SessionDB(object):
 
         return sinfo
 
-    def _make_at(self, sid, session_info, aud = None):
+    def _make_at(self, sid, session_info, aud = None, client_id_aud = True):
         uid = self.sso_db.get_uid_by_sid(sid)
         uinfo = self.userinfo(uid, session_info['client_id'])
-        if aud is None:
-            aud = session_info['client_id']
-        return self.handler['access_token'](sid=sid, sinfo=session_info, uinfo=uinfo, aud=aud)
+        at_aud = aud or []
+        if client_id_aud:
+            at_aud.append(session_info['client_id'])
+        return self.handler['access_token'](sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud)
 
     def upgrade_to_token(self, grant=None, issue_refresh=False, id_token="",
                          oidreq=None, key=None, scope=None):
