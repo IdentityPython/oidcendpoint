@@ -29,7 +29,7 @@ class JWTToken(object):
             except KeyError:
                 pass
 
-    def __call__(self, sid, uinfo, sinfo, **kwargs):
+    def __call__(self, sid, uinfo, sinfo, aud=None, **kwargs):
         """
         Return a token.
 
@@ -50,8 +50,7 @@ class JWTToken(object):
         payload.update(kwargs)
         signer = JWT(key_jar=self.key_jar, iss=self.issuer,
                      lifetime=self.lifetime, sign_alg=self.alg)
-
-        _aud = [sinfo['client_id']]
+        _aud = aud if isinstance(aud, list) else [aud]
         _aud.extend(self.def_aud)
 
         return signer.pack(payload, aud=_aud)
