@@ -1,3 +1,4 @@
+import io
 import json
 import os
 from http.cookies import SimpleCookie
@@ -5,6 +6,7 @@ from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 import pytest
+import yaml
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
@@ -148,6 +150,38 @@ class SimpleCookieDealer(object):
         return None
 
 
+client_yaml = """
+oidc_clients:
+  client_1:
+    "client_secret": 'hemligt'
+    "redirect_uris": 
+        - ['https://example.com/cb', '']
+    "client_salt": "salted"
+    'token_endpoint_auth_method': 'client_secret_post'
+    'response_types': 
+        - 'code'
+        - 'token'
+        - 'code id_token'
+        - 'id_token'
+        - 'code id_token token'
+  client2:
+    client_secret: "spraket"
+    redirect_uris:
+      - ['https://app1.example.net/foo', '']
+      - ['https://app2.example.net/bar', '']
+    response_types:
+      - code
+  client3:
+    client_secret: '2222222222222222222222222222222222222222'
+    redirect_uris:
+      - ['https://127.0.0.1:8090/authz_cb/bobcat', '']
+    post_logout_redirect_uris:
+      - ['https://openidconnect.net/', '']
+    response_types:
+      - code
+"""
+
+
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self):
@@ -233,14 +267,8 @@ class TestEndpoint(object):
             }
         }
         endpoint_context = EndpointContext(conf)
-        endpoint_context.cdb['client_1'] = {
-            "client_secret": 'hemligt',
-            "redirect_uris": [("https://example.com/cb", None)],
-            "client_salt": "salted",
-            'token_endpoint_auth_method': 'client_secret_post',
-            'response_types': ['code', 'token', 'code id_token', 'id_token',
-                               'code id_token token']
-        }
+        _clients = yaml.load(io.StringIO(client_yaml))
+        endpoint_context.cdb = _clients['oidc_clients']
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ''), conf['issuer'])
         self.endpoint = Authorization(endpoint_context)
@@ -731,6 +759,8 @@ class TestEndpoint(object):
         assert isinstance(res['method'], NoAuthn)
         assert res['method'].user == 'knoll'
 
+    def test_post_logout_uri(self):
+        pass
 
 def test_inputs():
     elems = inputs({'foo': 'bar', 'home': 'stead'})

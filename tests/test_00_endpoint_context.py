@@ -1,7 +1,10 @@
+import io
 from copy import copy
 
 import pytest
+import yaml
 from cryptojwt.key_jar import build_keyjar
+from oidcendpoint.oidc.session import Session
 
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import ConfigurationError
@@ -58,6 +61,11 @@ conf = {
             'path': 'userinfo',
             'class': UserInfo,
             'kwargs': {'db_file': 'users.json'}
+        },
+        'session': {
+            'path': 'end_session',
+            'class': Session,
+            'kwargs': {}
         }
     },
     'authentication': {
@@ -69,6 +77,32 @@ conf = {
     },
     'template_dir': 'template'
 }
+
+client_yaml = """
+oidc_clients:
+  client1:
+    # client secret is "password"
+    client_secret: "Namnam"
+    redirect_uris:
+      - ['https://openidconnect.net/callback', '']
+    response_types:
+      - code
+  client2:
+    client_secret: "spraket"
+    redirect_uris:
+      - ['https://app1.example.net/foo', '']
+      - ['https://app2.example.net/bar', '']
+    response_types:
+      - code
+  client3:
+    client_secret: '2222222222222222222222222222222222222222'
+    redirect_uris:
+      - ['https://127.0.0.1:8090/authz_cb/bobcat', '']
+    post_logout_redirect_uris:
+      - ['https://openidconnect.net/', '']
+    response_types:
+      - code
+"""
 
 
 def test_capabilities_default():
@@ -109,3 +143,11 @@ def test_capabilities_no_support():
     _cnf['capabilities'] = {'id_token_signing_alg_values_supported': 'RC4'}
     with pytest.raises(ConfigurationError):
         EndpointContext(_cnf)
+
+
+def test_cdb():
+    endpoint_context = EndpointContext(conf)
+    _clients = yaml.load(io.StringIO(client_yaml))
+    endpoint_context.cdb = _clients['oidc_clients']
+
+    assert set(endpoint_context.cdb.keys()) == {'client1', 'client2', 'client3'}
