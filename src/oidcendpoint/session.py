@@ -84,9 +84,14 @@ class SessionInfo(Message):
     }
 
 
-def pairwise_id(sub, sector_identifier, seed):
+def pairwise_id(uid, sector_identifier, client_salt, **kwargs):
     return hashlib.sha256(
-        ("%s%s%s" % (sub, sector_identifier, seed)).encode("utf-8")).hexdigest()
+        ("%s%s%s" % (uid, sector_identifier, client_salt)).encode("utf-8")).hexdigest()
+
+
+def public_id(uid, user_salt='', **kwargs):
+    return hashlib.sha256(
+        "{}{}".format(uid, user_salt).encode("utf-8")).hexdigest()
 
 
 def dict_match(a, b):
@@ -106,34 +111,27 @@ def dict_match(a, b):
     return all(res)
 
 
-def mint_sub(client_salt, sector_id="", subject_type="public",
-             uid='', user_salt=''):
-    """
-    Mint a new sub (subject identifier)
-
-    :param authn_event: Authentication event information
-    :param client_salt: client specific salt - used in pairwise
-    :param sector_id: Possible sector identifier
-    :param subject_type: 'public'/'pairwise'
-    :return: Subject identifier
-    """
-
-    if subject_type == "public":
-        sub = hashlib.sha256(
-            "{}{}".format(uid, user_salt).encode("utf-8")).hexdigest()
-    else:
-        sub = pairwise_id(uid, sector_id,
-                          "{}{}".format(client_salt, user_salt))
-    return sub
-
-
 class SessionDB(object):
-    def __init__(self, db, handler, sso_db, userinfo=None):
+    def __init__(self, db, handler, sso_db, userinfo=None, sub_func=None):
         # db must implement the InMemoryStateDataBase interface
         self._db = db
         self.handler = handler
         self.sso_db = sso_db
         self.userinfo = userinfo
+
+        # this allows the subject identifier minters to be defined by someone
+        # else then me.
+        if sub_func is None:
+            self.sub_func = {
+                'public': public_id,
+                'pairwise': pairwise_id
+            }
+        else:
+            self.sub_func = sub_func
+            if 'public' not in sub_func:
+                self.sub_func['public'] = public_id
+            if 'pairwise' not in sub_func:
+                self.sub_func['pairwise'] = pairwise_id
 
     def __getitem__(self, item):
         _info = self._db.get(item)
@@ -242,7 +240,20 @@ class SessionDB(object):
 
     def do_sub(self, sid, uid, client_salt, sector_id='', subject_type='public',
                user_salt=''):
-        sub = mint_sub(client_salt, sector_id, subject_type, uid, user_salt)
+        """
+        Create and store a subject identifier
+
+        :param sid: Session ID
+        :param uid: User ID
+        :param client_salt:
+        :param sector_id: For pairwise identifiers, an Identifier for the RP group
+        :param subject_type: 'pairwaise'/'public'
+        :param user_salt:
+        :return:
+        """
+        sub = self.sub_func[subject_type](uid, user_salt=user_salt,
+                                          client_salt=client_salt,
+                                          sector_identifier=sector_id)
 
         self.sso_db.map_sid2uid(sid, uid)
         self.update(sid, sub=sub)
@@ -292,11 +303,14 @@ class SessionDB(object):
 
     def _make_at(self, sid, session_info, aud = None, client_id_aud = True):
         uid = self.sso_db.get_uid_by_sid(sid)
-        uinfo = self.userinfo(uid, session_info['client_id'])
+
+        uinfo = self.userinfo(uid, session_info['client_id']) or {}
         at_aud = aud or []
+
         if client_id_aud:
             at_aud.append(session_info['client_id'])
-        return self.handler['access_token'](sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud)
+        return self.handler['access_token'](sid=sid, sinfo=session_info,
+                                            uinfo=uinfo, aud=at_aud)
 
     def upgrade_to_token(self, grant=None, issue_refresh=False, id_token="",
                          oidreq=None, key=None, scope=None):
@@ -539,10 +553,11 @@ class SessionDB(object):
                 raise ValueError('No Authn event info')
 
 
-def create_session_db(ec, token_handler_args, db=None, sso_db=SSODb()):
+def create_session_db(ec, token_handler_args, db=None, sso_db=SSODb(),
+                      sub_func=None):
     _token_handler = token_handler.factory(ec, **token_handler_args)
 
     if not db:
         db = InMemoryDataBase()
 
-    return SessionDB(db, _token_handler, sso_db)
+    return SessionDB(db, _token_handler, sso_db, sub_func=sub_func)

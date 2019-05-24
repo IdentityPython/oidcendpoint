@@ -189,6 +189,21 @@ class EndpointContext(object):
                 raise ValueError('Cookie Dealer already defined')
             self.cookie_dealer = init_service(_conf)
 
+        try:
+            _conf = conf['sub_func']
+        except KeyError:
+            sub_func = None
+        else:
+            sub_func = {}
+            for key, args in _conf.items():
+                if 'class' in args:
+                    sub_func[key] = init_service(args)
+                elif 'function' in args:
+                    if isinstance(args['function'], str):
+                        sub_func[key] = util.importer(args['function'])
+                    else:
+                        sub_func[key] = args['function']
+
         if session_db:
             self.sdb = session_db
         else:
@@ -212,7 +227,7 @@ class EndpointContext(object):
                     _th_args[typ] = {'lifetime': tid}
 
             self.sdb = create_session_db(self, _th_args, db=None,
-                                         sso_db=SSODb())
+                                         sso_db=SSODb(), sub_func=sub_func)
 
         self.endpoint = build_endpoints(conf['endpoint'],
                                         endpoint_context=self,

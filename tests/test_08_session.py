@@ -403,3 +403,44 @@ def test_setup_session_upgrade_to_token():
 
     endpoint_context.sdb.revoke_uid('_user_')
     assert endpoint_context.sdb.is_session_revoked(sid)
+
+
+def make_sub_uid(uid, **kwargs):
+    return uid
+
+
+def test_sub_minting_function():
+    conf['sub_func'] = {
+        'public': {
+            'function': make_sub_uid
+        }
+    }
+
+    endpoint_context = EndpointContext(conf)
+    uid = '_user_'
+    client_id = 'EXTERNAL'
+    areq = None
+    acr = None
+    sid = setup_session(endpoint_context, areq, uid, client_id, acr, salt='salt')
+    assert endpoint_context.sdb[sid]['sub'] == uid
+
+
+class SubMinter(object):
+    def __call__(self, *args, **kwargs):
+        return args[0]
+
+
+def test_sub_minting_class():
+    conf['sub_func'] = {
+        'public': {
+            'class': SubMinter
+        }
+    }
+
+    endpoint_context = EndpointContext(conf)
+    uid = '_user_'
+    client_id = 'EXTERNAL'
+    areq = None
+    acr = None
+    sid = setup_session(endpoint_context, areq, uid, client_id, acr, salt='salt')
+    assert endpoint_context.sdb[sid]['sub'] == uid
