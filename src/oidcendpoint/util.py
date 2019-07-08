@@ -67,8 +67,14 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
             _instance = spec['class'](endpoint_context=endpoint_context,
                                       **kwargs)
 
-        _instance.endpoint_path = spec['path']
-        _instance.full_path = '{}/{}'.format(_url, spec['path'])
+        try:
+            _path = spec['path']
+        except KeyError:
+            # Should there be a default ?
+            raise
+
+        _instance.endpoint_path = _path
+        _instance.full_path = '{}/{}'.format(_url, _path)
         if 'provider_info' in spec:
             _instance.provider_info = spec['provider_info']
 
