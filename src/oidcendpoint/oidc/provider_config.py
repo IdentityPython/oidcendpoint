@@ -22,7 +22,8 @@ class ProviderConfiguration(Endpoint):
     def add_endpoints(self, request, client_id, endpoint_context, **kwargs):
         for endpoint, endp_instance in self.endpoint_context.endpoint.items():
             if endpoint in ['authorization_endpoint', 'registration_endpoint',
-                            'token_endpoint', 'userinfo_endpoint']:
+                            'token_endpoint', 'userinfo_endpoint',
+                            'end_session_endpoint']:
                 request[endpoint] = endp_instance.endpoint_path
 
         return request
