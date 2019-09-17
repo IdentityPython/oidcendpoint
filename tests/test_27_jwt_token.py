@@ -88,7 +88,15 @@ class TestEndpoint(object):
                 'key_defs': KEYDEFS,
             },
             'token_handler_args': {
-                'code': {'lifetime': 600, 'password': rndstr(16)},
+                'jwks_def': {
+                    'private_path': 'private/token_jwks.json',
+                    'read_only': False,
+                    'key_defs': [
+                        {"type": "oct", "bytes": "24", 'use': ['enc'],
+                         'kid': 'code'}
+                    ]
+                },
+                'code': {'lifetime': 600},
                 'token': {
                     'class': 'oidcendpoint.jwt_token.JWTToken',
                     'lifetime': 3600,
@@ -173,9 +181,9 @@ class TestEndpoint(object):
             key=session_id)
 
         handler = self.endpoint.endpoint_context.sdb.handler.handler['access_token']
-        sid, token_type = handler.info(_dic['access_token'])
-        assert token_type == 'T'
-        assert sid
+        _info = handler.info(_dic['access_token'])
+        assert _info['type'] == 'T'
+        assert _info['sid'] == session_id
 
     def test_is_expired(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ,

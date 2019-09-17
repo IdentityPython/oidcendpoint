@@ -18,6 +18,7 @@ class JWTToken(object):
 
         self.def_aud = aud or []
         self.alg = alg
+        self.blist = {}
 
     def add_claims(self, payload, uinfo, claims):
         for attr in claims:
@@ -28,11 +29,14 @@ class JWTToken(object):
             except KeyError:
                 pass
 
-    def __call__(self, sid, aud, uinfo, sinfo, **kwargs):
+    def __call__(self, sid, uinfo, sinfo, aud=None, **kwargs):
         """
         Return a token.
 
         :param sid: Session id
+        :param uinfo: User information
+        :param sinfo: Session information
+        :param aud: The default audience == client_id
         :return:
         """
         payload = {'sid': sid, 'ttype': self.type, 'sub': sinfo['sub']}
@@ -46,8 +50,9 @@ class JWTToken(object):
         payload.update(kwargs)
         signer = JWT(key_jar=self.key_jar, iss=self.issuer,
                      lifetime=self.lifetime, sign_alg=self.alg)
-        _aud = [aud]
+        _aud = aud if isinstance(aud, list) else [aud]
         _aud.extend(self.def_aud)
+
         return signer.pack(payload, aud=_aud)
 
     def info(self, token):
@@ -60,9 +65,16 @@ class JWTToken(object):
         """
         verifier = JWT(key_jar=self.key_jar, allowed_sign_algs=[self.alg])
         _payload = verifier.unpack(token)
+
         if is_expired(_payload['exp']):
             raise ToOld('Token has expired')
-        return _payload['sid'], _payload['ttype']
+        # All the token metadata
+        _res = {
+            'sid': _payload['sid'], 'type': _payload['ttype'],
+            'exp': _payload['exp'], 'handler': self,
+            'black_listed': self.is_black_listed(token)
+        }
+        return _res
 
     def is_expired(self, token, when=0):
         """
@@ -80,3 +92,6 @@ class JWTToken(object):
     def gather_args(self, sid, sdb, udb):
         _sinfo = sdb[sid]
         return {}
+
+    def is_black_listed(self, token):
+        return token in self.blist

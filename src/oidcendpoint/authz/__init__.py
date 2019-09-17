@@ -11,10 +11,11 @@ logger = logging.getLogger(__name__)
 class AuthzHandling(object):
     """ Class that allow an entity to manage authorization """
 
-    def __init__(self, endpoint_context):
+    def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.cookie_dealer = endpoint_context.cookie_dealer
         self.permdb = {}
+        self.kwargs = kwargs
 
     def __call__(self, *args, **kwargs):
         return ""

@@ -4,6 +4,7 @@ import logging
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
+from cryptojwt.key_jar import init_key_jar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from oidcmsg.time_util import time_sans_frac
@@ -276,25 +277,47 @@ def init_token_handler(ec, spec, typ):
     return cls(typ=typ, ec=ec, **spec)
 
 
-def factory(ec, code=None, token=None, refresh=None, **kwargs):
+def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
     """
     Create a token handler
 
     :param code:
     :param token:
     :param refresh:
+    :param jwks_def:
     :return: TokenHandler instance
     """
 
     TTYPE = {'code': 'A', 'token': 'T', 'refresh': 'R'}
 
+    if jwks_def:
+        kj = init_key_jar(**jwks_def)
+    else:
+        kj = None
+
     args = {}
 
     if code:
+        if kj:
+            _keys = kj.get_encrypt_key(key_type='oct', kid='code')
+            if _keys:
+                code['password'] = as_unicode(_keys[0].k)
         args['code_handler'] = init_token_handler(ec, code, TTYPE['code'])
+
     if token:
-        args['access_token_handler'] = init_token_handler(ec, token, TTYPE['token'])
+        if kj:
+            _keys = kj.get_encrypt_key(key_type='oct', kid='token')
+            if _keys:
+                token['password'] = as_unicode(_keys[0].k)
+        args['access_token_handler'] = init_token_handler(ec, token,
+                                                          TTYPE['token'])
+
     if refresh:
-        args['refresh_token_handler'] = init_token_handler(ec, token, TTYPE['refresh'])
+        if kj:
+            _keys = kj.get_encrypt_key(key_type='oct', kid='refresh')
+            if _keys:
+                refresh['password'] = as_unicode(_keys[0].k)
+        args['refresh_token_handler'] = init_token_handler(ec, refresh,
+                                                           TTYPE['refresh'])
 
     return TokenHandler(**args)

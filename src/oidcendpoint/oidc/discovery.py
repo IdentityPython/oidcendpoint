@@ -18,8 +18,8 @@ class Discovery(Endpoint):
         """
         **Placeholder for the time being**
 
-        :param endpoint_context:
-            :py:class:`oidcendpoint.endpoint_context.EndpointContext` instance
+        :param response_args:
+        :param request:
         :param kwargs: request arguments
         :return: Response information
         """

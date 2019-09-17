@@ -3,15 +3,12 @@ import os
 
 import pytest
 from cryptojwt.key_jar import build_keyjar
-from oidcendpoint.authz import factory
-
-from oidcendpoint.authz import Implicit
-
-from oidcendpoint.cookie import new_cookie
 
 from oidcendpoint.authz import AuthzHandling
-
+from oidcendpoint.authz import Implicit
+from oidcendpoint.authz import factory
 from oidcendpoint.cookie import CookieDealer
+from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
@@ -124,26 +121,25 @@ class TestAuthz(object):
                 'kwargs': {'db': USERINFO_db}
             },
             'template_dir': 'template',
-            # 'cookie_name':{
-            #     'session': 'oidcop',
-            #     'register': 'oidcreg'
-            # }
-        }
-        cookie_conf = {
-            'sign_key': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
-            'default_values': {
-                'name': 'oidcop',
-                'domain': "127.0.0.1",
-                'path': '/',
-                'max_age': 3600
+            'authz': {
+                'class': AuthzHandling,
+                'kwargs': {}
+            },
+            'cookie_dealer': {
+                'class': CookieDealer,
+                'kwargs':{
+                    'sign_key': 'ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch',
+                    'default_values': {
+                        'name': 'oidcop',
+                        'domain': "127.0.0.1",
+                        'path': '/',
+                        'max_age': 3600
+                    }
+                }
             }
         }
 
-        self.cookie_dealer = CookieDealer(**cookie_conf)
-
-        self.endpoint_context = EndpointContext(conf,
-                                                cookie_dealer=self.cookie_dealer,
-                                                keyjar=KEYJAR)
+        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
 
     def _create_cookie(self, user, sid, state, client_id, typ='sso', name=''):
         ec = self.endpoint_context
@@ -157,19 +153,19 @@ class TestAuthz(object):
         assert authz
 
     def test_authz_set_get(self):
-        authz = AuthzHandling(self.endpoint_context)
+        authz = self.endpoint_context.authz
         authz.set('diana', 'client_1', ['email', 'phone'])
         assert authz.get('diana', 'client_1') == ['email', 'phone']
 
     def test_authz_cookie(self):
-        authz = AuthzHandling(self.endpoint_context)
+        authz = self.endpoint_context.authz
         authz.set('diana', 'client_1', ['email', 'phone'])
         cookie = self._create_cookie("diana", '_sid_', '1234567', 'client_1')
         perm = authz.permissions(cookie)
         assert set(perm) == {'email', 'phone'}
 
     def test_authz_cookie_wrong_client(self):
-        authz = AuthzHandling(self.endpoint_context)
+        authz = self.endpoint_context.authz
         authz.set('diana', 'client_1', ['email', 'phone'])
         cookie = self._create_cookie("diana", '_sid_', '1234567', 'client_2')
         perm = authz.permissions(cookie)
@@ -190,12 +186,12 @@ class TestAuthz(object):
         assert authz.get('diana', 'client_1') == ['email', 'phone']
 
     def test_authz_cookie_none(self):
-        authz = AuthzHandling(self.endpoint_context)
+        authz = self.endpoint_context.authz
         authz.set('diana', 'client_1', ['email', 'phone'])
         assert authz.permissions(None) is None
 
     def test_authz_cookie_other(self):
-        authz = AuthzHandling(self.endpoint_context)
+        authz = self.endpoint_context.authz
         authz.set('diana', 'client_1', ['email', 'phone'])
         cookie = self._create_cookie("diana", '_sid_', '1234567', 'client_1',
                                      name='foo')
