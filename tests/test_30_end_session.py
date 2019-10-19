@@ -398,6 +398,16 @@ class TestEndpoint(object):
         res = do_front_channel_logout_iframe(_cdb, ISS,'_sid_')
         assert res == '<iframe src="https://example.com/fc_logout?iss=https%3A%2F%2Fexample.com%2F&sid=_sid_">'
 
+    def test_front_channel_logout_with_query(self):
+        self._code_auth('1234567')
+
+        _cdb = copy.copy(self.session_endpoint.endpoint_context.cdb['client_1'])
+        _cdb['frontchannel_logout_uri'] = 'https://example.com/fc_logout?entity_id=foo'
+        _cdb['frontchannel_logout_session_required'] = True
+        _cdb['client_id'] = 'client_1'
+        res = do_front_channel_logout_iframe(_cdb, ISS, '_sid_')
+        assert res == '<iframe src="https://example.com/fc_logout?entity_id=foo&iss=https%3A%2F%2Fexample.com%2F&sid=_sid_">'
+
     def test_logout_from_client_bc(self):
         self._code_auth('1234567')
         self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri'] = 'https://example.com/bc_logout'
