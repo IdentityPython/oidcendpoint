@@ -51,6 +51,8 @@ def do_front_channel_logout_iframe(cinfo, iss, sid):
             _args = parse_qs(p.query)
             _args.update(_query)
             _query = _args
+            _np = p._replace(query='')
+            frontchannel_logout_uri = _np.geturl()
 
         _iframe = '<iframe src="{}?{}">'.format(frontchannel_logout_uri,
                                                 urlencode(_query, doseq=True))
