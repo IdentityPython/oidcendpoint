@@ -151,7 +151,7 @@ class Endpoint(object):
             :py:class:`oidcendpoint.endpoint_context.SrvInfo` instance
         :param request: Parsed request, a self.request_cls class instance
         :param authn: Authorization info
-        :return: client_id or raise and exception
+        :return: client_id or raise an exception
         """
 
         return verify_client(self.endpoint_context, request, auth)

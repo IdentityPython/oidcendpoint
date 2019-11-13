@@ -12,26 +12,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Introspection(Endpoint):
+    """Implements RFC 7662"""
     request_cls = oauth2.TokenIntrospectionRequest
     response_cls = oauth2.TokenIntrospectionResponse
     request_format = 'urlencoded'
     response_format = 'json'
     endpoint_name = 'introspection'
-
-    def do_response(self, response_args=None, request=None, **kwargs):
-        """Construct an Introspection response.
-
-        :param response_args:
-        :param request:
-        :param kwargs: request arguments
-        :return: Response information
-        """
-        info = {
-            'response': response_args.to_json(),
-            'http_headers': [('Content-type', 'application/json')]
-        }
-
-        return info
 
     def client_authentication(self, request, auth=None, **kwargs):
         """
@@ -58,14 +44,14 @@ class Introspection(Endpoint):
 
         return auth_info
 
-    def process_request(self, request_info=None, **kwargs):
+    def process_request(self, request=None, **kwargs):
         """
 
-        :param request_info: The authorization request as a dictionary
+        :param request: The authorization request as a dictionary
         :param kwargs:
         :return:
         """
-        _introspect_request = self.request_cls(**request_info)
+        _introspect_request = self.request_cls(**request)
 
         _jwt = JWT(key_jar=self.endpoint_context.keyjar)
 
@@ -83,7 +69,8 @@ class Introspection(Endpoint):
         if 'release' in self.kwargs:
             if 'username' in self.kwargs['release']:
                 try:
-                    _jwt_info['username'] = self.endpoint_context.userinfo.search(sub=_jwt_info['sub'])
+                    _jwt_info['username'] = self.endpoint_context.userinfo.search(
+                        sub=_jwt_info['sub'])
                 except KeyError:
                     return {'response': {'active': False}}
 

@@ -149,7 +149,10 @@ class TestEndpoint(object):
         msg_info = self.introspection_endpoint.do_response(request=_req, **_resp)
         assert isinstance(msg_info, dict)
         assert set(msg_info.keys()) == {'response', 'http_headers'}
-        assert msg_info['http_headers'] == [('Content-type', 'application/json')]
+        assert msg_info['http_headers'] == [
+            ('Content-type', 'application/json'),
+            ('Pragma', 'no-cache'),
+            ('Cache-Control', 'no-store')]
         _payload = json.loads(msg_info['response'])
         assert set(_payload.keys()) == {'sub', 'username', 'exp', 'iat', 'aud',
                                         'active', 'iss', 'jti'}

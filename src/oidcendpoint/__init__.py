@@ -23,8 +23,8 @@ JSON_ENCODED = "application/json"
 JOSE_ENCODED = "application/jose"
 
 
-def sanitize(str):
-    return str
+def sanitize(txt):
+    return txt
 
 
 def rndstr(size=16):
