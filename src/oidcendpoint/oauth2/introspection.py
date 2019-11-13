@@ -34,13 +34,11 @@ class Introspection(Endpoint):
         except Exception as err:
             msg = "Failed to verify client due to: {}".format(err)
             LOGGER.error(msg)
-            return self.error_cls(error="unauthorized_client",
-                                  error_description=msg)
+            return self.error_cls(error="unauthorized_client")
         else:
             if 'client_id' not in auth_info:
                 LOGGER.error('No client_id, authentication failed')
-                return self.error_cls(error="unauthorized_client",
-                                      error_description='unknown client')
+                return self.error_cls(error="unauthorized_client")
 
         return auth_info
 

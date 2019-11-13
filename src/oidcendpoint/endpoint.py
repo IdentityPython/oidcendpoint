@@ -15,7 +15,7 @@ from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = 'Roland Hedberg'
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 """
 method call structure for Endpoints:
@@ -62,7 +62,7 @@ class Endpoint(object):
     request_placement = 'query'
     response_format = 'json'
     response_placement = 'body'
-    client_auth_method = ''
+    client_authn_method = ''
 
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
@@ -81,8 +81,8 @@ class Endpoint(object):
         :param kwargs: extra keyword arguments
         :return:
         """
-        logger.debug("- {} -".format(self.endpoint_name))
-        logger.info("Request: %s" % sanitize(request))
+        LOGGER.debug("- {} -".format(self.endpoint_name))
+        LOGGER.info("Request: %s" % sanitize(request))
 
         if request:
             if isinstance(request, dict):
@@ -108,7 +108,8 @@ class Endpoint(object):
         try:
             auth_info = self.client_authentication(req, auth, **kwargs)
         except UnknownOrNoAuthnMethod:
-            if not self.client_auth_method:
+            # If there is no required client authentication method
+            if not self.client_authn_method:
                 try:
                     _client_id = req['client_id']
                 except KeyError:
@@ -138,7 +139,7 @@ class Endpoint(object):
             return self.error_cls(error="invalid_request",
                                   error_description="%s" % err)
 
-        logger.info("Parsed and verified request: %s" % sanitize(req))
+        LOGGER.info("Parsed and verified request: %s" % sanitize(req))
 
         # Do any endpoint specific parsing
         return self.do_post_parse_request(req, _client_id, **kwargs)
@@ -154,7 +155,13 @@ class Endpoint(object):
         :return: client_id or raise an exception
         """
 
-        return verify_client(self.endpoint_context, request, auth)
+        authn_info = verify_client(self.endpoint_context, request, auth)
+
+        if authn_info['method'] not in self.client_authn_method:
+            LOGGER.warning("Wrong client authentication method was used")
+            raise UnknownOrNoAuthnMethod("Wrong authn method")
+
+        return authn_info
 
     def do_post_parse_request(self, request, client_id='', **kwargs):
         for meth in self.post_parse_request:
@@ -197,7 +204,7 @@ class Endpoint(object):
         """
         response_args = self.do_pre_construct(response_args, request, **kwargs)
 
-        # logger.debug("kwargs: %s" % sanitize(kwargs))
+        # LOGGER.debug("kwargs: %s" % sanitize(kwargs))
         response = self.response_cls(**response_args)
 
         return self.do_post_construct(response, request, **kwargs)

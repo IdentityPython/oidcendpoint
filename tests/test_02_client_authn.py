@@ -299,7 +299,7 @@ def test_verify_client_jws_authn_method():
         'client_assertion_type': JWT_BEARER
     }
 
-    res = verify_client(endpoint_context, request, '')
+    res = verify_client(endpoint_context, request)
     assert res['method'] == 'private_key_jwt'
     assert res['client_id'] == 'client_id'
 
@@ -308,14 +308,14 @@ def test_verify_client_bearer_body():
     request = {'access_token': '1234567890', 'client_id': client_id}
     sinfo = SessionInfo(authn_req=AuthorizationRequest(client_id= client_id))
     endpoint_context.sdb['1234567890'] = sinfo
-    res = verify_client(endpoint_context, request, '')
+    res = verify_client(endpoint_context, request)
     assert set(res.keys()) == {'token', 'method','client_id'}
     assert res['method'] == 'bearer_body'
 
 
 def test_verify_client_client_secret_post():
     request = {'client_id': client_id, 'client_secret': client_secret}
-    res = verify_client(endpoint_context, request, '')
+    res = verify_client(endpoint_context, request)
     assert set(res.keys()) == {'method','client_id'}
     assert res['method'] == 'client_secret_post'
 

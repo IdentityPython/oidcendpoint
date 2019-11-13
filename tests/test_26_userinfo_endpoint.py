@@ -131,7 +131,7 @@ class TestEndpoint(object):
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token']
         }
-        self.endpoint = userinfo.UserInfo(endpoint_context)
+        self.endpoint = endpoint_context.endpoint['userinfo']
 
     def test_init(self):
         assert self.endpoint

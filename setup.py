@@ -50,7 +50,8 @@ setup(
     license="Apache 2.0",
     url='https://github.com/IdentityPython/oicsrv',
     packages=["oidcendpoint", 'oidcendpoint/oidc', 'oidcendpoint/authz',
-              'oidcendpoint/user_authn', 'oidcendpoint/user_info'],
+              'oidcendpoint/user_authn', 'oidcendpoint/user_info',
+              'oidcendpoint/oauth2'],
     package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",

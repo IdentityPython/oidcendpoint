@@ -191,7 +191,7 @@ def valid_client_info(cinfo):
     return True
 
 
-def verify_client(endpoint_context, request, authorization_info):
+def verify_client(endpoint_context, request, authorization_info=None):
     """
     Initiated Guessing !
 
@@ -202,7 +202,7 @@ def verify_client(endpoint_context, request, authorization_info):
         possibly access token.
     """
 
-    if not authorization_info:
+    if authorization_info is None:
         if 'client_id' in request and 'client_secret' in request:
             auth_info = ClientSecretPost(endpoint_context).verify(request)
             auth_info['method'] = 'client_secret_post'
@@ -232,7 +232,6 @@ def verify_client(endpoint_context, request, authorization_info):
     try:
         client_id = auth_info['client_id']
     except KeyError:
-        client_id = ''
         try:
             _token = auth_info['token']
         except KeyError:
@@ -258,7 +257,7 @@ def verify_client(endpoint_context, request, authorization_info):
                 logger.warning('Client registration has timed out')
                 raise ValueError('Not valid client')
             else:
-                # check that the expected authz method was used
+                # store what authn method was used
                 try:
                     endpoint_context.cdb[client_id]['auth_method'][
                         request.__class__.__name__] = auth_info['method']

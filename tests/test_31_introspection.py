@@ -6,6 +6,7 @@ from cryptojwt import JWT
 from oidcmsg.oauth2 import TokenIntrospectionRequest
 from oidcmsg.oidc import AuthorizationRequest
 
+from oidcendpoint.client_authn import ClientSecretPost
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oauth2.introspection import Introspection
@@ -77,8 +78,11 @@ class TestEndpoint(object):
                     'path': '{}/intro',
                     'class': Introspection,
                     'kwargs': {
-                        "release": ['username']
-                    }
+                        "release": ['username'],
+                        "client_authn_method": {
+                            'client_secrert_post': ClientSecretPost
+                        }
+                    },
                 }
             },
             "authentication": {
@@ -91,7 +95,7 @@ class TestEndpoint(object):
             'userinfo': {
                 'path': '{}/userinfo',
                 'class': UserInfo,
-                'kwargs': {'db_file': 'users.json'}
+                'kwargs': {'db_file': full_path('users.json')}
             },
             'client_authn': verify_client,
             'template_dir': 'template'
@@ -129,6 +133,19 @@ class TestEndpoint(object):
 
         assert isinstance(_req, TokenIntrospectionRequest)
         assert set(_req.keys()) == {"token"}
+
+    def test_parse_with_client_auth_in_req(self):
+        _context = self.introspection_endpoint.endpoint_context
+        _ = setup_session(_context, AUTH_REQ, uid='diana')
+        _token = self._create_jwt('diana')
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": _token, 'client_id': 'client_1',
+                'client_secret': _context.cdb['client_1']['client_secret']
+            })
+
+        assert isinstance(_req, TokenIntrospectionRequest)
+        assert set(_req.keys()) == {"token", "client_id", "client_secret"}
 
     def test_process_request(self):
         _ = setup_session(self.introspection_endpoint.endpoint_context,
