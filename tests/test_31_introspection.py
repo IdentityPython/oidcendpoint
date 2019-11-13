@@ -80,7 +80,7 @@ class TestEndpoint(object):
                     'kwargs': {
                         "release": ['username'],
                         "client_authn_method": {
-                            'client_secrert_post': ClientSecretPost
+                            'client_secret_post': ClientSecretPost
                         }
                     },
                 }
