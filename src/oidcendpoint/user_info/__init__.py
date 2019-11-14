@@ -1,7 +1,7 @@
 import copy
 import json
 
-__author__ = 'rolandh'
+__author__ = "rolandh"
 
 
 def dict_subset(a, b):
@@ -30,7 +30,7 @@ def dict_subset(a, b):
 class UserInfo(object):
     """ Read only interface to a user info store """
 
-    def __init__(self, db=None, db_file=''):
+    def __init__(self, db=None, db_file=""):
         if db is not None:
             self.db = db
         elif db_file:
@@ -76,4 +76,4 @@ class UserInfo(object):
             if dict_subset(kwargs, args):
                 return uid
 
-        raise KeyError('No matching user')
+        raise KeyError("No matching user")

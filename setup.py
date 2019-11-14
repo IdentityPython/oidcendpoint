@@ -60,6 +60,10 @@ setup(
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Topic :: Software Development :: Libraries :: Python Modules"],
+    extras_require={
+        'docs': ['Sphinx', 'sphinx-autobuild', 'alabaster'],
+        'quality': ['pylama', 'isort', 'eradicate', 'mypy', 'black', 'bandit'],
+    },
     install_requires=[
         "oidcmsg>=0.6.3",
         "oidcservice>=0.6.3",

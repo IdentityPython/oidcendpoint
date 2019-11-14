@@ -22,19 +22,18 @@ from oidcmsg.time_util import in_a_while
 from oidcendpoint.util import lv_pack
 from oidcendpoint.util import lv_unpack
 
-__author__ = 'Roland Hedberg'
+__author__ = "Roland Hedberg"
 
 logger = logging.getLogger(__name__)
 
 CORS_HEADERS = [
     ("Access-Control-Allow-Origin", "*"),
     ("Access-Control-Allow-Methods", "GET"),
-    ("Access-Control-Allow-Headers", "Authorization")
+    ("Access-Control-Allow-Headers", "Authorization"),
 ]
 
 
-def sign_enc_payload(load, timestamp=0, sign_key=None, enc_key=None,
-                     sign_alg='SHA256'):
+def sign_enc_payload(load, timestamp=0, sign_key=None, enc_key=None, sign_alg="SHA256"):
     """
 
     :param load: The basic information in the payload
@@ -59,33 +58,35 @@ def sign_enc_payload(load, timestamp=0, sign_key=None, enc_key=None,
         signer = HMACSigner(algorithm=sign_alg)
         mac = signer.sign(bytes_load + bytes_timestamp, sign_key.key)
     else:
-        mac = b''
+        mac = b""
 
     if enc_key:
         if len(enc_key.key) not in [16, 24, 32]:
-            raise ValueError('Wrong size of enc_key')
+            raise ValueError("Wrong size of enc_key")
 
         encrypter = AES_GCMEncrypter(key=enc_key.key)
         iv = os.urandom(12)
         if mac:
-            msg = lv_pack(load, timestamp, base64.b64encode(mac).decode('utf-8'))
+            msg = lv_pack(load, timestamp, base64.b64encode(mac).decode("utf-8"))
         else:
             msg = lv_pack(load, timestamp)
 
-        enc_msg = encrypter.encrypt(msg.encode('utf-8'), iv)
+        enc_msg = encrypter.encrypt(msg.encode("utf-8"), iv)
         ctx, tag = split_ctx_and_tag(enc_msg)
 
-        cookie_payload = [bytes_timestamp,
-                          base64.b64encode(iv),
-                          base64.b64encode(ctx),
-                          base64.b64encode(tag)]
+        cookie_payload = [
+            bytes_timestamp,
+            base64.b64encode(iv),
+            base64.b64encode(ctx),
+            base64.b64encode(tag),
+        ]
     else:
         cookie_payload = [bytes_timestamp, bytes_load, base64.b64encode(mac)]
 
-    return (b"|".join(cookie_payload)).decode('utf-8')
+    return (b"|".join(cookie_payload)).decode("utf-8")
 
 
-def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg='SHA256'):
+def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
     """
     Verifies the value of a cookie
 
@@ -103,8 +104,9 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg='SHA256'):
         timestamp, load, b64_mac = parts
         mac = base64.b64decode(b64_mac)
         verifier = HMACSigner(algorithm=sign_alg)
-        if verifier.verify(load.encode('utf-8') + timestamp.encode('utf-8'),
-                           mac, sign_key.key):
+        if verifier.verify(
+            load.encode("utf-8") + timestamp.encode("utf-8"), mac, sign_key.key
+        ):
             return load, timestamp
         else:
             raise VerificationError()
@@ -116,22 +118,33 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg='SHA256'):
 
         decrypter = AES_GCMEncrypter(key=enc_key.key)
         msg = decrypter.decrypt(ciphertext, iv, tag=tag)
-        p = lv_unpack(msg.decode('utf-8'))
+        p = lv_unpack(msg.decode("utf-8"))
         load = p[0]
         timestamp = p[1]
         if len(p) == 3:
             verifier = HMACSigner(algorithm=sign_alg)
-            if verifier.verify(load.encode('utf-8') + timestamp.encode('utf-8'),
-                               base64.b64decode(p[2]), sign_key.key):
+            if verifier.verify(
+                load.encode("utf-8") + timestamp.encode("utf-8"),
+                base64.b64decode(p[2]),
+                sign_key.key,
+            ):
                 return load, timestamp
         else:
             return load, timestamp
     return None
 
 
-def make_cookie_content(name, load, sign_key, domain=None, path=None,
-                        timestamp="", enc_key=None, max_age=0,
-                        sign_alg='SHA256'):
+def make_cookie_content(
+    name,
+    load,
+    sign_key,
+    domain=None,
+    path=None,
+    timestamp="",
+    enc_key=None,
+    max_age=0,
+    sign_alg="SHA256",
+):
     """
     Create and return a cookies content
 
@@ -164,8 +177,9 @@ def make_cookie_content(name, load, sign_key, domain=None, path=None,
     if not timestamp:
         timestamp = str(int(time.time()))
 
-    _cookie_value = sign_enc_payload(load, timestamp, sign_key=sign_key,
-                                     enc_key=enc_key, sign_alg=sign_alg)
+    _cookie_value = sign_enc_payload(
+        load, timestamp, sign_key=sign_key, enc_key=enc_key, sign_alg=sign_alg
+    )
 
     content = {name: {"value": _cookie_value}}
     if path is not None:
@@ -173,7 +187,7 @@ def make_cookie_content(name, load, sign_key, domain=None, path=None,
     if domain is not None:
         content[name]["domain"] = domain
 
-    content[name]['httponly'] = True
+    content[name]["httponly"] = True
 
     if max_age:
         content[name]["expires"] = in_a_while(seconds=max_age)
@@ -181,17 +195,34 @@ def make_cookie_content(name, load, sign_key, domain=None, path=None,
     return content
 
 
-def make_cookie(name, payload, sign_key, domain=None, path=None, timestamp="",
-                enc_key=None, max_age=0, sign_alg='SHA256'):
-    content = make_cookie_content(name, payload, sign_key, domain=domain, path=path,
-                                  timestamp=timestamp, enc_key=enc_key,
-                                  max_age=max_age, sign_alg=sign_alg)
+def make_cookie(
+    name,
+    payload,
+    sign_key,
+    domain=None,
+    path=None,
+    timestamp="",
+    enc_key=None,
+    max_age=0,
+    sign_alg="SHA256",
+):
+    content = make_cookie_content(
+        name,
+        payload,
+        sign_key,
+        domain=domain,
+        path=path,
+        timestamp=timestamp,
+        enc_key=enc_key,
+        max_age=max_age,
+        sign_alg=sign_alg,
+    )
 
     cookie = SimpleCookie()
     for name, args in content.items():
-        cookie[name] = args['value']
+        cookie[name] = args["value"]
         for key, value in args.items():
-            if key == 'value':
+            if key == "value":
                 continue
             cookie[name][key] = value
 
@@ -215,7 +246,7 @@ def cookie_parts(name, kaka):
         return None
 
 
-def parse_cookie(name, sign_key, kaka, enc_key=None, sign_alg='SHA256'):
+def parse_cookie(name, sign_key, kaka, enc_key=None, sign_alg="SHA256"):
     """Parses and verifies a cookie value
 
     Parses a cookie created by `make_cookie` and verifies
@@ -253,8 +284,15 @@ class CookieDealer(object):
     access to.
     """
 
-    def __init__(self, sign_key='', enc_key='', sign_alg='SHA256',
-                 default_values=None, sign_jwk='', enc_jwk=''):
+    def __init__(
+        self,
+        sign_key="",
+        enc_key="",
+        sign_alg="SHA256",
+        default_values=None,
+        sign_jwk="",
+        enc_jwk="",
+    ):
 
         if sign_key:
             if isinstance(sign_key, SYMKey):
@@ -279,7 +317,7 @@ class CookieDealer(object):
             self.enc_key = None
 
         if not default_values:
-            default_values = {'path': '', 'domain': '', 'max_age': 0}
+            default_values = {"path": "", "domain": "", "max_age": 0}
 
         self.default_value = default_values
 
@@ -292,7 +330,7 @@ class CookieDealer(object):
         :return: A tuple to be added to headers
         """
         if cookie_name is None:
-            cookie_name = self.default_value['name']
+            cookie_name = self.default_value["name"]
 
         return self.create_cookie("", "", cookie_name=cookie_name, kill=True)
 
@@ -309,21 +347,20 @@ class CookieDealer(object):
         if kill:
             ttl = -1
         elif ttl < 0:
-            ttl = self.default_value['max_age']
+            ttl = self.default_value["max_age"]
 
         if cookie_name is None:
-            cookie_name = self.default_value['name']
+            cookie_name = self.default_value["name"]
 
         c_args = {}
 
-        srvdomain = self.default_value['domain']
-        if srvdomain and srvdomain not in ['localhost', '127.0.0.1',
-                                           '0.0.0.0']:
-            c_args['domain'] = srvdomain
+        srvdomain = self.default_value["domain"]
+        if srvdomain and srvdomain not in ["localhost", "127.0.0.1", "0.0.0.0"]:
+            c_args["domain"] = srvdomain
 
-        srvpath = self.default_value['path']
+        srvpath = self.default_value["path"]
         if srvpath:
-            c_args['path'] = srvpath
+            c_args["path"] = srvpath
 
         # now
         timestamp = str(int(time.time()))
@@ -335,9 +372,15 @@ class CookieDealer(object):
             cookie_payload = "::".join([value[0], timestamp, typ])
 
         cookie = make_cookie(
-            cookie_name, cookie_payload, self.sign_key,
-            timestamp=timestamp, enc_key=self.enc_key, max_age=ttl,
-            sign_alg=self.sign_alg, **c_args)
+            cookie_name,
+            cookie_payload,
+            self.sign_key,
+            timestamp=timestamp,
+            enc_key=self.enc_key,
+            max_age=ttl,
+            sign_alg=self.sign_alg,
+            **c_args
+        )
 
         return cookie
 
@@ -350,14 +393,15 @@ class CookieDealer(object):
         :return: tuple (value, timestamp, type)
         """
         if cookie_name is None:
-            cookie_name = self.default_value['name']
+            cookie_name = self.default_value["name"]
 
         if cookie is None or cookie_name is None:
             return None
         else:
             try:
-                info, timestamp = parse_cookie(cookie_name, self.sign_key, cookie,
-                                               self.enc_key, self.sign_alg)
+                info, timestamp = parse_cookie(
+                    cookie_name, self.sign_key, cookie, self.enc_key, self.sign_alg
+                )
             except (TypeError, AssertionError):
                 return None
             else:
@@ -366,8 +410,17 @@ class CookieDealer(object):
                     return value, _ts, typ
         return None
 
-    def append_cookie(self, cookie, name, payload, typ, domain=None, path=None,
-                      timestamp="", max_age=0):
+    def append_cookie(
+        self,
+        cookie,
+        name,
+        payload,
+        typ,
+        domain=None,
+        path=None,
+        timestamp="",
+        max_age=0,
+    ):
         """
         Adds a cookie to a SimpleCookie instance
 
@@ -389,15 +442,22 @@ class CookieDealer(object):
         except TypeError:
             _payload = "::".join([payload[0], timestamp, typ])
 
-        content = make_cookie_content(name, _payload, self.sign_key, domain=domain,
-                                      path=path, timestamp=timestamp,
-                                      enc_key=self.enc_key, max_age=max_age,
-                                      sign_alg=self.sign_alg)
+        content = make_cookie_content(
+            name,
+            _payload,
+            self.sign_key,
+            domain=domain,
+            path=path,
+            timestamp=timestamp,
+            enc_key=self.enc_key,
+            max_age=max_age,
+            sign_alg=self.sign_alg,
+        )
 
         for name, args in content.items():
-            cookie[name] = args['value']
+            cookie[name] = args["value"]
             for key, value in args.items():
-                if key == 'value':
+                if key == "value":
                     continue
                 cookie[name][key] = value
 
@@ -416,8 +476,7 @@ def compute_session_state(opbs, salt, client_id, redirect_uri):
     parsed_uri = urlparse(redirect_uri)
     rp_origin_url = "{uri.scheme}://{uri.netloc}".format(uri=parsed_uri)
     session_str = client_id + " " + rp_origin_url + " " + opbs + " " + salt
-    return hashlib.sha256(
-        session_str.encode("utf-8")).hexdigest() + "." + salt
+    return hashlib.sha256(session_str.encode("utf-8")).hexdigest() + "." + salt
 
 
 def create_session_cookie(name, opbs, **kwargs):
@@ -432,7 +491,7 @@ def append_cookie(kaka1, kaka2):
     for name, args in kaka2.items():
         kaka1[name] = name
         for key, value in args.items():
-            if key == 'value':
+            if key == "value":
                 continue
             kaka1[name][key] = value
     return kaka1
@@ -442,8 +501,8 @@ def new_cookie(endpoint_context, cookie_name=None, typ="sso", **kwargs):
     if endpoint_context.cookie_dealer:
         _val = as_unicode(b64e(as_bytes(json.dumps(kwargs))))
         return endpoint_context.cookie_dealer.create_cookie(
-            _val, typ=typ, cookie_name=cookie_name,
-            ttl=endpoint_context.sso_ttl)
+            _val, typ=typ, cookie_name=cookie_name, ttl=endpoint_context.sso_ttl
+        )
     else:
         return None
 

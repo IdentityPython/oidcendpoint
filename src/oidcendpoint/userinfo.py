@@ -34,7 +34,7 @@ def update_claims(session, about, old_claims=None):
 
     req = None
     try:
-        req = session['authn_req']
+        req = session["authn_req"]
     except KeyError:
         pass
 
@@ -77,7 +77,7 @@ def claims_match(value, claimspec):
         elif key == "values":
             if value in val:
                 matched = True
-        elif key == 'essential':
+        elif key == "essential":
             # Whether it's essential or not doesn't change anything here
             continue
 
@@ -85,7 +85,7 @@ def claims_match(value, claimspec):
             break
 
     if matched is False:
-        if list(claimspec.keys()) == ['essential']:
+        if list(claimspec.keys()) == ["essential"]:
             return True
 
     return matched
@@ -112,14 +112,14 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
     :param userinfo_claims: user info claims
     :return: User info
     """
-    authn_req = session['authn_req']
+    authn_req = session["authn_req"]
 
     if userinfo_claims is None:
         uic = scope2claims(authn_req["scope"])
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session
-        perm_set = session.get('permission')
+        perm_set = session.get("permission")
         if perm_set:
             uic = {key: uic[key] for key in uic if key in perm_set}
 
@@ -130,19 +130,17 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
         else:
             userinfo_claims = None
 
-        logger.debug(
-            "userinfo_claim: %s" % sanitize(userinfo_claims.to_dict()))
+        logger.debug("userinfo_claim: %s" % sanitize(userinfo_claims.to_dict()))
 
     logger.debug("Session info: %s" % sanitize(session))
 
-    authn_event = session['authn_event']
+    authn_event = session["authn_event"]
     if authn_event:
         uid = authn_event["uid"]
     else:
-        uid = session['uid']
+        uid = session["uid"]
 
-    info = endpoint_context.userinfo(uid, authn_req['client_id'],
-                                     userinfo_claims)
+    info = endpoint_context.userinfo(uid, authn_req["client_id"], userinfo_claims)
 
     if "sub" in userinfo_claims:
         if not claims_match(session["sub"], userinfo_claims["sub"]):
@@ -152,11 +150,7 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
     try:
         logger.debug("user_info_response: {}".format(info))
     except UnicodeEncodeError:
-        try:
-            logger.debug(
-                "user_info_response: {}".format(info.encode('utf-8')))
-        except Exception:
-            pass
+        logger.debug("user_info_response: {}".format(info.encode("utf-8")))
 
     return info
 
@@ -186,4 +180,3 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
         return collect_user_info(endpoint_context, session, _claims)
     else:
         return None
-
