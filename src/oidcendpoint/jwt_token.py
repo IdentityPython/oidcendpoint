@@ -18,7 +18,10 @@ class JWTToken(object):
 
         self.def_aud = aud or []
         self.alg = alg
-        self.blist = {}
+        if 'black_list' in kwargs:
+            self.blist = [] if not kwargs["black_list"] else kwargs["black_list"]
+        else:
+            self.blist = []
 
     def add_claims(self, payload, uinfo, claims):
         for attr in claims:
@@ -92,6 +95,10 @@ class JWTToken(object):
     def gather_args(self, sid, sdb, udb):
         _sinfo = sdb[sid]
         return {}
+
+    def black_list(self, token):
+        if token:
+            self.blist.append(token)
 
     def is_black_listed(self, token):
         return token in self.blist
