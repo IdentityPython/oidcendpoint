@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -14,7 +15,7 @@ class JWTToken(Token):
     def __init__(
         self,
         typ,
-        black_list,
+        black_list=None,
         keyjar=None,
         issuer=None,
         aud=None,
@@ -50,7 +51,7 @@ class JWTToken(Token):
         uinfo: Dict,
         sinfo: Dict,
         *args,
-        aud: Optional[List, str],
+        aud: Optional[Any],
         **kwargs
     ):
         """
