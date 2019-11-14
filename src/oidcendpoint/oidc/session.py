@@ -333,7 +333,9 @@ class Session(Endpoint):
         except UnknownOrNoAuthnMethod:
             pass
         else:
-            if isinstance(auth_info, ResponseMessage):
+            if not auth_info:
+                pass
+            elif isinstance(auth_info, ResponseMessage):
                 return auth_info
             else:
                 request['client_id'] = auth_info['client_id']

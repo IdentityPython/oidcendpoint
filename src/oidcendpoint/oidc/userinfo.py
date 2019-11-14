@@ -23,6 +23,10 @@ class UserInfo(Endpoint):
     response_placement = 'body'
     endpoint_name = 'userinfo_endpoint'
 
+    def get_client_id_from_token(self, endpoint_context, token, request=None):
+        sinfo = self.endpoint_context.sdb[token]
+        return sinfo['authn_req']['client_id']
+
     def do_response(self, response_args=None, request=None, client_id='',
                     **kwargs):
 

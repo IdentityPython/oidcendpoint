@@ -4,16 +4,14 @@ import logging
 from cryptojwt.exception import BadSignature
 from cryptojwt.exception import Invalid
 from cryptojwt.exception import MissingKey
+from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-
-from cryptojwt.jwt import JWT
-from oidcmsg.oidc import AuthnToken
+from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import JWT_BEARER
-from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.exception import NotForMe
 
@@ -31,6 +29,10 @@ class NoMatchingKey(Exception):
 
 
 class UnknownOrNoAuthnMethod(Exception):
+    pass
+
+
+class WrongAuthnMethod(Exception):
     pass
 
 
@@ -60,8 +62,7 @@ def basic_authn(authn):
     _tok = base64.b64decode(_tok)
     part = as_unicode(_tok).split(":")
     if len(part) == 2:
-        (_id, _secret) = part
-        return {'id': _id, 'secret': _secret}
+        return dict(zip(['id', 'secret'], part))
     else:
         raise ValueError('Illegal token')
 
@@ -93,8 +94,8 @@ class ClientSecretPost(ClientSecretBasic):
 
     def verify(self, request, **kwargs):
         if self.endpoint_context.cdb[
-                request[
-                    'client_id']]["client_secret"] == request['client_secret']:
+            request[
+                'client_id']]["client_secret"] == request['client_secret']:
             return {'client_id': request['client_id']}
         else:
             raise AuthnFailure("secrets doesn't match")
@@ -179,6 +180,7 @@ CLIENT_AUTHN_METHOD = {
     "bearer_body": BearerBody,
     "client_secret_jwt": ClientSecretJWT,
     "private_key_jwt": PrivateKeyJWT,
+    "none": None
 }
 
 TYPE_METHOD = [(JWT_BEARER, JWSAuthnMethod)]
@@ -191,13 +193,15 @@ def valid_client_info(cinfo):
     return True
 
 
-def verify_client(endpoint_context, request, authorization_info=None):
+def verify_client(endpoint_context, request, authorization_info=None,
+                  get_client_id_from_token=None):
     """
     Initiated Guessing !
 
     :param endpoint_context: SrvInfo instance
     :param request: The request
     :param authorization_info: Client authentication information
+    :param get_client_id_from_token: Function that based on a token returns a client id.
     :return: dictionary containing client id, client authentication method and
         possibly access token.
     """
@@ -241,17 +245,23 @@ def verify_client(endpoint_context, request, authorization_info=None):
         try:
             _token = auth_info['token']
         except KeyError:
-            logger.warning('Unknown client ID')
+            logger.warning('No token')
         else:
-            sinfo = endpoint_context.sdb[_token]
-            auth_info['client_id'] = sinfo['authn_req']['client_id']
+            if get_client_id_from_token:
+                try:
+                    _id = get_client_id_from_token(endpoint_context, _token, request)
+                except KeyError:
+                    raise ValueError('Unknown token')
+
+                if _id:
+                    auth_info['client_id'] = _id
     else:
         try:
             _cinfo = endpoint_context.cdb[client_id]
         except KeyError:
             raise ValueError('Unknown Client ID')
         else:
-            if isinstance(_cinfo,str):
+            if isinstance(_cinfo, str):
                 try:
                     _cinfo = endpoint_context.cdb[_cinfo]
                 except KeyError:
@@ -270,7 +280,8 @@ def verify_client(endpoint_context, request, authorization_info=None):
                 except KeyError:
                     try:
                         endpoint_context.cdb[client_id]['auth_method'] = {
-                            request.__class__.__name__: auth_info['method']}
+                            request.__class__.__name__: auth_info['method']
+                        }
                     except KeyError:
                         pass
 

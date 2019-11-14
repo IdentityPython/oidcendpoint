@@ -79,36 +79,28 @@ class TestEndpoint(object):
                 'uri_path': 'static/jwks.json',
             },
             'endpoint': {
-                'provider_config': {
-                    'path': '{}/.well-known/openid-configuration',
-                    'class': ProviderConfiguration,
-                    'kwargs': {}
-                },
                 'registration': {
-                    'path': '{}/registration',
+                    'path': 'registration',
                     'class': Registration,
-                    'kwargs': {}
+                    'kwargs': {
+                        "client_auth_method": None
+                    }
                 },
                 'authorization': {
-                    'path': '{}/authorization',
+                    'path': 'authorization',
                     'class': Authorization,
                     'kwargs': {}
                 },
                 'token': {
-                    'path': '{}/token',
+                    'path': 'token',
                     'class': AccessToken,
                     'kwargs': {}
-                },
-                'userinfo': {
-                    'path': '{}/userinfo',
-                    'class': userinfo.UserInfo,
-                    'kwargs': {'db_file': 'users.json'}
                 }
             },
             'template_dir': 'template'
         }
         endpoint_context = EndpointContext(conf)
-        self.endpoint = Registration(endpoint_context)
+        self.endpoint = endpoint_context.endpoint['registration']
 
     def test_parse(self):
         _req = self.endpoint.parse_request(CLI_REQ.to_json())

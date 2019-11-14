@@ -20,10 +20,10 @@ from oidcservice import sanitize
 from oidcservice.exception import CapabilitiesMisMatch
 
 from oidcendpoint import rndstr
+from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
-from oidcendpoint.cookie import new_cookie
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",
@@ -104,6 +104,24 @@ def secret(seed, sid):
     msg = "{}{:.6f}{}".format(time.time(), random(), sid).encode("utf-8")
     csum = hmac.new(seed, msg, hashlib.sha224)
     return csum.hexdigest()
+
+
+def comb_uri(args):
+    for param in ["redirect_uris", "post_logout_redirect_uris"]:
+        if param not in args:
+            continue
+
+        val = []
+        for base, query_dict in args[param]:
+            if query_dict:
+                query_string = urlencode(
+                    [(key, v) for key in query_dict for v in
+                     query_dict[key]])
+                val.append("%s?%s" % (base, query_string))
+            else:
+                val.append(base)
+
+        args[param] = val
 
 
 class Registration(Endpoint):
@@ -195,7 +213,7 @@ class Registration(Endpoint):
                      "userinfo_signed_response_alg"]:
             if item in request:
                 if request[item] in _context.provider_info[
-                        PREFERENCE2PROVIDER[item]]:
+                    PREFERENCE2PROVIDER[item]]:
                     ktyp = alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
@@ -287,7 +305,7 @@ class Registration(Endpoint):
 
     def _verify_sector_identifier(self, request):
         """
-        Verify `sector_identifier_uri` is reachable and that it contains 
+        Verify `sector_identifier_uri` is reachable and that it contains
         `redirect_uri`s.
 
         :param request: Provider registration request
@@ -321,23 +339,29 @@ class Registration(Endpoint):
 
         return si_redirects, si_url
 
-    @staticmethod
-    def comb_uri(args):
-        for param in ["redirect_uris", "post_logout_redirect_uris"]:
-            if param not in args:
-                continue
+    def add_registration_api(self, cinfo, client_id, context):
+        _rat = rndstr(32)
 
-            val = []
-            for base, query_dict in args[param]:
-                if query_dict:
-                    query_string = urlencode(
-                        [(key, v) for key in query_dict for v in
-                         query_dict[key]])
-                    val.append("%s?%s" % (base, query_string))
-                else:
-                    val.append(base)
+        cinfo["registration_access_token"] = _rat
+        cinfo["registration_client_uri"] = "{}?client_id={}".format(
+            self.endpoint_context.endpoint['registration_api'].full_path,
+            client_id)
 
-            args[param] = val
+        context.registration_access_token[_rat] = client_id
+
+    def add_client_secret(self, cinfo, client_id, context):
+        try:
+            args = {'delta': int(self.kwargs['client_secret_expiration_time'])}
+        except KeyError:
+            args = {}
+
+        client_secret = secret(context.seed, client_id)
+        cinfo.update({
+            "client_secret": client_secret,
+            "client_secret_expires_at": client_secret_expiration_time(**args)
+        })
+
+        return client_secret
 
     def client_registration_setup(self, request, new_id=True, set_secret=True):
         try:
@@ -366,35 +390,23 @@ class Registration(Endpoint):
             except KeyError:
                 raise ValueError('Missing client_id')
 
-        _rat = rndstr(32)
-
         _cinfo = {
             "client_id": client_id,
-            "registration_access_token": _rat,
-            "registration_client_uri": "%s?client_id=%s" % (self.endpoint_path,
-                                                            client_id),
             "client_salt": rndstr(8)
         }
+
+        if 'registration_api' in self.endpoint_context.endpoint:
+            self.add_registration_api(_cinfo, client_id, _context)
 
         if new_id:
             _cinfo["client_id_issued_at"] = utc_time_sans_frac()
 
         if set_secret:
-            try:
-                args = {'delta': int(self.kwargs['client_secret_expiration_time'])}
-            except KeyError:
-                args = {}
-
-            client_secret = secret(_context.seed, client_id)
-            _cinfo.update({
-                "client_secret": client_secret,
-                "client_secret_expires_at": client_secret_expiration_time(**args)
-            })
+            client_secret = self.add_client_secret(_cinfo, client_id, _context)
         else:
             client_secret = ''
 
         _context.cdb[client_id] = _cinfo
-        _context.cdb[_rat] = client_id
 
         _cinfo = self.do_client_registration(request, client_id,
                                              ignore=["redirect_uris",
@@ -406,7 +418,7 @@ class Registration(Endpoint):
         args = dict([(k, v) for k, v in _cinfo.items()
                      if k in RegistrationResponse.c_param])
 
-        self.comb_uri(args)
+        comb_uri(args)
         response = RegistrationResponse(**args)
 
         # Add the client_secret as a symmetric key to the key jar

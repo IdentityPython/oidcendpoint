@@ -55,31 +55,16 @@ class TestEndpoint(object):
                     'class': ProviderConfiguration,
                     'kwargs': {}
                 },
-                'registration': {
-                    'path': 'registration',
-                    'class': Registration,
-                    'kwargs': {}
-                },
-                'authorization': {
-                    'path': 'authorization',
-                    'class': Authorization,
-                    'kwargs': {}
-                },
                 'token': {
                     'path': 'token',
                     'class': AccessToken,
                     'kwargs': {}
-                },
-                'userinfo': {
-                    'path': 'userinfo',
-                    'class': userinfo.UserInfo,
-                    'kwargs': {'db_file': 'users.json'}
                 }
             },
             'template_dir': 'template'
         }
         self.endpoint_context = EndpointContext(conf)
-        self.endpoint = ProviderConfiguration(self.endpoint_context)
+        self.endpoint = self.endpoint_context.endpoint["provider_config"]
 
     def test_do_response(self):
         args = self.endpoint.process_request()

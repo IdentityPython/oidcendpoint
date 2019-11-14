@@ -1,5 +1,4 @@
 import logging
-
 from urllib.parse import urlparse
 
 from oidcmsg.exception import MissingRequiredAttribute
@@ -9,8 +8,8 @@ from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
+from oidcendpoint.client_authn import WrongAuthnMethod
 from oidcendpoint.client_authn import verify_client
-from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = 'Roland Hedberg'
@@ -73,6 +72,7 @@ class Endpoint(object):
         self.full_path = ''
         self.provider_info = None
 
+
     def parse_request(self, request, auth=None, **kwargs):
         """
 
@@ -99,7 +99,7 @@ class Endpoint(object):
                     req = _cls_inst.deserialize(query, 'urlencoded')
                 else:
                     req = _cls_inst.deserialize(request,
-                                                         self.request_format)
+                                                self.request_format)
         else:
             req = self.request_cls()
 
@@ -115,7 +115,7 @@ class Endpoint(object):
                 except KeyError:
                     _client_id = ''
             else:
-                raise UnAuthorizedClient()
+                raise
         else:
             if 'client_id' in auth_info:
                 req['client_id'] = auth_info['client_id']
@@ -144,6 +144,9 @@ class Endpoint(object):
         # Do any endpoint specific parsing
         return self.do_post_parse_request(req, _client_id, **kwargs)
 
+    def get_client_id_from_token(self, endpoint_context, token, request=None):
+        return ''
+
     def client_authentication(self, request, auth=None, **kwargs):
         """
         Do client authentication
@@ -155,11 +158,21 @@ class Endpoint(object):
         :return: client_id or raise an exception
         """
 
-        authn_info = verify_client(self.endpoint_context, request, auth)
+        try:
+            authn_info = verify_client(self.endpoint_context, request, auth,
+                                       self.get_client_id_from_token)
+        except UnknownOrNoAuthnMethod:
+            if self.client_authn_method is None:
+                return {}
+            else:
+                if 'none' in self.client_authn_method:
+                    return {}
+                else:
+                    raise
 
         if authn_info['method'] not in self.client_authn_method:
             LOGGER.warning("Wrong client authentication method was used")
-            raise UnknownOrNoAuthnMethod("Wrong authn method")
+            raise WrongAuthnMethod("Wrong authn method")
 
         return authn_info
 
@@ -245,7 +258,7 @@ class Endpoint(object):
                 if self.response_format == 'json':
                     content_type = 'application/json'
                     resp = _response.to_json()
-                elif self.request_format in ['jws','jwe','jose']:
+                elif self.request_format in ['jws', 'jwe', 'jose']:
                     content_type = 'application/jose'
                     resp = _response
                 else:

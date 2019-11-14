@@ -62,6 +62,13 @@ endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
 endpoint_context.cdb[client_id] = {'client_secret': client_secret}
 
 
+def get_client_id_from_token(endpoint_context, token, request=None):
+    if 'client_id' in request:
+        if request['client_id'] == endpoint_context.registration_access_token[token]:
+            return request['client_id']
+    return ''
+
+
 def test_client_secret_basic():
     _token = '{}:{}'.format(client_id, client_secret)
     token = as_unicode(base64.b64encode(as_bytes(_token)))
@@ -306,9 +313,9 @@ def test_verify_client_jws_authn_method():
 
 def test_verify_client_bearer_body():
     request = {'access_token': '1234567890', 'client_id': client_id}
-    sinfo = SessionInfo(authn_req=AuthorizationRequest(client_id= client_id))
-    endpoint_context.sdb['1234567890'] = sinfo
-    res = verify_client(endpoint_context, request)
+    endpoint_context.registration_access_token['1234567890'] = client_id
+    res = verify_client(endpoint_context, request,
+                        get_client_id_from_token=get_client_id_from_token)
     assert set(res.keys()) == {'token', 'method','client_id'}
     assert res['method'] == 'bearer_body'
 
@@ -330,11 +337,13 @@ def test_verify_client_client_secret_basic():
 
 
 def test_verify_client_bearer_header():
+    endpoint_context.registration_access_token['1234567890'] = client_id
     token = 'Bearer 1234567890'
+    request = {'client_id': client_id}
+    res = verify_client(endpoint_context, request, authorization_info=token,
+                        get_client_id_from_token=get_client_id_from_token)
 
-    sinfo = SessionInfo(authn_req=AuthorizationRequest(client_id= client_id))
-    endpoint_context.sdb['1234567890'] = sinfo
-
-    res = verify_client(endpoint_context, {}, token)
+    res = verify_client(endpoint_context, request, token,
+                        get_client_id_from_token)
     assert set(res.keys()) == {'token', 'method','client_id'}
     assert res['method'] == 'bearer_header'

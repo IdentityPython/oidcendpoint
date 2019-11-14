@@ -6,6 +6,10 @@ from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RefreshAccessTokenRequest
 
+from oidcendpoint.client_authn import ClientSecretBasic
+from oidcendpoint.client_authn import ClientSecretJWT
+from oidcendpoint.client_authn import ClientSecretPost
+from oidcendpoint.client_authn import PrivateKeyJWT
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc import userinfo
@@ -105,12 +109,26 @@ class TestEndpoint(object):
                 'token': {
                     'path': '{}/token',
                     'class': AccessToken,
-                    'kwargs': {}
+                    'kwargs': {
+                        "client_authn_method": {
+                            "client_secret_basic": ClientSecretBasic,
+                            "client_secret_post": ClientSecretPost,
+                            "client_secret_jwt": ClientSecretJWT,
+                            "private_key_jwt": PrivateKeyJWT,
+                        }
+                    }
                 },
                 'refresh_token': {
                     'path': '{}/token',
                     'class': RefreshAccessToken,
-                    'kwargs': {}
+                    'kwargs': {
+                        "client_authn_method": {
+                            "client_secret_basic": ClientSecretBasic,
+                            "client_secret_post": ClientSecretPost,
+                            "client_secret_jwt": ClientSecretJWT,
+                            "private_key_jwt": PrivateKeyJWT,
+                        }
+                    }
                 },
                 'userinfo': {
                     'path': '{}/userinfo',
@@ -139,8 +157,8 @@ class TestEndpoint(object):
             'token_endpoint_auth_method': 'client_secret_post',
             'response_types': ['code', 'token', 'code id_token', 'id_token']
         }
-        self.token_endpoint = AccessToken(endpoint_context)
-        self.refresh_token_endpoint = RefreshAccessToken(endpoint_context)
+        self.token_endpoint = endpoint_context.endpoint['token']
+        self.refresh_token_endpoint = endpoint_context.endpoint['refresh_token']
 
     def test_init(self):
         assert self.refresh_token_endpoint

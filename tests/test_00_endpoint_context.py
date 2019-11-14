@@ -147,7 +147,7 @@ def test_capabilities_no_support():
 
 def test_cdb():
     endpoint_context = EndpointContext(conf)
-    _clients = yaml.load(io.StringIO(client_yaml))
+    _clients = yaml.safe_load(io.StringIO(client_yaml))
     endpoint_context.cdb = _clients['oidc_clients']
 
     assert set(endpoint_context.cdb.keys()) == {'client1', 'client2', 'client3'}

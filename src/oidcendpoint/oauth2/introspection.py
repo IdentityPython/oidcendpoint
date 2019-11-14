@@ -5,7 +5,6 @@ from cryptojwt import JWT
 from oidcmsg import oauth2
 from oidcmsg.time_util import utc_time_sans_frac
 
-from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint import Endpoint
 
 LOGGER = logging.getLogger(__name__)
@@ -19,28 +18,17 @@ class Introspection(Endpoint):
     response_format = 'json'
     endpoint_name = 'introspection'
 
-    def client_authentication(self, request, auth=None, **kwargs):
+    def get_client_id_from_token(self, endpoint_context, token, request=None):
         """
-        Deal with client authentication
+        Will try to match tokens against information in the session DB.
 
-        :param request: The introspection request
-        :param auth: Client authentication information
-        :param kwargs: Extra keyword arguments
-        :return: dictionary containing client id, client authentication method.
+        :param endpoint_context:
+        :param token:
+        :param request:
+        :return: client_id if there was a match
         """
-
-        try:
-            auth_info = verify_client(self.endpoint_context, request, auth)
-        except Exception as err:
-            msg = "Failed to verify client due to: {}".format(err)
-            LOGGER.error(msg)
-            return self.error_cls(error="unauthorized_client")
-        else:
-            if 'client_id' not in auth_info:
-                LOGGER.error('No client_id, authentication failed')
-                return self.error_cls(error="unauthorized_client")
-
-        return auth_info
+        sinfo = endpoint_context.sdb[token]
+        return sinfo['authn_req']['client_id']
 
     def process_request(self, request=None, **kwargs):
         """

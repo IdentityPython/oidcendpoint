@@ -14,7 +14,6 @@ from oidcendpoint import sanitize
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.token_handler import AccessCodeUsed
-from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
 from oidcendpoint.cookie import new_cookie
 
@@ -108,31 +107,9 @@ class AccessToken(Endpoint):
 
         return by_schema(AccessTokenResponse, **_info)
 
-    def client_authentication(self, request, auth=None, **kwargs):
-        """
-        Deal with client authentication
-
-        :param request: The refresh access token request
-        :param auth: Client authentication information
-        :param kwargs: Extra keyword arguments
-        :return: dictionary containing client id, client authentication method
-            and possibly access token.
-        """
-
-        try:
-            auth_info = verify_client(self.endpoint_context, request, auth)
-        except Exception as err:
-            msg = "Failed to verify client due to: {}".format(err)
-            logger.error(msg)
-            return self.error_cls(error="unauthorized_client",
-                                  error_description=msg)
-        else:
-            if 'client_id' not in auth_info:
-                logger.error('No client_id, authentication failed')
-                return self.error_cls(error="unauthorized_client",
-                                      error_description='unknown client')
-
-        return auth_info
+    def get_client_id_from_token(self, endpoint_context, token, request=None):
+        sinfo = endpoint_context.sdb[token]
+        return sinfo['authn_req']['client_id']
 
     def _post_parse_request(self, request, client_id='', **kwargs):
         """

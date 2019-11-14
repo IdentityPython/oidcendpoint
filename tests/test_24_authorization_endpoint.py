@@ -267,7 +267,7 @@ class TestEndpoint(object):
             }
         }
         endpoint_context = EndpointContext(conf)
-        _clients = yaml.load(io.StringIO(client_yaml))
+        _clients = yaml.safe_load(io.StringIO(client_yaml))
         endpoint_context.cdb = _clients['oidc_clients']
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ''), conf['issuer'])

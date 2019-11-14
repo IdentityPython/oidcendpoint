@@ -1,12 +1,17 @@
+import base64
 import json
 import os
 
 import pytest
 from cryptojwt import JWT
+from cryptojwt import as_unicode
+from cryptojwt.utils import as_bytes
 from oidcmsg.oauth2 import TokenIntrospectionRequest
 from oidcmsg.oidc import AuthorizationRequest
 
 from oidcendpoint.client_authn import ClientSecretPost
+from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
+from oidcendpoint.client_authn import WrongAuthnMethod
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oauth2.introspection import Introspection
@@ -125,14 +130,12 @@ class TestEndpoint(object):
         _payload = {'sub': _info['sub']}
         return _jwt.pack(_payload, aud='client_1')
 
-    def test_parse(self):
+    def test_parse_no_authn(self):
         _ = setup_session(self.introspection_endpoint.endpoint_context,
                           AUTH_REQ, uid='diana')
         _token = self._create_jwt('diana')
-        _req = self.introspection_endpoint.parse_request({"token": _token})
-
-        assert isinstance(_req, TokenIntrospectionRequest)
-        assert set(_req.keys()) == {"token"}
+        with pytest.raises(UnknownOrNoAuthnMethod):
+            self.introspection_endpoint.parse_request({"token": _token})
 
     def test_parse_with_client_auth_in_req(self):
         _context = self.introspection_endpoint.endpoint_context
@@ -147,21 +150,40 @@ class TestEndpoint(object):
         assert isinstance(_req, TokenIntrospectionRequest)
         assert set(_req.keys()) == {"token", "client_id", "client_secret"}
 
+    def test_parse_with_wrong_client_authn(self):
+        _context = self.introspection_endpoint.endpoint_context
+        _ = setup_session(_context, AUTH_REQ, uid='diana')
+        _token = self._create_jwt('diana')
+        _basic_token = '{}:{}'.format('client_1',
+                                      _context.cdb['client_1']['client_secret'])
+        _basic_token = as_unicode(base64.b64encode(as_bytes(_basic_token)))
+        _basic_authz = 'Basic {}'.format(_basic_token)
+
+        with pytest.raises(WrongAuthnMethod):
+            self.introspection_endpoint.parse_request({"token": _token},
+                                                      _basic_authz)
+
     def test_process_request(self):
-        _ = setup_session(self.introspection_endpoint.endpoint_context,
-                          AUTH_REQ, uid='diana')
+        _context = self.introspection_endpoint.endpoint_context
+        _ = setup_session(_context, AUTH_REQ, uid='diana')
         _token = self._create_jwt('diana', lifetime=6000)
-        _req = self.introspection_endpoint.parse_request({"token": _token})
+        _req = self.introspection_endpoint.parse_request({
+            "token": _token, 'client_id': 'client_1',
+            'client_secret': _context.cdb['client_1']['client_secret']
+        })
         _resp = self.introspection_endpoint.process_request(_req)
 
         assert _resp
         assert set(_resp.keys()) == {'response_args'}
 
     def test_do_response(self):
-        _ = setup_session(self.introspection_endpoint.endpoint_context,
-                          AUTH_REQ, uid='diana')
+        _context = self.introspection_endpoint.endpoint_context
+        _ = setup_session(_context, AUTH_REQ, uid='diana')
         _token = self._create_jwt('diana', lifetime=6000, with_jti=True)
-        _req = self.introspection_endpoint.parse_request({"token": _token})
+        _req = self.introspection_endpoint.parse_request({
+            "token": _token, 'client_id': 'client_1',
+            'client_secret': _context.cdb['client_1']['client_secret']
+        })
         _resp = self.introspection_endpoint.process_request(_req)
         msg_info = self.introspection_endpoint.do_response(request=_req, **_resp)
         assert isinstance(msg_info, dict)

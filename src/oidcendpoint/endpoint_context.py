@@ -302,6 +302,9 @@ class EndpointContext(object):
         # special type of logging
         self.events = None
 
+        # client registration access tokens
+        self.registration_access_token = {}
+
     def package_capabilities(self):
         _provider_info = copy.deepcopy(CAPABILITIES)
         _provider_info["issuer"] = self.issuer

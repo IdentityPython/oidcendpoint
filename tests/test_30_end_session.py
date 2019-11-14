@@ -126,7 +126,8 @@ class TestEndpoint(object):
                     'kwargs': {
                         'post_logout_uri_path': 'post_logout',
                         'signing_alg': 'ES256',
-                        'logout_verify_url': '{}/verify_logout'.format(ISS)
+                        'logout_verify_url': '{}/verify_logout'.format(ISS),
+                        'client_authn_method': None
                     }
                 }
             },
@@ -238,7 +239,7 @@ class TestEndpoint(object):
         _sid = self._get_sid()
         cookie = self._create_cookie("diana", _sid, '1234567', 'client_1')
 
-        _req_args = self.session_endpoint.parse_request({"state": 'abcde'})
+        _req_args = self.session_endpoint.parse_request({"state": '1234567'})
         resp = self.session_endpoint.process_request(_req_args, cookie=cookie)
 
         # returns a signed JWT to be put in a verification web page shown to

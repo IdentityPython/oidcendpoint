@@ -22,7 +22,13 @@ class TestEndpoint(object):
             "grant_expires_in": 300,
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
-            "endpoint": {},
+            "endpoint": {
+                'webfinger': {
+                    'path': '.well-known/webfinger',
+                    'class': Discovery,
+                    'kwargs': {'client_authn_method': None}
+                }
+            },
             "jwks": {
                 'uri_path': 'static/jwks.json',
                 'key_defs': KEYDEFS,
@@ -36,7 +42,7 @@ class TestEndpoint(object):
             'template_dir': 'template'
         }
         endpoint_context = EndpointContext(conf)
-        self.endpoint = Discovery(endpoint_context)
+        self.endpoint = endpoint_context.endpoint['webfinger']
 
     def test_do_response(self):
         args = self.endpoint.process_request(
