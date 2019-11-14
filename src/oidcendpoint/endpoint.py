@@ -23,12 +23,12 @@ method call structure for Endpoints:
 parse_request
     - client_authentication (*)
     - post_parse_request (*)
-    
+
 process_request
 
-do_response    
+do_response
     - response_info
-        - construct 
+        - construct
             - pre_construct (*)
             - _parse_args
             - post_construct (*)

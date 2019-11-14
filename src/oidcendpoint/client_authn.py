@@ -202,6 +202,12 @@ def verify_client(endpoint_context, request, authorization_info=None):
         possibly access token.
     """
 
+    # fixes request = {} instead of str
+    # "AttributeError: 'dict' object has no attribute 'startswith'" in oidcendpoint/endpoint.py(158)client_authentication()
+    if isinstance(authorization_info, dict):
+        strings_parade = ('{} {}'.format(k,v) for k,v in authorization_info.items())
+        authorization_info = ' '.join(strings_parade)
+
     if authorization_info is None:
         if 'client_id' in request and 'client_secret' in request:
             auth_info = ClientSecretPost(endpoint_context).verify(request)
