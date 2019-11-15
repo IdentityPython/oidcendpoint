@@ -4,24 +4,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-OAUTH2_NOCACHE_HEADERS = [
-    ('Pragma', 'no-cache'),
-    ('Cache-Control', 'no-store'),
-]
+OAUTH2_NOCACHE_HEADERS = [("Pragma", "no-cache"), ("Cache-Control", "no-store")]
 
 
 def modsplit(s):
     """Split importable"""
-    if ':' in s:
-        c = s.split(':')
+    if ":" in s:
+        c = s.split(":")
         if len(c) != 2:
             raise ValueError("Syntax error: {s}")
         return c[0], c[1]
     else:
-        c = s.split('.')
+        c = s.split(".")
         if len(c) < 2:
             raise ValueError("Syntax error: {s}")
-        return '.'.join(c[:-1]), c[-1]
+        return ".".join(c[:-1]), c[-1]
 
 
 def importer(name):
@@ -48,7 +45,7 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
     :return:
     """
 
-    if issuer.endswith('/'):
+    if issuer.endswith("/"):
         _url = issuer[:-1]
     else:
         _url = issuer
@@ -56,30 +53,30 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
     endpoint = {}
     for name, spec in conf.items():
         try:
-            kwargs = spec['kwargs']
+            kwargs = spec["kwargs"]
         except KeyError:
             kwargs = {}
 
-        if isinstance(spec['class'], str):
-            _instance = importer(spec['class'])(
-                endpoint_context=endpoint_context, **kwargs)
+        if isinstance(spec["class"], str):
+            _instance = importer(spec["class"])(
+                endpoint_context=endpoint_context, **kwargs
+            )
         else:
-            _instance = spec['class'](endpoint_context=endpoint_context,
-                                      **kwargs)
+            _instance = spec["class"](endpoint_context=endpoint_context, **kwargs)
 
         try:
-            _path = spec['path']
+            _path = spec["path"]
         except KeyError:
             # Should there be a default ?
             raise
 
         _instance.endpoint_path = _path
-        _instance.full_path = '{}/{}'.format(_url, _path)
-        if 'provider_info' in spec:
-            _instance.provider_info = spec['provider_info']
+        _instance.full_path = "{}/{}".format(_url, _path)
+        if "provider_info" in spec:
+            _instance.provider_info = spec["provider_info"]
 
         try:
-            _instance.client_authn_method = kwargs['client_authn_method']
+            _instance.client_authn_method = kwargs["client_authn_method"]
         except KeyError:
             _instance.client_authn_method = client_authn_method
 
@@ -116,8 +113,8 @@ def lv_pack(*args):
     """
     s = []
     for a in args:
-        s.append('{}:{}'.format(len(a), a))
-    return ''.join(s)
+        s.append("{}:{}".format(len(a), a))
+    return "".join(s)
 
 
 def lv_unpack(txt):
@@ -130,7 +127,7 @@ def lv_unpack(txt):
     txt = txt.strip()
     res = []
     while txt:
-        l, v = txt.split(':', 1)
-        res.append(v[:int(l)])
-        txt = v[int(l):]
+        l, v = txt.split(":", 1)
+        res.append(v[: int(l)])
+        txt = v[int(l) :]
     return res

@@ -4,22 +4,20 @@ import logging
 from cryptojwt.exception import BadSignature
 from cryptojwt.exception import Invalid
 from cryptojwt.exception import MissingKey
+from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-
-from cryptojwt.jwt import JWT
-from oidcmsg.oidc import AuthnToken
+from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import JWT_BEARER
-from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.exception import NotForMe
 
 logger = logging.getLogger(__name__)
 
-__author__ = 'roland hedberg'
+__author__ = "roland hedberg"
 
 
 class AuthnFailure(Exception):
@@ -31,6 +29,10 @@ class NoMatchingKey(Exception):
 
 
 class UnknownOrNoAuthnMethod(Exception):
+    pass
+
+
+class WrongAuthnMethod(Exception):
     pass
 
 
@@ -60,10 +62,9 @@ def basic_authn(authn):
     _tok = base64.b64decode(_tok)
     part = as_unicode(_tok).split(":")
     if len(part) == 2:
-        (_id, _secret) = part
-        return {'id': _id, 'secret': _secret}
+        return dict(zip(["id", "secret"], part))
     else:
-        raise ValueError('Illegal token')
+        raise ValueError("Illegal token")
 
 
 class ClientSecretBasic(ClientAuthnMethod):
@@ -76,9 +77,11 @@ class ClientSecretBasic(ClientAuthnMethod):
     def verify(self, request, authorization_info, **kwargs):
         client_info = basic_authn(authorization_info)
 
-        if self.endpoint_context.cdb[
-            client_info['id']]["client_secret"] == client_info['secret']:
-            return {'client_id': client_info['id']}
+        if (
+            self.endpoint_context.cdb[client_info["id"]]["client_secret"]
+            == client_info["secret"]
+        ):
+            return {"client_id": client_info["id"]}
         else:
             raise AuthnFailure()
 
@@ -92,10 +95,11 @@ class ClientSecretPost(ClientSecretBasic):
     """
 
     def verify(self, request, **kwargs):
-        if self.endpoint_context.cdb[
-                request[
-                    'client_id']]["client_secret"] == request['client_secret']:
-            return {'client_id': request['client_id']}
+        if (
+            self.endpoint_context.cdb[request["client_id"]]["client_secret"]
+            == request["client_secret"]
+        ):
+            return {"client_id": request["client_id"]}
         else:
             raise AuthnFailure("secrets doesn't match")
 
@@ -108,7 +112,7 @@ class BearerHeader(ClientSecretBasic):
         if not authorization_info.startswith("Bearer "):
             raise AuthnFailure("Wrong type of authorization token")
 
-        return {'token': authorization_info.split(' ', 1)[1]}
+        return {"token": authorization_info.split(" ", 1)[1]}
 
 
 class BearerBody(ClientSecretPost):
@@ -118,13 +122,12 @@ class BearerBody(ClientSecretPost):
 
     def verify(self, request, **kwargs):
         try:
-            return {'token': request['access_token']}
+            return {"token": request["access_token"]}
         except KeyError:
-            raise AuthnFailure('No access token')
+            raise AuthnFailure("No access token")
 
 
 class JWSAuthnMethod(ClientAuthnMethod):
-
     def verify(self, request, **kwargs):
         _jwt = JWT(self.endpoint_context.keyjar)
         try:
@@ -138,7 +141,7 @@ class JWSAuthnMethod(ClientAuthnMethod):
         except AttributeError:
             logger.debug("authntoken: %s" % sanitize(ca_jwt))
 
-        request[verified_claim_name('client_assertion')] = ca_jwt
+        request[verified_claim_name("client_assertion")] = ca_jwt
 
         try:
             client_id = kwargs["client_id"]
@@ -149,12 +152,12 @@ class JWSAuthnMethod(ClientAuthnMethod):
         # could be either my issuer id or the token endpoint
         if self.endpoint_context.issuer in ca_jwt["aud"]:
             pass
-        elif self.endpoint_context.endpoint['token'].full_path in ca_jwt['aud']:
+        elif self.endpoint_context.endpoint["token"].full_path in ca_jwt["aud"]:
             pass
         else:
             raise NotForMe("Not for me!")
 
-        return {'client_id': client_id, 'jwt': ca_jwt}
+        return {"client_id": client_id, "jwt": ca_jwt}
 
 
 class ClientSecretJWT(JWSAuthnMethod):
@@ -179,25 +182,29 @@ CLIENT_AUTHN_METHOD = {
     "bearer_body": BearerBody,
     "client_secret_jwt": ClientSecretJWT,
     "private_key_jwt": PrivateKeyJWT,
+    "none": None,
 }
 
 TYPE_METHOD = [(JWT_BEARER, JWSAuthnMethod)]
 
 
 def valid_client_info(cinfo):
-    eta = cinfo.get('client_secret_expires_at', 0)
+    eta = cinfo.get("client_secret_expires_at", 0)
     if eta != 0 and eta < utc_time_sans_frac():
         return False
     return True
 
 
-def verify_client(endpoint_context, request, authorization_info=None):
+def verify_client(
+    endpoint_context, request, authorization_info=None, get_client_id_from_token=None
+):
     """
     Initiated Guessing !
 
     :param endpoint_context: SrvInfo instance
     :param request: The request
     :param authorization_info: Client authentication information
+    :param get_client_id_from_token: Function that based on a token returns a client id.
     :return: dictionary containing client id, client authentication method and
         possibly access token.
     """
@@ -205,72 +212,82 @@ def verify_client(endpoint_context, request, authorization_info=None):
     # fixes request = {} instead of str
     # "AttributeError: 'dict' object has no attribute 'startswith'" in oidcendpoint/endpoint.py(158)client_authentication()
     if isinstance(authorization_info, dict):
-        strings_parade = ('{} {}'.format(k,v) for k,v in authorization_info.items())
-        authorization_info = ' '.join(strings_parade)
+        strings_parade = ("{} {}".format(k, v) for k, v in authorization_info.items())
+        authorization_info = " ".join(strings_parade)
 
     if authorization_info is None:
-        if 'client_id' in request and 'client_secret' in request:
+        if "client_id" in request and "client_secret" in request:
             auth_info = ClientSecretPost(endpoint_context).verify(request)
-            auth_info['method'] = 'client_secret_post'
-        elif 'client_assertion' in request:
+            auth_info["method"] = "client_secret_post"
+        elif "client_assertion" in request:
             auth_info = JWSAuthnMethod(endpoint_context).verify(request)
             #  If symmetric key was used
             # auth_method = 'client_secret_jwt'
             #  If asymmetric key was used
-            auth_info['method'] = 'private_key_jwt'
-        elif 'access_token' in request:
+            auth_info["method"] = "private_key_jwt"
+        elif "access_token" in request:
             auth_info = BearerBody(endpoint_context).verify(request)
-            auth_info['method'] = 'bearer_body'
+            auth_info["method"] = "bearer_body"
         else:
             raise UnknownOrNoAuthnMethod()
     else:
-        if authorization_info.startswith('Basic '):
+        if authorization_info.startswith("Basic "):
             auth_info = ClientSecretBasic(endpoint_context).verify(
-                request, authorization_info)
-            auth_info['method'] = 'client_secret_basic'
-        elif authorization_info.startswith('Bearer '):
+                request, authorization_info
+            )
+            auth_info["method"] = "client_secret_basic"
+        elif authorization_info.startswith("Bearer "):
             auth_info = BearerHeader(endpoint_context).verify(
-                request, authorization_info)
-            auth_info['method'] = 'bearer_header'
+                request, authorization_info
+            )
+            auth_info["method"] = "bearer_header"
         else:
             raise UnknownOrNoAuthnMethod(authorization_info)
 
     try:
-        client_id = auth_info['client_id']
+        client_id = auth_info["client_id"]
     except KeyError:
         try:
-            _token = auth_info['token']
+            _token = auth_info["token"]
         except KeyError:
-            logger.warning('Unknown client ID')
+            logger.warning("No token")
         else:
-            sinfo = endpoint_context.sdb[_token]
-            auth_info['client_id'] = sinfo['authn_req']['client_id']
+            if get_client_id_from_token:
+                try:
+                    _id = get_client_id_from_token(endpoint_context, _token, request)
+                except KeyError:
+                    raise ValueError("Unknown token")
+
+                if _id:
+                    auth_info["client_id"] = _id
     else:
         try:
             _cinfo = endpoint_context.cdb[client_id]
         except KeyError:
-            raise ValueError('Unknown Client ID')
+            raise ValueError("Unknown Client ID")
         else:
-            if isinstance(_cinfo,str):
+            if isinstance(_cinfo, str):
                 try:
                     _cinfo = endpoint_context.cdb[_cinfo]
                 except KeyError:
-                    raise ValueError('Unknown Client ID')
+                    raise ValueError("Unknown Client ID")
 
             try:
                 valid_client_info(_cinfo)
             except KeyError:
-                logger.warning('Client registration has timed out')
-                raise ValueError('Not valid client')
+                logger.warning("Client registration has timed out")
+                raise ValueError("Not valid client")
             else:
                 # store what authn method was used
                 try:
-                    endpoint_context.cdb[client_id]['auth_method'][
-                        request.__class__.__name__] = auth_info['method']
+                    endpoint_context.cdb[client_id]["auth_method"][
+                        request.__class__.__name__
+                    ] = auth_info["method"]
                 except KeyError:
                     try:
-                        endpoint_context.cdb[client_id]['auth_method'] = {
-                            request.__class__.__name__: auth_info['method']}
+                        endpoint_context.cdb[client_id]["auth_method"] = {
+                            request.__class__.__name__: auth_info["method"]
+                        }
                     except KeyError:
                         pass
 

@@ -4,20 +4,20 @@ from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint.util import instantiate
 
-__author__ = 'Roland Hedberg'
+__author__ = "Roland Hedberg"
 
 logger = logging.getLogger(__name__)
 
-SAML_AC = 'urn:oasis:names:tc:SAML:2.0:ac:classes'
+SAML_AC = "urn:oasis:names:tc:SAML:2.0:ac:classes"
 UNSPECIFIED = "{}:unspecified".format(SAML_AC)
-INTERNETPROTOCOLPASSWORD = '{}:InternetProtocolPassword'.format(SAML_AC)
-MOBILETWOFACTORCONTRACT = '{}:MobileTwoFactorContract'.format(SAML_AC)
-PASSWORDPROTECTEDTRANSPORT = '{}:PasswordProtectedTransport'.format(SAML_AC)
-PASSWORD = '{}:Password'.format(SAML_AC)
-TLSCLIENT = '{}:TLSClient'.format(SAML_AC)
+INTERNETPROTOCOLPASSWORD = "{}:InternetProtocolPassword".format(SAML_AC)
+MOBILETWOFACTORCONTRACT = "{}:MobileTwoFactorContract".format(SAML_AC)
+PASSWORDPROTECTEDTRANSPORT = "{}:PasswordProtectedTransport".format(SAML_AC)
+PASSWORD = "{}:Password".format(SAML_AC)
+TLSCLIENT = "{}:TLSClient".format(SAML_AC)
 TIMESYNCTOKEN = "{}:TimeSyncToken".format(SAML_AC)
 
-CMP_TYPE = ['exact', 'minimum', 'maximum', 'better']
+CMP_TYPE = ["exact", "minimum", "maximum", "better"]
 
 
 class AuthnBroker(object):
@@ -32,18 +32,18 @@ class AuthnBroker(object):
         :param value: A dictionary with metadata and configuration information
         """
 
-        for attr in ['acr', 'method']:
+        for attr in ["acr", "method"]:
             if attr not in info:
                 raise ValueError('Required attribute "{}" missing'.format(attr))
 
         self.db[key] = info
         try:
-            self.acr2id[info['acr']].append(key)
+            self.acr2id[info["acr"]].append(key)
         except KeyError:
-            self.acr2id[info['acr']] = [key]
+            self.acr2id[info["acr"]] = [key]
 
     def __delitem__(self, key):
-        _acr = self.db[key]['acr']
+        _acr = self.db[key]["acr"]
         del self.db[key]
         self.acr2id[_acr].remove(key)
         if not self.acr2id[_acr]:
@@ -73,7 +73,7 @@ class AuthnBroker(object):
                 yield spec["method"]
 
     def get_method_by_id(self, id):
-        return self[id]['method']
+        return self[id]["method"]
 
     def pick(self, acr=None):
         """
@@ -139,7 +139,7 @@ def pick_auth(endpoint_context, areq, all=False):
                     _ith = areq[verified_claim_name("id_token_hint")]
                 except KeyError:
                     try:
-                        _hint = areq['login_hint']
+                        _hint = areq["login_hint"]
                     except KeyError:
                         pass
                     else:
@@ -147,7 +147,7 @@ def pick_auth(endpoint_context, areq, all=False):
                             acrs = endpoint_context.login_hint2acrs(_hint)
                 else:
                     try:
-                        acrs = [_ith['acr']]
+                        acrs = [_ith["acr"]]
                     except KeyError:
                         pass
 
@@ -156,8 +156,7 @@ def pick_auth(endpoint_context, areq, all=False):
 
         for acr in acrs:
             res = endpoint_context.authn_broker.pick(acr)
-            logger.debug("Picked AuthN broker for ACR %s: %s" % (
-                str(acr), str(res)))
+            logger.debug("Picked AuthN broker for ACR %s: %s" % (str(acr), str(res)))
             if res:
                 if all:
                     return res
@@ -166,25 +165,24 @@ def pick_auth(endpoint_context, areq, all=False):
                     return res[0]
 
     except KeyError as exc:
-        logger.debug(
-            "An error occurred while picking the authN broker: %s" % str(exc))
+        logger.debug("An error occurred while picking the authN broker: %s" % str(exc))
 
     return None
 
 
 def init_method(authn_spec, endpoint_context, template_handler=None):
     try:
-        _args = authn_spec['kwargs']
+        _args = authn_spec["kwargs"]
     except KeyError:
         _args = {}
 
-    if 'template' in _args:
-        _args['template_handler'] = template_handler
+    if "template" in _args:
+        _args["template_handler"] = template_handler
 
-    _args['endpoint_context'] = endpoint_context
+    _args["endpoint_context"] = endpoint_context
 
-    args = {'method': instantiate(authn_spec['class'], **_args)}
-    args.update({k: v for k, v in authn_spec.items() if k not in ['class', 'kwargs']})
+    args = {"method": instantiate(authn_spec["class"], **_args)}
+    args.update({k: v for k, v in authn_spec.items() if k not in ["class", "kwargs"]})
     return args
 
 

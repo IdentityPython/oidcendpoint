@@ -20,35 +20,28 @@ from oidcservice import sanitize
 from oidcservice.exception import CapabilitiesMisMatch
 
 from oidcendpoint import rndstr
+from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
-from oidcendpoint.cookie import new_cookie
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",
     "request_object_signing_alg": "request_object_signing_alg_values_supported",
-    "request_object_encryption_alg":
-        "request_object_encryption_alg_values_supported",
-    "request_object_encryption_enc":
-        "request_object_encryption_enc_values_supported",
+    "request_object_encryption_alg": "request_object_encryption_alg_values_supported",
+    "request_object_encryption_enc": "request_object_encryption_enc_values_supported",
     "userinfo_signed_response_alg": "userinfo_signing_alg_values_supported",
-    "userinfo_encrypted_response_alg":
-        "userinfo_encryption_alg_values_supported",
-    "userinfo_encrypted_response_enc":
-        "userinfo_encryption_enc_values_supported",
+    "userinfo_encrypted_response_alg": "userinfo_encryption_alg_values_supported",
+    "userinfo_encrypted_response_enc": "userinfo_encryption_enc_values_supported",
     "id_token_signed_response_alg": "id_token_signing_alg_values_supported",
-    "id_token_encrypted_response_alg":
-        "id_token_encryption_alg_values_supported",
-    "id_token_encrypted_response_enc":
-        "id_token_encryption_enc_values_supported",
+    "id_token_encrypted_response_alg": "id_token_encryption_alg_values_supported",
+    "id_token_encrypted_response_enc": "id_token_encryption_enc_values_supported",
     "default_acr_values": "acr_values_supported",
     "subject_type": "subject_types_supported",
     "token_endpoint_auth_method": "token_endpoint_auth_methods_supported",
-    "token_endpoint_auth_signing_alg":
-        "token_endpoint_auth_signing_alg_values_supported",
+    "token_endpoint_auth_signing_alg": "token_endpoint_auth_signing_alg_values_supported",
     "response_types": "response_types_supported",
-    'grant_types': 'grant_types_supported'
+    "grant_types": "grant_types_supported",
 }
 
 logger = logging.getLogger(__name__)
@@ -92,11 +85,11 @@ def verify_url(url, urlset):
 
 
 def client_secret_expiration_time(delta=86400):
-    '''
+    """
     Returns client_secret expiration time.
 
     Split for easy customization.
-    '''
+    """
     return utc_time_sans_frac() + delta
 
 
@@ -106,14 +99,32 @@ def secret(seed, sid):
     return csum.hexdigest()
 
 
+def comb_uri(args):
+    for param in ["redirect_uris", "post_logout_redirect_uris"]:
+        if param not in args:
+            continue
+
+        val = []
+        for base, query_dict in args[param]:
+            if query_dict:
+                query_string = urlencode(
+                    [(key, v) for key in query_dict for v in query_dict[key]]
+                )
+                val.append("%s?%s" % (base, query_string))
+            else:
+                val.append(base)
+
+        args[param] = val
+
+
 class Registration(Endpoint):
     request_cls = RegistrationRequest
     response_cls = RegistrationResponse
     error_response = ClientRegistrationErrorResponse
-    request_format = 'json'
-    request_placement = 'body'
-    response_format = 'json'
-    endpoint_name = 'registration_endpoint'
+    request_format = "json"
+    request_placement = "body"
+    response_format = "json"
+    endpoint_name = "registration_endpoint"
 
     # default
     # response_placement = 'body'
@@ -122,9 +133,8 @@ class Registration(Endpoint):
         _context = self.endpoint_context
         for _pref, _prov in PREFERENCE2PROVIDER.items():
             if _pref in request:
-                if _pref in ["response_types", 'default_acr_values']:
-                    if not match_sp_sep(
-                            request[_pref], _context.provider_info[_prov]):
+                if _pref in ["response_types", "default_acr_values"]:
+                    if not match_sp_sep(request[_pref], _context.provider_info[_prov]):
                         raise CapabilitiesMisMatch(_pref)
                 else:
                     if isinstance(request[_pref], str):
@@ -132,11 +142,11 @@ class Registration(Endpoint):
                             raise CapabilitiesMisMatch(_pref)
                     else:
                         if not set(request[_pref]).issubset(
-                                set(_context.provider_info[_prov])):
+                            set(_context.provider_info[_prov])
+                        ):
                             raise CapabilitiesMisMatch(_pref)
 
-    def do_client_registration(self, request, client_id,
-                               ignore=None):
+    def do_client_registration(self, request, client_id, ignore=None):
         if ignore is None:
             ignore = []
 
@@ -155,8 +165,9 @@ class Registration(Endpoint):
                     err = ClientRegistrationErrorResponse(
                         error="invalid_configuration_parameter",
                         error_description="post_logout_redirect_uris "
-                                          "contains "
-                                          "fragment")
+                        "contains "
+                        "fragment",
+                    )
                     return err
                 base, query = splitquery(uri)
                 if query:
@@ -171,15 +182,18 @@ class Registration(Endpoint):
                 _cinfo["redirect_uris"] = ruri
             except InvalidRedirectURIError as e:
                 return ClientRegistrationErrorResponse(
-                    error="invalid_redirect_uri", error_description=str(e))
+                    error="invalid_redirect_uri", error_description=str(e)
+                )
 
         if "sector_identifier_uri" in request:
             try:
                 _cinfo["si_redirects"], _cinfo[
-                    "sector_id"] = self._verify_sector_identifier(request)
+                    "sector_id"
+                ] = self._verify_sector_identifier(request)
             except InvalidSectorIdentifier as err:
-                return ResponseMessage(error="invalid_configuration_parameter",
-                                       error_description=str(err))
+                return ResponseMessage(
+                    error="invalid_configuration_parameter", error_description=str(err)
+                )
 
         for item in ["policy_uri", "logo_uri", "tos_uri"]:
             if item in request:
@@ -188,38 +202,38 @@ class Registration(Endpoint):
                 else:
                     return ResponseMessage(
                         error="invalid_configuration_parameter",
-                        error_description="%s pointed to illegal URL" % item)
+                        error_description="%s pointed to illegal URL" % item,
+                    )
 
         # Do I have the necessary keys
-        for item in ["id_token_signed_response_alg",
-                     "userinfo_signed_response_alg"]:
+        for item in ["id_token_signed_response_alg", "userinfo_signed_response_alg"]:
             if item in request:
-                if request[item] in _context.provider_info[
-                        PREFERENCE2PROVIDER[item]]:
+                if request[item] in _context.provider_info[PREFERENCE2PROVIDER[item]]:
                     ktyp = alg2keytype(request[item])
                     # do I have this ktyp and for EC type keys the curve
                     if ktyp not in ["none", "oct"]:
                         _k = []
-                        for iss in ['', _context.issuer]:
-                            _k.extend(_context.keyjar.get_signing_key(
-                                ktyp, alg=request[item], owner=iss))
+                        for iss in ["", _context.issuer]:
+                            _k.extend(
+                                _context.keyjar.get_signing_key(
+                                    ktyp, alg=request[item], owner=iss
+                                )
+                            )
                         if not _k:
                             logger.warning(
-                                'Lacking support for "{}"'.format(
-                                    request[item]))
+                                'Lacking support for "{}"'.format(request[item])
+                            )
                             del _cinfo[item]
 
-        t = {'jwks_uri': '', 'jwks': None}
+        t = {"jwks_uri": "", "jwks": None}
 
-        for item in ['jwks_uri', 'jwks']:
+        for item in ["jwks_uri", "jwks"]:
             if item in request:
                 t[item] = request[item]
 
         # if it can't load keys because the URL is false it will
         # just silently fail. Waiting for better times.
-        _context.keyjar.load_keys(client_id,
-                                  jwks_uri=t['jwks_uri'],
-                                  jwks=t['jwks'])
+        _context.keyjar.load_keys(client_id, jwks_uri=t["jwks_uri"], jwks=t["jwks"])
         try:
             n_keys = 0
             for kb in _context.keyjar[client_id]:
@@ -254,23 +268,25 @@ class Registration(Endpoint):
             _custom = False
             p = urlparse(uri)
             if client_type == "native":
-                if p.scheme not in ['http', 'https']:  # Custom scheme
+                if p.scheme not in ["http", "https"]:  # Custom scheme
                     _custom = True
-                elif p.scheme == "http" and p.hostname in ["localhost",
-                                                           "127.0.0.1"]:
+                elif p.scheme == "http" and p.hostname in ["localhost", "127.0.0.1"]:
                     pass
                 else:
-                    logger.error("InvalidRedirectURI: scheme:%s, hostname:%s",
-                                 p.scheme, p.hostname)
+                    logger.error(
+                        "InvalidRedirectURI: scheme:%s, hostname:%s",
+                        p.scheme,
+                        p.hostname,
+                    )
                     raise InvalidRedirectURIError(
-                        "Redirect_uri must use custom scheme or http and "
-                        "localhost")
+                        "Redirect_uri must use custom scheme or http and " "localhost"
+                    )
             elif must_https and p.scheme != "https":
+                raise InvalidRedirectURIError("None https redirect_uri not allowed")
+            elif p.scheme not in ["http", "https"]:  # Custom scheme
                 raise InvalidRedirectURIError(
-                    "None https redirect_uri not allowed")
-            elif p.scheme not in ['http', 'https']:  # Custom scheme
-                raise InvalidRedirectURIError(
-                    "Custom redirect_uri not allowed for web client")
+                    "Custom redirect_uri not allowed for web client"
+                )
             elif p.fragment:
                 raise InvalidRedirectURIError("redirect_uri contains fragment")
 
@@ -287,7 +303,7 @@ class Registration(Endpoint):
 
     def _verify_sector_identifier(self, request):
         """
-        Verify `sector_identifier_uri` is reachable and that it contains 
+        Verify `sector_identifier_uri` is reachable and that it contains
         `redirect_uri`s.
 
         :param request: Provider registration request
@@ -310,41 +326,52 @@ class Registration(Endpoint):
             si_redirects = json.loads(res.text)
         except ValueError:
             raise InvalidSectorIdentifier(
-                "Error deserializing sector_identifier_uri content")
+                "Error deserializing sector_identifier_uri content"
+            )
 
         if "redirect_uris" in request:
             logger.debug("redirect_uris: %s", request["redirect_uris"])
             for uri in request["redirect_uris"]:
                 if uri not in si_redirects:
                     raise InvalidSectorIdentifier(
-                        "redirect_uri missing from sector_identifiers")
+                        "redirect_uri missing from sector_identifiers"
+                    )
 
         return si_redirects, si_url
 
-    @staticmethod
-    def comb_uri(args):
-        for param in ["redirect_uris", "post_logout_redirect_uris"]:
-            if param not in args:
-                continue
+    def add_registration_api(self, cinfo, client_id, context):
+        _rat = rndstr(32)
 
-            val = []
-            for base, query_dict in args[param]:
-                if query_dict:
-                    query_string = urlencode(
-                        [(key, v) for key in query_dict for v in
-                         query_dict[key]])
-                    val.append("%s?%s" % (base, query_string))
-                else:
-                    val.append(base)
+        cinfo["registration_access_token"] = _rat
+        cinfo["registration_client_uri"] = "{}?client_id={}".format(
+            self.endpoint_context.endpoint["registration_api"].full_path, client_id
+        )
 
-            args[param] = val
+        context.registration_access_token[_rat] = client_id
+
+    def add_client_secret(self, cinfo, client_id, context):
+        try:
+            args = {"delta": int(self.kwargs["client_secret_expiration_time"])}
+        except KeyError:
+            args = {}
+
+        client_secret = secret(context.seed, client_id)
+        cinfo.update(
+            {
+                "client_secret": client_secret,
+                "client_secret_expires_at": client_secret_expiration_time(**args),
+            }
+        )
+
+        return client_secret
 
     def client_registration_setup(self, request, new_id=True, set_secret=True):
         try:
             request.verify()
         except (MessageException, ValueError) as err:
-            return ResponseMessage(error="invalid_configuration_request",
-                                   error_description="%s" % err)
+            return ResponseMessage(
+                error="invalid_configuration_request", error_description="%s" % err
+            )
 
         request.rm_blanks()
         try:
@@ -352,7 +379,8 @@ class Registration(Endpoint):
         except CapabilitiesMisMatch as err:
             return ResponseMessage(
                 error="invalid_request",
-                error_description="Don't support proposed %s" % err)
+                error_description="Don't support proposed %s" % err,
+            )
 
         _context = self.endpoint_context
         if new_id:
@@ -362,51 +390,38 @@ class Registration(Endpoint):
                 client_id = rndstr(12)
         else:
             try:
-                client_id = request['client_id']
+                client_id = request["client_id"]
             except KeyError:
-                raise ValueError('Missing client_id')
+                raise ValueError("Missing client_id")
 
-        _rat = rndstr(32)
+        _cinfo = {"client_id": client_id, "client_salt": rndstr(8)}
 
-        _cinfo = {
-            "client_id": client_id,
-            "registration_access_token": _rat,
-            "registration_client_uri": "%s?client_id=%s" % (self.endpoint_path,
-                                                            client_id),
-            "client_salt": rndstr(8)
-        }
+        if "registration_api" in self.endpoint_context.endpoint:
+            self.add_registration_api(_cinfo, client_id, _context)
 
         if new_id:
             _cinfo["client_id_issued_at"] = utc_time_sans_frac()
 
         if set_secret:
-            try:
-                args = {'delta': int(self.kwargs['client_secret_expiration_time'])}
-            except KeyError:
-                args = {}
-
-            client_secret = secret(_context.seed, client_id)
-            _cinfo.update({
-                "client_secret": client_secret,
-                "client_secret_expires_at": client_secret_expiration_time(**args)
-            })
+            client_secret = self.add_client_secret(_cinfo, client_id, _context)
         else:
-            client_secret = ''
+            client_secret = ""
 
         _context.cdb[client_id] = _cinfo
-        _context.cdb[_rat] = client_id
 
-        _cinfo = self.do_client_registration(request, client_id,
-                                             ignore=["redirect_uris",
-                                                     "policy_uri", "logo_uri",
-                                                     "tos_uri"])
+        _cinfo = self.do_client_registration(
+            request,
+            client_id,
+            ignore=["redirect_uris", "policy_uri", "logo_uri", "tos_uri"],
+        )
         if isinstance(_cinfo, ResponseMessage):
             return _cinfo
 
-        args = dict([(k, v) for k, v in _cinfo.items()
-                     if k in RegistrationResponse.c_param])
+        args = dict(
+            [(k, v) for k, v in _cinfo.items() if k in RegistrationResponse.c_param]
+        )
 
-        self.comb_uri(args)
+        comb_uri(args)
         response = RegistrationResponse(**args)
 
         # Add the client_secret as a symmetric key to the key jar
@@ -424,20 +439,21 @@ class Registration(Endpoint):
 
         return response
 
-    def process_request(self, request=None, new_id=True, set_secret=True,
-                        **kwargs):
+    def process_request(self, request=None, new_id=True, set_secret=True, **kwargs):
         try:
-            reg_resp = self.client_registration_setup(request, new_id,
-                                                      set_secret)
+            reg_resp = self.client_registration_setup(request, new_id, set_secret)
         except Exception as err:
-            return ResponseMessage(error="invalid_configuration_request",
-                                   error_description="%s" % err)
+            return ResponseMessage(
+                error="invalid_configuration_request", error_description="%s" % err
+            )
 
-        if 'error' in reg_resp:
+        if "error" in reg_resp:
             return reg_resp
         else:
-            _cookie = new_cookie(self.endpoint_context,
-                                 cookie_name='oidc_op_rp',
-                                 client_id=reg_resp['client_id'])
+            _cookie = new_cookie(
+                self.endpoint_context,
+                cookie_name="oidc_op_rp",
+                client_id=reg_resp["client_id"],
+            )
 
-            return {'response_args': reg_resp, 'cookie': _cookie}
+            return {"response_args": reg_resp, "cookie": _cookie}

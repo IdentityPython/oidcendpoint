@@ -1,5 +1,4 @@
 import logging
-
 from urllib.parse import urlparse
 
 from oidcmsg.exception import MissingRequiredAttribute
@@ -9,11 +8,11 @@ from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
+from oidcendpoint.client_authn import WrongAuthnMethod
 from oidcendpoint.client_authn import verify_client
-from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
-__author__ = 'Roland Hedberg'
+__author__ = "Roland Hedberg"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,16 +36,16 @@ do_response
 
 
 def set_content_type(headers, content_type):
-    if ('Content-type', content_type) in headers:
+    if ("Content-type", content_type) in headers:
         return headers
 
-    _headers = [h for h in headers if h[0] != 'Content-type']
-    _headers.append(('Content-type', content_type))
+    _headers = [h for h in headers if h[0] != "Content-type"]
+    _headers.append(("Content-type", content_type))
     return _headers
 
 
 def fragment_encoding(return_type):
-    if return_type == ['code']:
+    if return_type == ["code"]:
         return False
     else:
         return True
@@ -56,13 +55,13 @@ class Endpoint(object):
     request_cls = Message
     response_cls = Message
     error_cls = ResponseMessage
-    endpoint_name = ''
-    endpoint_path = ''
-    request_format = 'urlencoded'
-    request_placement = 'query'
-    response_format = 'json'
-    response_placement = 'body'
-    client_authn_method = ''
+    endpoint_name = ""
+    endpoint_path = ""
+    request_format = "urlencoded"
+    request_placement = "query"
+    response_format = "json"
+    response_placement = "body"
+    client_authn_method = ""
 
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
@@ -70,7 +69,7 @@ class Endpoint(object):
         self.post_construct = []
         self.post_parse_request = []
         self.kwargs = kwargs
-        self.full_path = ''
+        self.full_path = ""
         self.provider_info = None
 
     def parse_request(self, request, auth=None, **kwargs):
@@ -89,40 +88,43 @@ class Endpoint(object):
                 req = self.request_cls(**request)
             else:
                 _cls_inst = self.request_cls()
-                if self.request_format == 'jwt':
+                if self.request_format == "jwt":
                     req = _cls_inst.deserialize(
-                        request, "jwt", keyjar=self.endpoint_context.keyjar,
-                        verify=self.endpoint_context.verify_ssl, **kwargs)
-                elif self.request_format == 'url':
+                        request,
+                        "jwt",
+                        keyjar=self.endpoint_context.keyjar,
+                        verify=self.endpoint_context.verify_ssl,
+                        **kwargs
+                    )
+                elif self.request_format == "url":
                     parts = urlparse(request)
                     scheme, netloc, path, params, query, fragment = parts[:6]
-                    req = _cls_inst.deserialize(query, 'urlencoded')
+                    req = _cls_inst.deserialize(query, "urlencoded")
                 else:
-                    req = _cls_inst.deserialize(request,
-                                                         self.request_format)
+                    req = _cls_inst.deserialize(request, self.request_format)
         else:
             req = self.request_cls()
 
         # Verify that the client is allowed to do this
-        _client_id = ''
+        _client_id = ""
         try:
             auth_info = self.client_authentication(req, auth, **kwargs)
         except UnknownOrNoAuthnMethod:
             # If there is no required client authentication method
             if not self.client_authn_method:
                 try:
-                    _client_id = req['client_id']
+                    _client_id = req["client_id"]
                 except KeyError:
-                    _client_id = ''
+                    _client_id = ""
             else:
-                raise UnAuthorizedClient()
+                raise
         else:
-            if 'client_id' in auth_info:
-                req['client_id'] = auth_info['client_id']
-                _client_id = auth_info['client_id']
+            if "client_id" in auth_info:
+                req["client_id"] = auth_info["client_id"]
+                _client_id = auth_info["client_id"]
             else:
                 try:
-                    _client_id = req['client_id']
+                    _client_id = req["client_id"]
                 except KeyError:
                     pass
 
@@ -134,15 +136,16 @@ class Endpoint(object):
         # verify that the request message is correct
         try:
             req.verify(keyjar=keyjar, opponent_id=_client_id)
-        except (MissingRequiredAttribute, ValueError,
-                MissingRequiredValue) as err:
-            return self.error_cls(error="invalid_request",
-                                  error_description="%s" % err)
+        except (MissingRequiredAttribute, ValueError, MissingRequiredValue) as err:
+            return self.error_cls(error="invalid_request", error_description="%s" % err)
 
         LOGGER.info("Parsed and verified request: %s" % sanitize(req))
 
         # Do any endpoint specific parsing
         return self.do_post_parse_request(req, _client_id, **kwargs)
+
+    def get_client_id_from_token(self, endpoint_context, token, request=None):
+        return ""
 
     def client_authentication(self, request, auth=None, **kwargs):
         """
@@ -155,33 +158,45 @@ class Endpoint(object):
         :return: client_id or raise an exception
         """
 
-        authn_info = verify_client(self.endpoint_context, request, auth)
+        try:
+            authn_info = verify_client(
+                self.endpoint_context, request, auth, self.get_client_id_from_token
+            )
+        except UnknownOrNoAuthnMethod:
+            if self.client_authn_method is None:
+                return {}
+            else:
+                if "none" in self.client_authn_method:
+                    return {}
+                else:
+                    raise
 
-        if authn_info['method'] not in self.client_authn_method:
+        if authn_info["method"] not in self.client_authn_method:
             LOGGER.warning("Wrong client authentication method was used")
-            raise UnknownOrNoAuthnMethod("Wrong authn method")
+            raise WrongAuthnMethod("Wrong authn method")
 
         return authn_info
 
-    def do_post_parse_request(self, request, client_id='', **kwargs):
+    def do_post_parse_request(self, request, client_id="", **kwargs):
         for meth in self.post_parse_request:
-            request = meth(request, client_id,
-                           endpoint_context=self.endpoint_context, **kwargs)
+            request = meth(
+                request, client_id, endpoint_context=self.endpoint_context, **kwargs
+            )
         return request
 
     def do_pre_construct(self, response_args, request, **kwargs):
         for meth in self.pre_construct:
-            response_args = meth(response_args, request,
-                                 endpoint_context=self.endpoint_context,
-                                 **kwargs)
+            response_args = meth(
+                response_args, request, endpoint_context=self.endpoint_context, **kwargs
+            )
 
         return response_args
 
     def do_post_construct(self, response_args, request, **kwargs):
         for meth in self.post_construct:
-            response_args = meth(response_args, request,
-                                 endpoint_context=self.endpoint_context,
-                                 **kwargs)
+            response_args = meth(
+                response_args, request, endpoint_context=self.endpoint_context, **kwargs
+            )
 
         return response_args
 
@@ -212,9 +227,9 @@ class Endpoint(object):
     def response_info(self, response_args, request, **kwargs):
         return self.construct(response_args, request, **kwargs)
 
-    def do_response(self, response_args=None, request=None, error='', **kwargs):
+    def do_response(self, response_args=None, request=None, error="", **kwargs):
         do_placement = True
-        content_type = 'text/html'
+        content_type = "text/html"
         _resp = {}
 
         if response_args is None:
@@ -224,67 +239,67 @@ class Endpoint(object):
         if error:
             _response = ResponseMessage(error=error)
             try:
-                _response['error_description'] = kwargs['error_description']
+                _response["error_description"] = kwargs["error_description"]
             except KeyError:
                 pass
-        elif 'response_msg' in kwargs:
-            resp = kwargs['response_msg']
+        elif "response_msg" in kwargs:
+            resp = kwargs["response_msg"]
             do_placement = False
-            _response = ''  # This is just for my IDE
-            if self.response_format == 'json':
-                content_type = 'application/json'
-            elif self.request_format in ['jws', 'jwe', 'jose']:
-                content_type = 'application/jose'
+            _response = ""  # This is just for my IDE
+            if self.response_format == "json":
+                content_type = "application/json"
+            elif self.request_format in ["jws", "jwe", "jose"]:
+                content_type = "application/jose"
             else:
-                content_type = 'application/x-www-form-urlencoded'
+                content_type = "application/x-www-form-urlencoded"
         else:
             _response = self.response_info(response_args, request, **kwargs)
 
         if do_placement:
-            if self.response_placement == 'body':
-                if self.response_format == 'json':
-                    content_type = 'application/json'
+            if self.response_placement == "body":
+                if self.response_format == "json":
+                    content_type = "application/json"
                     resp = _response.to_json()
-                elif self.request_format in ['jws','jwe','jose']:
-                    content_type = 'application/jose'
+                elif self.request_format in ["jws", "jwe", "jose"]:
+                    content_type = "application/jose"
                     resp = _response
                 else:
-                    content_type = 'application/x-www-form-urlencoded'
+                    content_type = "application/x-www-form-urlencoded"
                     resp = _response.to_urlencoded()
-            elif self.response_placement == 'url':
+            elif self.response_placement == "url":
                 # content_type = 'application/x-www-form-urlencoded'
-                content_type = ''
+                content_type = ""
                 try:
-                    fragment_enc = kwargs['fragment_enc']
+                    fragment_enc = kwargs["fragment_enc"]
                 except KeyError:
-                    fragment_enc = fragment_encoding(kwargs['return_type'])
+                    fragment_enc = fragment_encoding(kwargs["return_type"])
 
                 if fragment_enc:
-                    resp = _response.request(kwargs['return_uri'], True)
+                    resp = _response.request(kwargs["return_uri"], True)
                 else:
-                    resp = _response.request(kwargs['return_uri'])
+                    resp = _response.request(kwargs["return_uri"])
             else:
                 raise ValueError(
-                    "Don't know where that is: '{}".format(self.response_placement))
+                    "Don't know where that is: '{}".format(self.response_placement)
+                )
 
         if content_type:
             try:
-                http_headers = set_content_type(kwargs['http_headers'],
-                                                content_type)
+                http_headers = set_content_type(kwargs["http_headers"], content_type)
             except KeyError:
-                http_headers = [('Content-type', content_type)]
+                http_headers = [("Content-type", content_type)]
         else:
             try:
-                http_headers = kwargs['http_headers']
+                http_headers = kwargs["http_headers"]
             except KeyError:
                 http_headers = []
 
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 
-        _resp.update({'response': resp, 'http_headers': http_headers})
+        _resp.update({"response": resp, "http_headers": http_headers})
 
         try:
-            _resp['cookie'] = kwargs['cookie']
+            _resp["cookie"] = kwargs["cookie"]
         except KeyError:
             pass
 

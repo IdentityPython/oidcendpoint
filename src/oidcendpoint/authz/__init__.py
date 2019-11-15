@@ -24,7 +24,7 @@ class AuthzHandling(object):
         try:
             self.permdb[uid][client_id] = permission
         except KeyError:
-            self.permdb[uid] = {client_id:permission}
+            self.permdb[uid] = {client_id: permission}
 
     def permissions(self, cookie=None, **kwargs):
         if cookie is None:
@@ -39,7 +39,7 @@ class AuthzHandling(object):
                 b64, _ts, typ = val
 
             info = cookie_value(b64)
-            return self.get(info['sub'], info['client_id'])
+            return self.get(info["sub"], info["client_id"])
 
     def get(self, uid, client_id):
         try:

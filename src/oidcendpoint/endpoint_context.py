@@ -29,23 +29,36 @@ logger = logging.getLogger(__name__)
 
 CAPABILITIES = {
     "response_types_supported": [
-        "code", "token", "id_token", "code token", "code id_token",
-        "id_token token", "code id_token token", 'none'],
+        "code",
+        "token",
+        "id_token",
+        "code token",
+        "code id_token",
+        "id_token token",
+        "code id_token token",
+        "none",
+    ],
     "token_endpoint_auth_methods_supported": [
-        "client_secret_post", "client_secret_basic",
-        "client_secret_jwt", "private_key_jwt"],
-    "response_modes_supported": ['query', 'fragment', 'form_post'],
+        "client_secret_post",
+        "client_secret_basic",
+        "client_secret_jwt",
+        "private_key_jwt",
+    ],
+    "response_modes_supported": ["query", "fragment", "form_post"],
     "subject_types_supported": ["public", "pairwise"],
     "grant_types_supported": [
-        "authorization_code", "implicit",
-        "urn:ietf:params:oauth:grant-type:jwt-bearer", "refresh_token"],
+        "authorization_code",
+        "implicit",
+        "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "refresh_token",
+    ],
     "claim_types_supported": ["normal", "aggregated", "distributed"],
     "claims_parameter_supported": True,
     "request_parameter_supported": True,
-    "request_uri_parameter_supported": True
+    "request_uri_parameter_supported": True,
 }
 
-SORT_ORDER = {'RS': 0, 'ES': 1, 'HS': 2, 'PS': 3, 'no': 4}
+SORT_ORDER = {"RS": 0, "ES": 1, "HS": 2, "PS": 3, "no": 4}
 
 
 def sort_sign_alg(alg1, alg2):
@@ -63,52 +76,61 @@ def sort_sign_alg(alg1, alg2):
 
 
 def add_path(url, path):
-    if url.endswith('/'):
-        if path.startswith('/'):
-            return '{}{}'.format(url, path[1:])
+    if url.endswith("/"):
+        if path.startswith("/"):
+            return "{}{}".format(url, path[1:])
         else:
-            return '{}{}'.format(url, path)
+            return "{}{}".format(url, path)
     else:
-        if path.startswith('/'):
-            return '{}{}'.format(url, path)
+        if path.startswith("/"):
+            return "{}{}".format(url, path)
         else:
-            return '{}/{}'.format(url, path)
+            return "{}/{}".format(url, path)
 
 
 def init_user_info(conf, cwd):
     try:
-        kwargs = conf['kwargs']
+        kwargs = conf["kwargs"]
     except KeyError:
         kwargs = {}
 
-    if 'db_file' in kwargs:
-        kwargs['db_file'] = os.path.join(cwd, kwargs['db_file'])
+    if "db_file" in kwargs:
+        kwargs["db_file"] = os.path.join(cwd, kwargs["db_file"])
 
-    if isinstance(conf['class'], str):
-        return util.importer(conf['class'])(**kwargs)
+    if isinstance(conf["class"], str):
+        return util.importer(conf["class"])(**kwargs)
     else:
-        return conf['class'](**kwargs)
+        return conf["class"](**kwargs)
 
 
 def init_service(conf, endpoint_context=None):
     try:
-        kwargs = conf['kwargs']
+        kwargs = conf["kwargs"]
     except KeyError:
         kwargs = {}
 
     if endpoint_context:
-        kwargs['endpoint_context'] = endpoint_context
+        kwargs["endpoint_context"] = endpoint_context
 
-    if isinstance(conf['class'], str):
-        return util.importer(conf['class'])(**kwargs)
+    if isinstance(conf["class"], str):
+        return util.importer(conf["class"])(**kwargs)
     else:
-        return conf['class'](**kwargs)
+        return conf["class"](**kwargs)
 
 
 class EndpointContext(object):
-    def __init__(self, conf, keyjar=None, client_db=None, session_db=None,
-                 cwd='', cookie_dealer=None, httpc=None, cookie_name=None,
-                 jwks_uri_path=None):
+    def __init__(
+        self,
+        conf,
+        keyjar=None,
+        client_db=None,
+        session_db=None,
+        cwd="",
+        cookie_dealer=None,
+        httpc=None,
+        cookie_name=None,
+        jwks_uri_path=None,
+    ):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
@@ -117,13 +139,13 @@ class EndpointContext(object):
         self.cdb = client_db or {}
 
         try:
-            self.seed = bytes(conf['seed'], 'utf-8')
+            self.seed = bytes(conf["seed"], "utf-8")
         except KeyError:
-            self.seed = bytes(rndstr(16), 'utf-8')
+            self.seed = bytes(rndstr(16), "utf-8")
 
         # Default values, to be changed below depending on configuration
         self.endpoint = {}
-        self.issuer = ''
+        self.issuer = ""
         self.httpc = httpc or requests
         self.verify_ssl = True
         self.jwks_uri = None
@@ -136,105 +158,117 @@ class EndpointContext(object):
 
         if cookie_name:
             self.cookie_name = cookie_name
-        elif 'cookie_name' in conf:
-            self.cookie_name = conf['cookie_name']
+        elif "cookie_name" in conf:
+            self.cookie_name = conf["cookie_name"]
         else:
             self.cookie_name = {
-                'session': "oidcop", 'register': 'oidc_op_rp',
-                'session_management': "sman"
+                "session": "oidcop",
+                "register": "oidc_op_rp",
+                "session_management": "sman",
             }
 
-        for param in ['verify_ssl', 'issuer', 'sso_ttl',
-                      'symkey', 'client_authn', 'id_token_schema']:
+        for param in [
+            "verify_ssl",
+            "issuer",
+            "sso_ttl",
+            "symkey",
+            "client_authn",
+            "id_token_schema",
+        ]:
             try:
                 setattr(self, param, conf[param])
             except KeyError:
                 pass
 
         try:
-            self.template_handler = conf['template_handler']
+            self.template_handler = conf["template_handler"]
         except KeyError:
             try:
-                loader = conf['template_loader']
+                loader = conf["template_loader"]
             except KeyError:
                 template_dir = conf["template_dir"]
-                loader = Environment(loader=FileSystemLoader(template_dir))
+                loader = Environment(loader=FileSystemLoader(template_dir),
+                                     autoescape=True)
             self.template_handler = Jinja2TemplateHandler(loader)
 
         self.setup = {}
         if not jwks_uri_path:
             try:
-                jwks_uri_path = conf['jwks']['uri_path']
+                jwks_uri_path = conf["jwks"]["uri_path"]
             except KeyError:
                 pass
 
         try:
-            if self.issuer.endswith('/'):
-                self.jwks_uri = '{}{}'.format(self.issuer, jwks_uri_path)
+            if self.issuer.endswith("/"):
+                self.jwks_uri = "{}{}".format(self.issuer, jwks_uri_path)
             else:
-                self.jwks_uri = '{}/{}'.format(self.issuer, jwks_uri_path)
+                self.jwks_uri = "{}/{}".format(self.issuer, jwks_uri_path)
         except KeyError:
-            self.jwks_uri = ''
+            self.jwks_uri = ""
 
         if self.keyjar is None or self.keyjar.owners() == []:
-            args = {k: v for k, v in conf['jwks'].items() if k != 'uri_path'}
+            args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
             self.keyjar = init_key_jar(**args)
 
         try:
-            _conf = conf['cookie_dealer']
+            _conf = conf["cookie_dealer"]
         except KeyError:
             pass
         else:
             if self.cookie_dealer:  # already defined
-                raise ValueError('Cookie Dealer already defined')
+                raise ValueError("Cookie Dealer already defined")
             self.cookie_dealer = init_service(_conf)
 
         try:
-            _conf = conf['sub_func']
+            _conf = conf["sub_func"]
         except KeyError:
             sub_func = None
         else:
             sub_func = {}
             for key, args in _conf.items():
-                if 'class' in args:
+                if "class" in args:
                     sub_func[key] = init_service(args)
-                elif 'function' in args:
-                    if isinstance(args['function'], str):
-                        sub_func[key] = util.importer(args['function'])
+                elif "function" in args:
+                    if isinstance(args["function"], str):
+                        sub_func[key] = util.importer(args["function"])
                     else:
-                        sub_func[key] = args['function']
+                        sub_func[key] = args["function"]
 
         if session_db:
             self.sdb = session_db
         else:
             try:
-                _th_args = conf['token_handler_args']
+                _th_args = conf["token_handler_args"]
             except KeyError:
                 # create 3 keys
                 keydef = [
-                    {"type": "oct", "bytes": "24", 'use': ['enc'], 'kid': 'code'},
-                    {"type": "oct", "bytes": "24", 'use': ['enc'], 'kid': 'token'},
-                    {"type": "oct", "bytes": "24", 'use': ['enc'], 'kid': 'refresh'}
+                    {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "code"},
+                    {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "token"},
+                    {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "refresh"},
                 ]
 
                 jwks_def = {
-                    'private_path': 'private/token_jwks.json',
-                    'key_defs': keydef, 'read_only': False
+                    "private_path": "private/token_jwks.json",
+                    "key_defs": keydef,
+                    "read_only": False,
                 }
 
-                _th_args = {'jwks_def': jwks_def}
-                for typ, tid in [('code', 600), ('token', 3600), ('refresh', 86400)]:
-                    _th_args[typ] = {'lifetime': tid}
+                _th_args = {"jwks_def": jwks_def}
+                for typ, tid in [("code", 600), ("token", 3600), ("refresh", 86400)]:
+                    _th_args[typ] = {"lifetime": tid}
 
-            self.sdb = create_session_db(self, _th_args, db=None,
-                                         sso_db=SSODb(), sub_func=sub_func)
+            self.sdb = create_session_db(
+                self, _th_args, db=None, sso_db=SSODb(), sub_func=sub_func
+            )
 
-        self.endpoint = build_endpoints(conf['endpoint'],
-                                        endpoint_context=self,
-                                        client_authn_method=CLIENT_AUTHN_METHOD,
-                                        issuer=conf['issuer'])
+        self.endpoint = build_endpoints(
+            conf["endpoint"],
+            endpoint_context=self,
+            client_authn_method=CLIENT_AUTHN_METHOD,
+            issuer=conf["issuer"],
+        )
         try:
-            _cap = conf['capabilities']
+            _cap = conf["capabilities"]
         except KeyError:
             _cap = {}
 
@@ -242,36 +276,38 @@ class EndpointContext(object):
             if endpoint_instance.provider_info:
                 _cap.update(endpoint_instance.provider_info)
 
-            if endpoint in ['webfinger', 'provider_info']:
+            if endpoint in ["webfinger", "provider_info"]:
                 continue
 
-            _cap[endpoint_instance.endpoint_name] = '{}'.format(
-                endpoint_instance.endpoint_path)
+            _cap[endpoint_instance.endpoint_name] = "{}".format(
+                endpoint_instance.endpoint_path
+            )
 
         try:
-            authz_spec = conf['authz']
+            authz_spec = conf["authz"]
         except KeyError:
             self.authz = authz.Implicit(self)
         else:
             self.authz = init_service(authz_spec, self)
 
         try:
-            _authn = conf['authentication']
+            _authn = conf["authentication"]
         except KeyError:
             self.authn_broker = None
         else:
-            self.authn_broker = populate_authn_broker(_authn, self,
-                                                      self.template_handler)
+            self.authn_broker = populate_authn_broker(
+                _authn, self, self.template_handler
+            )
 
         try:
-            _conf = conf['id_token']
+            _conf = conf["id_token"]
         except KeyError:
             self.idtoken = IDToken(self)
         else:
             self.idtoken = init_service(_conf, self)
 
         try:
-            _conf = conf['userinfo']
+            _conf = conf["userinfo"]
         except KeyError:
             pass
         else:
@@ -279,7 +315,7 @@ class EndpointContext(object):
             self.sdb.userinfo = self.userinfo
 
         try:
-            _conf = conf['login_hint_lookup']
+            _conf = conf["login_hint_lookup"]
         except KeyError:
             pass
         else:
@@ -288,7 +324,7 @@ class EndpointContext(object):
                 self.login_hint_lookup.user_info = self.userinfo
 
         try:
-            _conf = conf['login_hint2acrs']
+            _conf = conf["login_hint2acrs"]
         except KeyError:
             self.login_hint2acrs = None
         else:
@@ -301,6 +337,9 @@ class EndpointContext(object):
 
         # special type of logging
         self.events = None
+
+        # client registration access tokens
+        self.registration_access_token = {}
 
     def package_capabilities(self):
         _provider_info = copy.deepcopy(CAPABILITIES)
@@ -325,9 +364,8 @@ class EndpointContext(object):
         # Remove 'none' for token_endpoint_auth_signing_alg_values_supported
         # since it is not allowed
         sign_algs = sign_algs[:]
-        sign_algs.remove('none')
-        _provider_info[
-            "token_endpoint_auth_signing_alg_values_supported"] = sign_algs
+        sign_algs.remove("none")
+        _provider_info["token_endpoint_auth_signing_alg_values_supported"] = sign_algs
 
         algs = jwe.SUPPORTED["alg"]
         for typ in ["userinfo", "id_token", "request_object"]:
@@ -377,19 +415,19 @@ class EndpointContext(object):
                         try:
                             sv = set(val)
                         except TypeError:
-                            if key == 'response_types_supported':
+                            if key == "response_types_supported":
                                 sv = set()
                                 for v in val:
                                     v.sort()
-                                    sv.add(' '.join(v))
+                                    sv.add(" ".join(v))
                             else:
                                 raise
                         else:
                             sv = set()
                             for v in val:
-                                vs = v.split(' ')
+                                vs = v.split(" ")
                                 vs.sort()
-                                sv.add(' '.join(vs))
+                                sv.add(" ".join(vs))
 
                     sa = set(allowed)
 
@@ -400,7 +438,8 @@ class EndpointContext(object):
 
         if not_supported:
             _msg = "Server doesn't support the following features: {}".format(
-                not_supported)
+                not_supported
+            )
             logger.error(_msg)
             raise ConfigurationError(_msg)
 
@@ -408,7 +447,7 @@ class EndpointContext(object):
             _pinfo["jwks_uri"] = self.jwks_uri
 
         for name, instance in self.endpoint.items():
-            if name not in ['webfinger', 'provider_info']:
+            if name not in ["webfinger", "provider_info"]:
                 _pinfo[instance.endpoint_name] = instance.full_path
 
         return _pinfo
