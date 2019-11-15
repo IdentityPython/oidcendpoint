@@ -131,3 +131,7 @@ class TestEndpoint(object):
         _info = self.registration_api_endpoint.process_request(request=_api_req)
         assert set(_info.keys()) == {"response_args"}
         assert _info["response_args"] == _resp["response_args"]
+
+        _endp_response = self.registration_api_endpoint.do_response(_info)
+        assert set(_endp_response.keys()) == {"response", "http_headers"}
+        assert ("Content-type", "application/json") in _endp_response["http_headers"]

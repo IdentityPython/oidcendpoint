@@ -34,5 +34,4 @@ class RegistrationRead(Endpoint):
         )
 
         comb_uri(args)
-        resp = RegistrationResponse(**args)
-        return {"response_args": resp}
+        return {"response_args": RegistrationResponse(**args)}
