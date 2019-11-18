@@ -80,7 +80,7 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
         except KeyError:
             _instance.client_authn_method = client_authn_method
 
-        endpoint[name] = _instance
+        endpoint[_instance.name] = _instance
 
     return endpoint
 
