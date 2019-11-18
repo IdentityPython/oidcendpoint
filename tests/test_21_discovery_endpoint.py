@@ -39,7 +39,7 @@ class TestEndpoint(object):
             "template_dir": "template",
         }
         endpoint_context = EndpointContext(conf)
-        self.endpoint = endpoint_context.endpoint["webfinger"]
+        self.endpoint = endpoint_context.endpoint["discovery"]
 
     def test_do_response(self):
         args = self.endpoint.process_request({"resource": "acct:foo@example.com"})

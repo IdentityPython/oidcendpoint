@@ -267,7 +267,7 @@ class TestEndpoint(object):
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
-        self.endpoint = Authorization(endpoint_context)
+        self.endpoint = endpoint_context.endpoint['authorization']
 
     def test_init(self):
         assert self.endpoint

@@ -110,7 +110,7 @@ class TestEndpoint(object):
         }
         endpoint_context = EndpointContext(conf)
         self.registration_endpoint = endpoint_context.endpoint["registration"]
-        self.registration_api_endpoint = endpoint_context.endpoint["registration_api"]
+        self.registration_api_endpoint = endpoint_context.endpoint["registration_read"]
 
     def test_do_response(self):
         _req = self.registration_endpoint.parse_request(CLI_REQ.to_json())

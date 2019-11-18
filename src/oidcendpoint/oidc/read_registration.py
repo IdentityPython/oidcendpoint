@@ -14,6 +14,7 @@ class RegistrationRead(Endpoint):
     request_placement = "url"
     response_format = "json"
     endpoint_name = ""
+    name = "registration_read"
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         if "client_id" in request:

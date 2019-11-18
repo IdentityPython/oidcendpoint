@@ -14,6 +14,7 @@ class ProviderConfiguration(Endpoint):
     response_format = "json"
     # response_placement = 'body'
     endpoint_name = "provider_config"
+    name = "provider_config"
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)

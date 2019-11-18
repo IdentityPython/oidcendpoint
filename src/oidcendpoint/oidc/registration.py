@@ -125,6 +125,7 @@ class Registration(Endpoint):
     request_placement = "body"
     response_format = "json"
     endpoint_name = "registration_endpoint"
+    name = "registration"
 
     # default
     # response_placement = 'body'
@@ -344,7 +345,7 @@ class Registration(Endpoint):
 
         cinfo["registration_access_token"] = _rat
         cinfo["registration_client_uri"] = "{}?client_id={}".format(
-            self.endpoint_context.endpoint["registration_api"].full_path, client_id
+            self.endpoint_context.endpoint["registration_read"].full_path, client_id
         )
 
         context.registration_access_token[_rat] = client_id
@@ -396,7 +397,7 @@ class Registration(Endpoint):
 
         _cinfo = {"client_id": client_id, "client_salt": rndstr(8)}
 
-        if "registration_api" in self.endpoint_context.endpoint:
+        if "registration_read" in self.endpoint_context.endpoint:
             self.add_registration_api(_cinfo, client_id, _context)
 
         if new_id:

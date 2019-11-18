@@ -18,6 +18,7 @@ class Introspection(Endpoint):
     request_format = "urlencoded"
     response_format = "json"
     endpoint_name = "introspection"
+    name = "introspection"
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         """
