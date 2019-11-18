@@ -49,8 +49,10 @@ def verify_code_challenge(code_verifier, code_challenge, code_challenge_method="
     _h = CC_METHOD[code_challenge_method](code_verifier.encode("ascii")).digest()
     _cc = b64e(_h)
     if _cc.decode("ascii") != code_challenge:
-        LOGGER.error("PCKE Code Challenge check failed")
+        LOGGER.error("PKCE Code Challenge check failed")
         raise ProcessError("PCKE check failed")
+
+    LOGGER.debug("PKCE Code Challenge check succeeded")
 
 
 def post_token_parse(request, client_id, endpoint_context, **kwargs):
