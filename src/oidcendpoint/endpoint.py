@@ -57,6 +57,7 @@ class Endpoint(object):
     error_cls = ResponseMessage
     endpoint_name = ""
     endpoint_path = ""
+    name = ""
     request_format = "urlencoded"
     request_placement = "query"
     response_format = "json"
@@ -84,7 +85,7 @@ class Endpoint(object):
         LOGGER.info("Request: %s" % sanitize(request))
 
         if request:
-            if isinstance(request, dict):
+            if isinstance(request, (dict, Message)):
                 req = self.request_cls(**request)
             else:
                 _cls_inst = self.request_cls()

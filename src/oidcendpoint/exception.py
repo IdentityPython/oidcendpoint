@@ -65,3 +65,7 @@ class InvalidCookieSign(Exception):
 class OnlyForTestingWarning(Warning):
     "Warned when using a feature that only should be used for testing."
     pass
+
+
+class ProcessError(OidcEndpointError):
+    pass

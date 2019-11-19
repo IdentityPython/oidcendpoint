@@ -6,6 +6,7 @@ import yaml
 from cryptojwt.key_jar import build_keyjar
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import ConfigurationError
+from oidcendpoint.oidc.add_on.pkce import add_pkce_support
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
@@ -60,6 +61,14 @@ conf = {
             "acr": INTERNETPROTOCOLPASSWORD,
             "class": "oidcendpoint.user_authn.user.NoAuthn",
             "kwargs": {"user": "diana"},
+        }
+    },
+    "add_on": {
+        "pkce": {
+            "function": add_pkce_support,
+            "kwargs": {
+                "essential": True
+            }
         }
     },
     "template_dir": "template",

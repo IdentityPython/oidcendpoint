@@ -22,6 +22,7 @@ class UserInfo(Endpoint):
     response_format = "json"
     response_placement = "body"
     endpoint_name = "userinfo_endpoint"
+    name = "userinfo"
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         sinfo = self.endpoint_context.sdb[token]

@@ -70,6 +70,7 @@ class Session(Endpoint):
     response_format = "urlencoded"
     response_placement = "url"
     endpoint_name = "end_session_endpoint"
+    name = "session"
 
     def do_back_channel_logout(self, cinfo, sub, sid):
         """
