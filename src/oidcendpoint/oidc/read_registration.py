@@ -1,4 +1,4 @@
-from oic.oauth2 import ErrorResponse
+from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.message import Message
 from oidcmsg.oidc import RegistrationResponse
 
@@ -9,7 +9,7 @@ from oidcendpoint.oidc.registration import comb_uri
 class RegistrationRead(Endpoint):
     request_cls = Message
     response_cls = RegistrationResponse
-    error_response = ErrorResponse
+    error_response = AuthorizationErrorResponse
     request_format = "urlencoded"
     request_placement = "url"
     response_format = "json"
