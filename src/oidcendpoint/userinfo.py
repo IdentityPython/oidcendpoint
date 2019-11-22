@@ -2,9 +2,9 @@ import logging
 
 from oidcservice import sanitize
 from oidcmsg.oidc import Claims
-from oidcmsg.oidc import scope2claims
 
 from oidcendpoint.exception import FailedAuthentication
+from oidcendpoint.user_info import scope2claims
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,8 @@ def by_schema(cls, **kwa):
     return dict([(key, val) for key, val in kwa.items() if key in cls.c_param])
 
 
-def collect_user_info(endpoint_context, session, userinfo_claims=None):
+def collect_user_info(endpoint_context, session, userinfo_claims=None,
+                      scope_to_claims=None):
     """
     Collect information about a user.
     This can happen in two cases, either when constructing an IdToken or
@@ -115,7 +116,7 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
     authn_req = session["authn_req"]
 
     if userinfo_claims is None:
-        uic = scope2claims(authn_req["scope"])
+        uic = scope2claims(authn_req["scope"], map=scope_to_claims)
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session
@@ -155,7 +156,8 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None):
     return info
 
 
-def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
+def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None,
+                                scope_to_claims=None):
     """
     Collect user info claims that are to be placed in the id token.
 
@@ -177,6 +179,7 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
     _claims = by_schema(endpoint_context.id_token_schema, **itc)
 
     if _claims:
-        return collect_user_info(endpoint_context, session, _claims)
+        return collect_user_info(endpoint_context, session, _claims,
+                                 scope_to_claims=scope_to_claims)
     else:
         return None

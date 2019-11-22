@@ -2,8 +2,8 @@ import json
 import logging
 
 from cryptojwt.exception import MissingValue
-from oidcmsg import oidc
 from cryptojwt.jwt import JWT
+from oidcmsg import oidc
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.time_util import time_sans_frac
@@ -23,6 +23,10 @@ class UserInfo(Endpoint):
     response_placement = "body"
     endpoint_name = "userinfo_endpoint"
     name = "userinfo"
+
+    def __init__(self, endpoint_context, **kwargs):
+        Endpoint.__init__(self, endpoint_context, **kwargs)
+        self.scope_to_claims = None
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         sinfo = self.endpoint_context.sdb[token]
@@ -104,7 +108,8 @@ class UserInfo(Endpoint):
 
         if allowed:
             # Scope can translate to userinfo_claims
-            info = collect_user_info(self.endpoint_context, session)
+            info = collect_user_info(self.endpoint_context, session,
+                                     scope_to_claims=self.scope_to_claims)
         else:
             info = {
                 "error": "invalid_request",

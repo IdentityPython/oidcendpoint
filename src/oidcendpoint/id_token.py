@@ -8,7 +8,6 @@ from oidcendpoint.userinfo import userinfo_in_id_token_claims
 
 logger = logging.getLogger(__name__)
 
-
 DEF_SIGN_ALG = {
     "id_token": "RS256",
     "userinfo": "RS256",
@@ -20,7 +19,7 @@ DEF_LIFETIME = 300
 
 
 def get_sign_and_encrypt_algorithms(
-    endpoint_context, client_info, payload_type, sign=False, encrypt=False
+        endpoint_context, client_info, payload_type, sign=False, encrypt=False
 ):
     args = {"sign": sign, "encrypt": encrypt}
     if sign:
@@ -76,18 +75,19 @@ class IDToken(object):
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
+        self.scope_to_claims = None
 
     def payload(
-        self,
-        session,
-        acr="",
-        alg="RS256",
-        code=None,
-        access_token=None,
-        user_info=None,
-        auth_time=0,
-        lifetime=None,
-        extra_claims=None,
+            self,
+            session,
+            acr="",
+            alg="RS256",
+            code=None,
+            access_token=None,
+            user_info=None,
+            auth_time=0,
+            lifetime=None,
+            extra_claims=None,
     ):
         """
 
@@ -148,16 +148,16 @@ class IDToken(object):
         return {"payload": _args, "lifetime": lifetime}
 
     def sign_encrypt(
-        self,
-        session_info,
-        client_id,
-        code=None,
-        access_token=None,
-        user_info=None,
-        sign=True,
-        encrypt=False,
-        lifetime=None,
-        extra_claims=None,
+            self,
+            session_info,
+            client_id,
+            code=None,
+            access_token=None,
+            user_info=None,
+            sign=True,
+            encrypt=False,
+            lifetime=None,
+            extra_claims=None,
     ):
         """
         Signed and or encrypt a IDToken
@@ -222,7 +222,8 @@ class IDToken(object):
         )
 
         if user_claims:
-            info = collect_user_info(_context, sess_info)
+            info = collect_user_info(_context, sess_info,
+                                     scope_to_claims=self.scope_to_claims)
             if userinfo is None:
                 userinfo = info
             else:

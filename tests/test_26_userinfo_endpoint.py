@@ -3,9 +3,13 @@ import os
 
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+
 from oidcendpoint import user_info
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
@@ -14,8 +18,6 @@ from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -95,6 +97,10 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "id_token": {
+                "class": IDToken,
+                "kwargs": {},
+            },
             "endpoint": {
                 "provider_config": {
                     "path": "{}/.well-known/openid-configuration",
@@ -131,6 +137,17 @@ class TestEndpoint(object):
                 }
             },
             "template_dir": "template",
+            "add_on": {
+                "custom_scopes": {
+                    "function": "oidcendpoint.oidc.add_on.custom_scopes.add_custom_scopes",
+                    "kwargs":{
+                        "research_and_scholarship": [
+                            "name", "given_name", "family_name",
+                            "email", "email_verified", "sub", "iss",
+                            "eduperson_scoped_affiliation"]
+                    }
+                }
+            },
         }
         endpoint_context = EndpointContext(conf)
         endpoint_context.cdb["client_1"] = {
@@ -268,3 +285,26 @@ class TestEndpoint(object):
         assert args
         res = self.endpoint.do_response(request=_req, **args)
         assert res
+
+    def test_custom_scope(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req['scope'] = ["openid", "research_and_scholarship"]
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            _auth_req,
+            uid="userID",
+            authn_event={
+                "authn_info": "loa1",
+                "uid": "diana",
+                "authn_time": utc_time_sans_frac(),
+                "valid_until": utc_time_sans_frac() + 3600,
+            },
+        )
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(_dic["access_token"])
+        )
+        args = self.endpoint.process_request(_req)
+        assert set(args["response_args"].keys()) == {
+            "sub", "name", "given_name", "family_name", "email", "email_verified",
+            "eduperson_scoped_affiliation"}
