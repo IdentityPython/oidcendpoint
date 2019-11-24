@@ -37,5 +37,5 @@ def rndstr(size=16):
     :param size: The length of the string
     :return: string
     """
-    _basech = string.ascii_letters + string.digits
-    return "".join([rnd.choice(_basech) for _ in range(size)])
+    chars = string.ascii_letters + string.digits
+    return ''.join(rnd.choice(chars) for i in range(size))
