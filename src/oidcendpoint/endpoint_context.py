@@ -121,6 +121,28 @@ def init_service(conf, endpoint_context=None):
     return conf["class"](**kwargs)
 
 
+def get_token_handlers(conf):
+    th_args = conf.get("token_handler_args", None)
+    if not th_args:
+        # create 3 keys
+        keydef = [
+            {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "code"},
+            {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "token"},
+            {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "refresh"},
+        ]
+
+        jwks_def = {
+            "private_path": "private/token_jwks.json",
+            "key_defs": keydef,
+            "read_only": False,
+        }
+        th_args = {"jwks_def": jwks_def}
+        for typ, tid in [("code", 600), ("token", 3600), ("refresh", 86400)]:
+            th_args[typ] = {"lifetime": tid}
+
+    return th_args
+
+
 class EndpointContext:
     def __init__(
             self,
@@ -331,29 +353,8 @@ class EndpointContext:
                     else:
                         self._sub_func[key] = args["function"]
 
-    def get_token_handlers(self, conf):
-        th_args = conf.get("token_handler_args", None)
-        if not th_args:
-            # create 3 keys
-            keydef = [
-                {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "code"},
-                {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "token"},
-                {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "refresh"},
-            ]
-
-            jwks_def = {
-                "private_path": "private/token_jwks.json",
-                "key_defs": keydef,
-                "read_only": False,
-            }
-            th_args = {"jwks_def": jwks_def}
-            for typ, tid in [("code", 600), ("token", 3600), ("refresh", 86400)]:
-                th_args[typ] = {"lifetime": tid}
-
-        return th_args
-
     def do_session_db(self, conf):
-        th_args = self.get_token_handlers(conf)
+        th_args = get_token_handlers(conf)
         self.sdb = create_session_db(
             self, th_args, db=None, sso_db=SSODb(), sub_func=self._sub_func
         )
