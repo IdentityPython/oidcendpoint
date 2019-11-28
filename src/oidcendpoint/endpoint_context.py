@@ -331,10 +331,9 @@ class EndpointContext:
                     else:
                         self._sub_func[key] = args["function"]
 
-    def do_session_db(self, conf):
-        try:
-            _th_args = conf["token_handler_args"]
-        except KeyError:
+    def get_token_handlers(self, conf):
+        th_args = conf.get("token_handler_args", None)
+        if not th_args:
             # create 3 keys
             keydef = [
                 {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "code"},
@@ -347,13 +346,16 @@ class EndpointContext:
                 "key_defs": keydef,
                 "read_only": False,
             }
-
-            _th_args = {"jwks_def": jwks_def}
+            th_args = {"jwks_def": jwks_def}
             for typ, tid in [("code", 600), ("token", 3600), ("refresh", 86400)]:
-                _th_args[typ] = {"lifetime": tid}
+                th_args[typ] = {"lifetime": tid}
 
+        return th_args
+
+    def do_session_db(self, conf):
+        th_args = self.get_token_handlers(conf)
         self.sdb = create_session_db(
-            self, _th_args, db=None, sso_db=SSODb(), sub_func=self._sub_func
+            self, th_args, db=None, sso_db=SSODb(), sub_func=self._sub_func
         )
 
     def do_endpoints(self, conf):
