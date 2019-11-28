@@ -11,7 +11,6 @@ from cryptojwt.key_jar import init_key_jar
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 from oidcmsg.oidc import IdToken
-from oidcmsg.oidc import SCOPE2CLAIMS
 
 from oidcendpoint import authz
 from oidcendpoint import rndstr
@@ -23,6 +22,7 @@ from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
+from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import importer
 
@@ -167,6 +167,7 @@ class EndpointContext:
         self.args = {}
 
         self._sub_func = None
+        self.scope2claims = SCOPE2CLAIMS
 
         if cookie_name:
             self.cookie_name = cookie_name
@@ -180,12 +181,12 @@ class EndpointContext:
             }
 
         for param in [
-                "verify_ssl",
-                "issuer",
-                "sso_ttl",
-                "symkey",
-                "client_authn",
-                "id_token_schema",
+            "verify_ssl",
+            "issuer",
+            "sso_ttl",
+            "symkey",
+            "client_authn",
+            "id_token_schema",
         ]:
             try:
                 setattr(self, param, conf[param])
@@ -223,7 +224,7 @@ class EndpointContext:
             self.keyjar = init_key_jar(**args)
 
         for item in ['cookie_dealer', "sub_func", "authz", "authentication",
-                     "id_token"]:
+                     "id_token", "scope2claims"]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
                 _func(self.conf)
@@ -393,11 +394,11 @@ class EndpointContext:
         _provider_info["version"] = "3.0"
 
         _claims = []
-        for _cl in SCOPE2CLAIMS.values():
+        for _cl in self.scope2claims.values():
             _claims.extend(_cl)
         _provider_info["claims_supported"] = list(set(_claims))
 
-        _scopes = list(SCOPE2CLAIMS.keys())
+        _scopes = list(self.scope2claims.keys())
         _provider_info["scopes_supported"] = _scopes
 
         # Sort order RS, ES, HS, PS

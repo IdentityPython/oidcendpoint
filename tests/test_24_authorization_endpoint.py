@@ -10,6 +10,17 @@ import yaml
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
+from oidcmsg.exception import ParameterError
+from oidcmsg.exception import URIError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import verified_claim_name
+from oidcmsg.oidc import verify_id_token
+from oidcmsg.time_util import in_a_while
+from oidcservice.exception import InvalidRequest
+
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import NoSuchAuthentication
@@ -36,16 +47,6 @@ from oidcendpoint.user_authn.authn_context import init_method
 from oidcendpoint.user_authn.user import NoAuthn
 from oidcendpoint.user_authn.user import UserAuthnMethod
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.exception import ParameterError
-from oidcmsg.exception import URIError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import AuthorizationResponse
-from oidcmsg.oidc import verified_claim_name
-from oidcmsg.oidc import verify_id_token
-from oidcmsg.time_util import in_a_while
-from oidcservice.exception import InvalidRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -105,7 +106,6 @@ def full_path(local_file):
 
 
 USERINFO_db = json.loads(open(full_path("users.json")).read())
-
 
 FORM_POST = """<html>
   <head>
@@ -801,8 +801,8 @@ def test_inputs():
     elems = inputs({"foo": "bar", "home": "stead"})
     print(elems)
     assert (
-        elems
-        == """<input type="hidden" name="foo" value="bar"/>
+            elems
+            == """<input type="hidden" name="foo" value="bar"/>
 <input type="hidden" name="home" value="stead"/>"""
     )
 
