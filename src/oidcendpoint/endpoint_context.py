@@ -26,7 +26,7 @@ from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import importer
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 CAPABILITIES = {
     "response_types_supported": [
@@ -150,6 +150,7 @@ class EndpointContext:
             keyjar=None,
             client_db=None,
             session_db=None,
+            sso_db=None,
             cwd="",
             cookie_dealer=None,
             httpc=None,
@@ -188,7 +189,13 @@ class EndpointContext:
         # arguments for endpoints add-ons
         self.args = {}
 
+        # session db
         self._sub_func = None
+        self.sdb = session_db
+        if not self.sdb:
+            self.set_session_db(conf, sso_db)
+        #
+
         self.scope2claims = SCOPE2CLAIMS
 
         if cookie_name:
@@ -251,11 +258,6 @@ class EndpointContext:
             if _func:
                 _func(self.conf)
 
-        if session_db:
-            self.sdb = session_db
-        else:
-            self.do_session_db(conf)
-
         _cap = self.do_endpoints(conf)
 
         for item in ["userinfo", "login_hint_lookup", "login_hint2acrs",
@@ -274,6 +276,14 @@ class EndpointContext:
 
         # client registration access tokens
         self.registration_access_token = {}
+
+    def set_session_db(self, conf, sso_db=None):
+        # this populate self.sdb
+        sso_db = sso_db if sso_db else SSODb()
+        self.do_session_db(conf, sso_db)
+        # this append useinfo db to the session db
+        self.do_userinfo(conf)
+        logger.debug('Session DB: {}'.format(self.sdb.__dict__))
 
     def do_add_on(self, conf):
         if 'add_on' in conf:
@@ -309,8 +319,10 @@ class EndpointContext:
         except KeyError:
             pass
         else:
-            self.userinfo = init_user_info(_conf, self.cwd)
-            self.sdb.userinfo = self.userinfo
+            if self.sdb:
+                self.userinfo = init_user_info(_conf, self.cwd)
+                self.sdb.userinfo = self.userinfo
+
 
     def do_id_token(self, conf):
         try:
@@ -338,25 +350,23 @@ class EndpointContext:
                 self.cookie_dealer = init_service(_conf)
 
     def do_sub_func(self, conf):
-        try:
-            _conf = conf["sub_func"]
-        except KeyError:
-            self._sub_func = None
-        else:
-            self._sub_func = {}
-            for key, args in _conf.items():
-                if "class" in args:
-                    self._sub_func[key] = init_service(args)
-                elif "function" in args:
-                    if isinstance(args["function"], str):
-                        self._sub_func[key] = util.importer(args["function"])
-                    else:
-                        self._sub_func[key] = args["function"]
+        _conf = conf.get("sub_func", {})
+        self._sub_func = {}
+        for key, args in _conf.items():
+            if "class" in args:
+                self._sub_func[key] = init_service(args)
+            elif "function" in args:
+                if isinstance(args["function"], str):
+                    self._sub_func[key] = util.importer(args["function"])
+                else:
+                    self._sub_func[key] = args["function"]
 
-    def do_session_db(self, conf):
+    def do_session_db(self, conf, sso_db):
         th_args = get_token_handlers(conf)
         self.sdb = create_session_db(
-            self, th_args, db=None, sso_db=SSODb(), sub_func=self._sub_func
+            self, th_args, db=None,
+            sso_db=sso_db,
+            sub_func=self._sub_func
         )
 
     def do_endpoints(self, conf):
@@ -498,7 +508,7 @@ class EndpointContext:
             _msg = "Server doesn't support the following features: {}".format(
                 not_supported
             )
-            LOGGER.error(_msg)
+            logger.error(_msg)
             raise ConfigurationError(_msg)
 
         if self.jwks_uri and self.keyjar:
