@@ -104,3 +104,4 @@ def scope2claims(scopes, map=None):
         except KeyError:
             continue
     return res
+

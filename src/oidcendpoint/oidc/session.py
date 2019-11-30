@@ -71,6 +71,13 @@ class Session(Endpoint):
     response_placement = "url"
     endpoint_name = "end_session_endpoint"
     name = "session"
+    default_capabilities = {
+        "frontchannel_logout_supported": True,
+        "frontchannel_logout_session_supported": True,
+        "backchannel_logout_supported": True,
+        "backchannel_logout_session_supported": True,
+        "check_session_iframe": None
+    }
 
     def do_back_channel_logout(self, cinfo, sub, sid):
         """

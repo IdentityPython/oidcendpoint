@@ -1,6 +1,9 @@
 import logging
+from functools import cmp_to_key
 from urllib.parse import urlparse
 
+from cryptojwt import jwe
+from cryptojwt.jws.jws import SIGNER_ALGS
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.message import Message
@@ -51,6 +54,72 @@ def fragment_encoding(return_type):
         return True
 
 
+ALG_SORT_ORDER = {"RS": 0, "ES": 1, "HS": 2, "PS": 3, "no": 4}
+
+
+def sort_sign_alg(alg1, alg2):
+    if ALG_SORT_ORDER[alg1[0:2]] < ALG_SORT_ORDER[alg2[0:2]]:
+        return -1
+
+    if ALG_SORT_ORDER[alg1[0:2]] > ALG_SORT_ORDER[alg2[0:2]]:
+        return 1
+
+    if alg1 < alg2:
+        return -1
+
+    if alg1 > alg2:
+        return 1
+
+    return 0
+
+
+def assign_algorithms(typ):
+    if typ == "signing_alg":
+        # Pick supported signing algorithms from crypto library
+        # Sort order RS, ES, HS, PS
+        sign_algs = list(SIGNER_ALGS.keys())
+        return sorted(sign_algs, key=cmp_to_key(sort_sign_alg))
+    elif typ == "encryption_alg":
+        return jwe.SUPPORTED["alg"]
+    elif typ == "encryption_enc":
+        return jwe.SUPPORTED["enc"]
+
+
+def construct_provider_info(default_capabilities, **kwargs):
+    if default_capabilities is not None:
+        provider_info = {}
+        for attr, default_val in default_capabilities.items():
+            try:
+                _proposal = kwargs[attr]
+            except KeyError:
+                if default_val is not None:
+                    provider_info[attr] = default_val
+                elif "signing_alg_values_supported" in attr:
+                    provider_info[attr] = assign_algorithms("signing_alg")
+                elif "encryption_alg_values_supported" in attr:
+                    provider_info[attr] = assign_algorithms("encryption_alg")
+                elif "encryption_enc_values_supported" in attr:
+                    provider_info[attr] = assign_algorithms("encryption_enc")
+            else:
+                _permitted = None
+
+                if "signing_alg_values_supported" in attr:
+                    _permitted = set(assign_algorithms("signing_alg"))
+                elif "encryption_alg_values_supported" in attr:
+                    _permitted = set(assign_algorithms("encryption_alg"))
+                elif "encryption_enc_values_supported" in attr:
+                    _permitted = set(assign_algorithms("encryption_enc"))
+
+                if _permitted and not _permitted.issuperset(set(_proposal)):
+                    raise ValueError(
+                        "Proposed set of values outside set of permitted ({})".__format__(attr))
+
+                provider_info[attr] = _proposal
+        return provider_info
+    else:
+        return None
+
+
 class Endpoint(object):
     request_cls = Message
     response_cls = Message
@@ -63,6 +132,7 @@ class Endpoint(object):
     response_format = "json"
     response_placement = "body"
     client_authn_method = ""
+    default_capabilities = None
 
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
@@ -71,7 +141,14 @@ class Endpoint(object):
         self.post_parse_request = []
         self.kwargs = kwargs
         self.full_path = ""
-        self.provider_info = None
+
+        if "client_authn_method" in kwargs:
+            self.client_authn_method = kwargs["client_authn_method"]
+        elif self.default_capabilities is not None:
+            if "client_authn_method" in self.default_capabilities:
+                self.client_authn_method = self.default_capabilities["client_authn_method"]
+
+        self.provider_info = construct_provider_info(self.default_capabilities, **kwargs)
 
     def parse_request(self, request, auth=None, **kwargs):
         """

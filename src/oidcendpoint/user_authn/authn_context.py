@@ -90,14 +90,9 @@ class AuthnBroker(object):
         else:
             return self._pick_by_class_ref(acr)
 
-    def get_acr_value_string(self):
-        acr_values = None
-        for item in self.db.values():
-            if acr_values is None:
-                acr_values = item["acr"]
-            else:
-                acr_values += " " + item["acr"]
-        return acr_values
+    def get_acr_values(self):
+        """Return a list of acr values"""
+        return [item["acr"] for item in self.db.values()]
 
     def __iter__(self):
         for item in self.db.values():

@@ -24,7 +24,7 @@ from oidcendpoint.util import lv_unpack
 
 __author__ = "Roland Hedberg"
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 CORS_HEADERS = [
     ("Access-Control-Allow-Origin", "*"),
@@ -466,12 +466,15 @@ class CookieDealer(object):
 
 def compute_session_state(opbs, salt, client_id, redirect_uri):
     """
+    Computes a session state value.
+    This value is later used during session management to check whether
+    the log in state has changed.
 
-    :param opbs:
+    :param opbs: Cookie value
     :param salt:
     :param client_id:
     :param redirect_uri:
-    :return:
+    :return: Session state value
     """
     parsed_uri = urlparse(redirect_uri)
     rp_origin_url = "{uri.scheme}://{uri.netloc}".format(uri=parsed_uri)

@@ -13,7 +13,6 @@ class RegistrationRead(Endpoint):
     request_format = "urlencoded"
     request_placement = "url"
     response_format = "json"
-    endpoint_name = ""
     name = "registration_read"
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):

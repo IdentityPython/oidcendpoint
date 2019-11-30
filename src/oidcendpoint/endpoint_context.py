@@ -1,11 +1,7 @@
-import copy
 import logging
 import os
-from functools import cmp_to_key
 
 import requests
-from cryptojwt import jwe
-from cryptojwt.jws.jws import SIGNER_ALGS
 from cryptojwt.key_jar import KeyJar
 from cryptojwt.key_jar import init_key_jar
 from jinja2 import Environment
@@ -16,7 +12,6 @@ from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint import util
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
-from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
@@ -27,55 +22,6 @@ from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import importer
 
 logger = logging.getLogger(__name__)
-
-CAPABILITIES = {
-    "response_types_supported": [
-        "code",
-        "token",
-        "id_token",
-        "code token",
-        "code id_token",
-        "id_token token",
-        "code id_token token",
-        "none",
-    ],
-    "token_endpoint_auth_methods_supported": [
-        "client_secret_post",
-        "client_secret_basic",
-        "client_secret_jwt",
-        "private_key_jwt",
-    ],
-    "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
-    "grant_types_supported": [
-        "authorization_code",
-        "implicit",
-        "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "refresh_token",
-    ],
-    "claim_types_supported": ["normal", "aggregated", "distributed"],
-    "claims_parameter_supported": True,
-    "request_parameter_supported": True,
-    "request_uri_parameter_supported": True,
-}
-
-SORT_ORDER = {"RS": 0, "ES": 1, "HS": 2, "PS": 3, "no": 4}
-
-
-def sort_sign_alg(alg1, alg2):
-    if SORT_ORDER[alg1[0:2]] < SORT_ORDER[alg2[0:2]]:
-        return -1
-
-    if SORT_ORDER[alg1[0:2]] > SORT_ORDER[alg2[0:2]]:
-        return 1
-
-    if alg1 < alg2:
-        return -1
-
-    if alg1 > alg2:
-        return 1
-
-    return 0
 
 
 def add_path(url, path):
@@ -388,9 +334,9 @@ class EndpointContext:
             if endpoint in ["webfinger", "provider_info"]:
                 continue
 
-            _cap[endpoint_instance.endpoint_name] = "{}".format(
-                endpoint_instance.endpoint_path
-            )
+            if endpoint_instance.endpoint_name:
+                _cap[endpoint_instance.endpoint_name] = endpoint_instance.full_path
+
         return _cap
 
     def do_authz(self, conf):
@@ -401,90 +347,11 @@ class EndpointContext:
         else:
             self.authz = init_service(authz_spec, self)
 
-    def package_capabilities(self):
-        _provider_info = copy.deepcopy(CAPABILITIES)
-        _provider_info["issuer"] = self.issuer
-        _provider_info["version"] = "3.0"
-
-        _claims = []
-        for _cl in self.scope2claims.values():
-            _claims.extend(_cl)
-        _provider_info["claims_supported"] = list(set(_claims))
-
-        _scopes = list(self.scope2claims.keys())
-        _provider_info["scopes_supported"] = _scopes
-
-        # Sort order RS, ES, HS, PS
-        sign_algs = list(SIGNER_ALGS.keys())
-        sign_algs = sorted(sign_algs, key=cmp_to_key(sort_sign_alg))
-
-        for typ in ["userinfo", "id_token", "request_object"]:
-            _provider_info["%s_signing_alg_values_supported" % typ] = sign_algs
-
-        # Remove 'none' for token_endpoint_auth_signing_alg_values_supported
-        # since it is not allowed
-        sign_algs = sign_algs[:]
-        sign_algs.remove("none")
-        _provider_info["token_endpoint_auth_signing_alg_values_supported"] = sign_algs
-
-        algs = jwe.SUPPORTED["alg"]
-        for typ in ["userinfo", "id_token", "request_object"]:
-            _provider_info["%s_encryption_alg_values_supported" % typ] = algs
-
-        encs = jwe.SUPPORTED["enc"]
-        for typ in ["userinfo", "id_token", "request_object"]:
-            _provider_info["%s_encryption_enc_values_supported" % typ] = encs
-
-        # acr_values
-        if self.authn_broker:
-            acr_values = self.authn_broker.get_acr_value_string()
-            if acr_values is not None:
-                _provider_info["acr_values_supported"] = acr_values
-
-        return _provider_info
-
-    @staticmethod
-    def get_wanted(key, val):
-        if isinstance(val, str):
-            _wanted = {val}
-        else:
-            try:
-                _wanted = set(val)
-            except TypeError:
-                if key == "response_types_supported":
-                    _wanted = set()
-                    for _v in val:
-                        _v.sort()
-                        _wanted.add(" ".join(_v))
-                else:
-                    raise
-            else:
-                _wanted = set()
-                for _v in val:
-                    _vals = _v.split(" ")
-                    _vals.sort()
-                    _wanted.add(" ".join(_vals))
-        return _wanted
-
-    def verify_allowed(self, allowed, key, val, pinfo, not_supported):
-        if isinstance(allowed, bool):
-            if allowed is False:
-                if val is True:
-                    not_supported[key] = True
-            else:
-                pinfo[key] = val
-        elif isinstance(allowed, str):
-            if val != allowed:
-                not_supported[key] = val
-        elif isinstance(allowed, list):
-            _wanted = self.get_wanted(key, val)
-
-            _allowed = set(allowed)
-
-            if (_wanted & _allowed) == _wanted:
-                pinfo[key] = list(_wanted)
-            else:
-                not_supported[key] = list(_wanted - _allowed)
+    def claims_supported(self):
+        _claims = set()
+        for scope, claims in self.scope2claims.items():
+            _claims.update(set(claims))
+        return list(_claims)
 
     def create_providerinfo(self, capabilities):
         """
@@ -494,28 +361,20 @@ class EndpointContext:
         :return:
         """
 
-        _pinfo = self.package_capabilities()
-        not_supported = {}
-        for key, val in capabilities.items():
-            try:
-                allowed = _pinfo[key]
-            except KeyError:
-                _pinfo[key] = val
-            else:
-                self.verify_allowed(allowed, key, val, _pinfo, not_supported)
+        _provider_info = capabilities
+        _provider_info["issuer"] = self.issuer
+        _provider_info["version"] = "3.0"
 
-        if not_supported:
-            _msg = "Server doesn't support the following features: {}".format(
-                not_supported
-            )
-            logger.error(_msg)
-            raise ConfigurationError(_msg)
+        # acr_values
+        if self.authn_broker:
+            acr_values = self.authn_broker.get_acr_values()
+            if acr_values is not None:
+                _provider_info["acr_values_supported"] = acr_values
 
         if self.jwks_uri and self.keyjar:
-            _pinfo["jwks_uri"] = self.jwks_uri
+            _provider_info["jwks_uri"] = self.jwks_uri
 
-        for name, instance in self.endpoint.items():
-            if name not in ["webfinger", "provider_info"]:
-                _pinfo[instance.endpoint_name] = instance.full_path
+        _provider_info.update(self.idtoken.provider_info)
+        _provider_info['claims_supported'] = self.claims_supported()
 
-        return _pinfo
+        return _provider_info

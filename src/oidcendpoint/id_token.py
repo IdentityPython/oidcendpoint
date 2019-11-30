@@ -3,6 +3,7 @@ import logging
 from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
 
+from oidcendpoint.endpoint import construct_provider_info
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
 
@@ -16,6 +17,37 @@ DEF_SIGN_ALG = {
     "private_key_jwt": "RS256",
 }
 DEF_LIFETIME = 300
+
+
+def include_session_id(endpoint_context, client_id, where):
+    """
+
+    :param endpoint_context:
+    :param client_id:
+    :param dir: front or back
+    :return:
+    """
+    _pinfo = endpoint_context.provider_info
+
+    # Am the OP supposed to support {dir}-channel log out and if so can
+    # it pass sid in logout token and ID Token
+    for param in ["{}channel_logout_supported",
+                  "{}channel_logout_session_supported"]:
+        try:
+            _supported = _pinfo[param.format(where)]
+        except KeyError:
+            return False
+        else:
+            if not _supported:
+                return False
+
+    # Does the client support back-channel logout ?
+    try:
+        _val = endpoint_context.cdb[client_id]["{}channel_logout_uri".format(where)]
+    except KeyError:
+        return False
+
+    return True
 
 
 def get_sign_and_encrypt_algorithms(
@@ -72,10 +104,17 @@ def get_sign_and_encrypt_algorithms(
 
 
 class IDToken(object):
+    default_capabilities = {
+        "id_token_signing_alg_values_supported": None,
+        "id_token_encryption_alg_values_supported": None,
+        "id_token_encryption_enc_values_supported": None
+    }
+
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
         self.scope_to_claims = None
+        self.provider_info = construct_provider_info(self.default_capabilities, **kwargs)
 
     def payload(
             self,
@@ -229,19 +268,14 @@ class IDToken(object):
             else:
                 userinfo.update(info)
 
-        try:
-            req_sid = _cinfo["frontchannel_logout_session_required"]
-        except KeyError:
-            try:
-                req_sid = _cinfo["backchannel_logout_session_required"]
-            except KeyError:
-                req_sid = False
+        # Should I add session ID
+        req_sid = include_session_id(_context, _client_id, "back") or include_session_id(_context,
+                                                                                         _client_id,
+                                                                                         "front")
 
         if req_sid:
             xargs = {
-                "sid": _context.sdb.get_sid_by_sub_and_client_id(
-                    sess_info["sub"], _client_id
-                )
+                "sid": _context.sdb.get_sid_by_sub_and_client_id(sess_info["sub"], _client_id)
             }
         else:
             xargs = {}

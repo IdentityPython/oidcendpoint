@@ -34,7 +34,7 @@ class RefreshAccessToken(Endpoint):
     def _refresh_access_token(self, req, **kwargs):
         _sdb = self.endpoint_context.sdb
 
-        client_id = str(req["client_id"])
+        # client_id = str(req["client_id"])
 
         if req["grant_type"] != "refresh_token":
             return self.error_cls(
