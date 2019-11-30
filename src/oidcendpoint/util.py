@@ -72,13 +72,12 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
 
         _instance.endpoint_path = _path
         _instance.full_path = "{}/{}".format(_url, _path)
-        if "provider_info" in spec:
-            _instance.provider_info = spec["provider_info"]
 
-        try:
-            _instance.client_authn_method = kwargs["client_authn_method"]
-        except KeyError:
-            _instance.client_authn_method = client_authn_method
+        if _instance.endpoint_name:
+            try:
+                _instance.provider_info[_instance.endpoint_name] = _instance.full_path
+            except TypeError:
+                _instance.provider_info = {_instance.endpoint_name: _instance.full_path}
 
         endpoint[_instance.name] = _instance
 
@@ -129,5 +128,5 @@ def lv_unpack(txt):
     while txt:
         l, v = txt.split(":", 1)
         res.append(v[: int(l)])
-        txt = v[int(l) :]
+        txt = v[int(l):]
     return res

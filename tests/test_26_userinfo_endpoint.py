@@ -36,14 +36,6 @@ RESPONSE_TYPES_SUPPORTED = [
 ]
 
 CAPABILITIES = {
-    "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
-    "token_endpoint_auth_methods_supported": [
-        "client_secret_post",
-        "client_secret_basic",
-        "client_secret_jwt",
-        "private_key_jwt",
-    ],
-    "response_modes_supported": ["query", "fragment", "form_post"],
     "subject_types_supported": ["public", "pairwise"],
     "grant_types_supported": [
         "authorization_code",
@@ -51,10 +43,6 @@ CAPABILITIES = {
         "urn:ietf:params:oauth:grant-type:jwt-bearer",
         "refresh_token",
     ],
-    "claim_types_supported": ["normal", "aggregated", "distributed"],
-    "claims_parameter_supported": True,
-    "request_parameter_supported": True,
-    "request_uri_parameter_supported": True,
 }
 
 AUTH_REQ = AuthorizationRequest(
@@ -103,32 +91,49 @@ class TestEndpoint(object):
             },
             "endpoint": {
                 "provider_config": {
-                    "path": "{}/.well-known/openid-configuration",
+                    "path": ".well-known/openid-configuration",
                     "class": ProviderConfiguration,
                     "kwargs": {},
                 },
                 "registration": {
-                    "path": "{}/registration",
+                    "path": "registration",
                     "class": Registration,
                     "kwargs": {},
                 },
                 "authorization": {
-                    "path": "{}/authorization",
+                    "path": "authorization",
                     "class": Authorization,
                     "kwargs": {},
                 },
-                "token": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
+                "token": {
+                    "path": "token",
+                    "class": AccessToken,
+                    "kwargs": {
+                        "client_authn_methods": [
+                            "client_secret_post",
+                            "client_secret_basic",
+                            "client_secret_jwt",
+                            "private_key_jwt",
+                        ],
+
+                    }
+                },
                 "userinfo": {
-                    "path": "{}/userinfo",
+                    "path": "userinfo",
                     "class": userinfo.UserInfo,
-                    "kwargs": {},
+                    "kwargs": {
+                        "claim_types_supported": ["normal", "aggregated", "distributed"],
+                        "client_authn_method" : ["bearer_header"]
+                    },
                 },
             },
             "userinfo": {
                 "class": user_info.UserInfo,
-                "kwargs": {"db_file": full_path("users.json")},
+                "kwargs": {
+                    "db_file": full_path("users.json")
+                },
             },
-            "client_authn": verify_client,
+            # "client_authn": verify_client,
             "authentication": {
                 "anon": {
                     "acr": INTERNETPROTOCOLPASSWORD,
@@ -140,7 +145,7 @@ class TestEndpoint(object):
             "add_on": {
                 "custom_scopes": {
                     "function": "oidcendpoint.oidc.add_on.custom_scopes.add_custom_scopes",
-                    "kwargs":{
+                    "kwargs": {
                         "research_and_scholarship": [
                             "name", "given_name", "family_name",
                             "email", "email_verified", "sub", "iss",

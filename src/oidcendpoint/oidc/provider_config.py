@@ -12,9 +12,10 @@ class ProviderConfiguration(Endpoint):
     response_cls = oidc.ProviderConfigurationResponse
     request_format = ""
     response_format = "json"
-    # response_placement = 'body'
-    endpoint_name = "provider_config"
     name = "provider_config"
+    default_capabilities = {
+        "require_request_uri_registration": None
+    }
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)

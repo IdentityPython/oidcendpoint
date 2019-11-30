@@ -23,10 +23,19 @@ class UserInfo(Endpoint):
     response_placement = "body"
     endpoint_name = "userinfo_endpoint"
     name = "userinfo"
+    default_capabilities = {
+        "claim_types_supported": ["normal", "aggregated", "distributed"],
+        "userinfo_signing_alg_values_supported": None,
+        "userinfo_encryption_alg_values_supported": None,
+        "userinfo_encryption_enc_values_supported": None,
+        "client_authn_method": ["bearer_header"]
+    }
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
         self.scope_to_claims = None
+        if "client_authn_method" not in kwargs:
+            self.client_authn_method = self.default_capabilities["client_authn_method"]
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         sinfo = self.endpoint_context.sdb[token]

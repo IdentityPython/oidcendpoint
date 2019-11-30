@@ -2,15 +2,16 @@
 import json
 
 import pytest
+from oidcmsg.oidc import RegistrationRequest
+from oidcmsg.oidc import RegistrationResponse
+
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.oidc import userinfo
+from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization
-from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.registration import match_sp_sep
 from oidcendpoint.oidc.token import AccessToken
-from oidcmsg.oidc import RegistrationRequest
-from oidcmsg.oidc import RegistrationResponse
+from oidcendpoint.oidc.userinfo import UserInfo
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -27,28 +28,6 @@ RESPONSE_TYPES_SUPPORTED = [
     ["code", "token", "id_token"],
     ["none"],
 ]
-
-CAPABILITIES = {
-    "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
-    "token_endpoint_auth_methods_supported": [
-        "client_secret_post",
-        "client_secret_basic",
-        "client_secret_jwt",
-        "private_key_jwt",
-    ],
-    "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
-    "grant_types_supported": [
-        "authorization_code",
-        "implicit",
-        "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "refresh_token",
-    ],
-    "claim_types_supported": ["normal", "aggregated", "distributed"],
-    "claims_parameter_supported": True,
-    "request_parameter_supported": True,
-    "request_uri_parameter_supported": True,
-}
 
 msg = {
     "application_type": "web",
@@ -87,8 +66,19 @@ class TestEndpoint(object):
             "grant_expires_in": 300,
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
-            "capabilities": CAPABILITIES,
+            "capabilities": {
+                "subject_types_supported": ["public", "pairwise"],
+                "grant_types_supported": [
+                    "authorization_code",
+                    "implicit",
+                    "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                    "refresh_token",
+                ]
+            },
             "jwks": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+            "id_token": {
+                "class": IDToken
+            },
             "endpoint": {
                 "registration": {
                     "path": "registration",
@@ -98,9 +88,24 @@ class TestEndpoint(object):
                 "authorization": {
                     "path": "authorization",
                     "class": Authorization,
-                    "kwargs": {},
+                    "kwargs": {
+                        "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
+                        "response_modes_supported": ["query", "fragment", "form_post"],
+                        "claim_types_supported": ["normal", "aggregated", "distributed"],
+                        "claims_parameter_supported": True,
+                        "request_parameter_supported": True,
+                        "request_uri_parameter_supported": True,
+                    },
                 },
-                "token": {"path": "token", "class": AccessToken, "kwargs": {}},
+                "token": {
+                    "path": "token",
+                    "class": AccessToken,
+                    "kwargs": {
+                        "client_authn_method": ["client_secret_post", "client_secret_basic",
+                                                "client_secret_jwt", "private_key_jwt"]
+                    }
+                },
+                "userinfo": {"path": "userinfo", "class": UserInfo, "kwargs": {}},
             },
             "template_dir": "template",
         }
