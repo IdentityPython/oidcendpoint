@@ -1,6 +1,10 @@
+import logging
 from oidcendpoint.in_memory_db import InMemoryDataBase
 
 KEY_FORMAT = "__{}__{}"
+
+
+logger = logging.getLogger(__name__)
 
 
 class SSODb(object):
@@ -19,6 +23,7 @@ class SSODb(object):
         self._db = db or InMemoryDataBase()
 
     def set(self, label, key, value):
+        logger.debug("SSODb set {}: {}".format(key, value))
         _key = KEY_FORMAT.format(label, key)
         _values = self._db.get(_key)
         if not _values:
@@ -29,7 +34,9 @@ class SSODb(object):
 
     def get(self, label, key):
         _key = KEY_FORMAT.format(label, key)
-        return self._db.get(_key)
+        value = self._db.get(_key)
+        logger.debug("SSODb get {} [{}]".format(key, value))
+        return value
 
     def delete(self, label, key):
         _key = KEY_FORMAT.format(label, key)
