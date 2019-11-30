@@ -38,10 +38,7 @@ def add_path(url, path):
 
 
 def init_user_info(conf, cwd):
-    try:
-        kwargs = conf["kwargs"]
-    except KeyError:
-        kwargs = {}
+    kwargs = conf.get("kwargs", {})
 
     if "db_file" in kwargs:
         kwargs["db_file"] = os.path.join(cwd, kwargs["db_file"])
@@ -53,10 +50,7 @@ def init_user_info(conf, cwd):
 
 
 def init_service(conf, endpoint_context=None):
-    try:
-        kwargs = conf["kwargs"]
-    except KeyError:
-        kwargs = {}
+    kwargs = conf.get("kwargs", {})
 
     if endpoint_context:
         kwargs["endpoint_context"] = endpoint_context
@@ -137,11 +131,10 @@ class EndpointContext:
 
         # session db
         self._sub_func = {}
-        self.do_sub_func(self.conf)
+        self.do_sub_func()
         self.sdb = session_db
         if not self.sdb:
             self.set_session_db(conf, sso_db)
-        #
 
         self.scope2claims = SCOPE2CLAIMS
 
@@ -202,15 +195,15 @@ class EndpointContext:
         for item in ['cookie_dealer', "authz", "authentication", "id_token", "scope2claims"]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
-                _func(self.conf)
+                _func()
 
-        _cap = self.do_endpoints(conf)
+        _cap = self.do_endpoints()
 
         for item in ["userinfo", "login_hint_lookup", "login_hint2acrs",
                      "add_on"]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
-                _func(self.conf)
+                _func()
 
         self.provider_info = self.create_providerinfo(_cap)
 
@@ -228,12 +221,13 @@ class EndpointContext:
         sso_db = sso_db if sso_db else SSODb()
         self.do_session_db(conf, sso_db)
         # this append useinfo db to the session db
-        self.do_userinfo(conf)
+        self.do_userinfo()
         logger.debug('Session DB: {}'.format(self.sdb.__dict__))
 
-    def do_add_on(self, conf):
-        if 'add_on' in conf:
-            for spec in conf["add_on"].values():
+    def do_add_on(self):
+        _conf = self.conf.get("add_on")
+        if 'add_on' in self.conf:
+            for spec in self.conf["add_on"].values():
                 if isinstance(spec["function"], str):
                     _func = importer(spec["function"])
                 else:
@@ -241,62 +235,51 @@ class EndpointContext:
 
                 _func(self.endpoint, **spec["kwargs"])
 
-    def do_login_hint2acrs(self, conf):
-        try:
-            _conf = conf["login_hint2acrs"]
-        except KeyError:
-            self.login_hint2acrs = None
-        else:
-            self.login_hint2acrs = init_service(_conf)
+    def do_login_hint2acrs(self):
+        _conf = self.conf.get("login_hint2acrs")
 
-    def do_login_hint_lookup(self, conf):
-        try:
-            _conf = conf["login_hint_lookup"]
-        except KeyError:
-            pass
+        if _conf:
+            self.login_hint2acrs = init_service(_conf)
         else:
+            self.login_hint2acrs = None
+
+    def do_login_hint_lookup(self):
+        _conf = self.conf.get("login_hint_lookup")
+        if _conf:
             self.login_hint_lookup = init_service(_conf)
             if self.userinfo:
                 self.login_hint_lookup.user_info = self.userinfo
 
-    def do_userinfo(self, conf):
-        try:
-            _conf = conf["userinfo"]
-        except KeyError:
-            pass
-        else:
+    def do_userinfo(self):
+        _conf = self.conf.get("userinfo")
+        if _conf:
             if self.sdb:
                 self.userinfo = init_user_info(_conf, self.cwd)
                 self.sdb.userinfo = self.userinfo
 
 
-    def do_id_token(self, conf):
-        try:
-            _conf = conf["id_token"]
-        except KeyError:
-            self.idtoken = IDToken(self)
-        else:
+    def do_id_token(self):
+        _conf = self.conf.get("id_token")
+        if _conf:
             self.idtoken = init_service(_conf, self)
+        else:
+            self.idtoken = IDToken(self)
 
-    def do_authentication(self, conf):
-        try:
-            _authn = conf["authentication"]
-        except KeyError:
+    def do_authentication(self):
+        _conf = self.conf.get("authentication")
+        if _conf:
+            self.authn_broker = populate_authn_broker(_conf, self, self.template_handler)
+        else:
             self.authn_broker = None
-        else:
-            self.authn_broker = populate_authn_broker(_authn, self, self.template_handler)
 
-    def do_cookie_dealer(self, conf):
-        try:
-            _conf = conf['cookie_dealer']
-        except KeyError:
-            pass
-        else:
+    def do_cookie_dealer(self):
+        _conf = self.conf.get('cookie_dealer')
+        if _conf:
             if not self.cookie_dealer:
                 self.cookie_dealer = init_service(_conf)
 
-    def do_sub_func(self, conf):
-        _conf = conf.get("sub_func", {})
+    def do_sub_func(self):
+        _conf = self.conf.get("sub_func", {})
         for key, args in _conf.items():
             if "class" in args:
                 self._sub_func[key] = init_service(args)
@@ -314,17 +297,15 @@ class EndpointContext:
             sub_func=self._sub_func
         )
 
-    def do_endpoints(self, conf):
+    def do_endpoints(self):
         self.endpoint = build_endpoints(
-            conf["endpoint"],
+            self.conf["endpoint"],
             endpoint_context=self,
             client_authn_method=CLIENT_AUTHN_METHOD,
-            issuer=conf["issuer"],
+            issuer=self.conf["issuer"],
         )
-        try:
-            _cap = conf["capabilities"]
-        except KeyError:
-            _cap = {}
+
+        _cap = self.conf.get("capabilities", {})
 
         for endpoint, endpoint_instance in self.endpoint.items():
             if endpoint_instance.provider_info:
@@ -338,13 +319,12 @@ class EndpointContext:
 
         return _cap
 
-    def do_authz(self, conf):
-        try:
-            authz_spec = conf["authz"]
-        except KeyError:
-            self.authz = authz.Implicit(self)
-        else:
+    def do_authz(self):
+        authz_spec = self.conf.get("authz")
+        if authz_spec:
             self.authz = init_service(authz_spec, self)
+        else:
+            self.authz = authz.Implicit(self)
 
     def claims_supported(self):
         _claims = set()
