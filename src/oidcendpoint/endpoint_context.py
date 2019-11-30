@@ -136,7 +136,8 @@ class EndpointContext:
         self.args = {}
 
         # session db
-        self._sub_func = None
+        self._sub_func = {}
+        self.do_sub_func(self.conf)
         self.sdb = session_db
         if not self.sdb:
             self.set_session_db(conf, sso_db)
@@ -198,8 +199,7 @@ class EndpointContext:
             args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
             self.keyjar = init_key_jar(**args)
 
-        for item in ['cookie_dealer', "sub_func", "authz", "authentication",
-                     "id_token", "scope2claims"]:
+        for item in ['cookie_dealer', "authz", "authentication", "id_token", "scope2claims"]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
                 _func(self.conf)
@@ -297,7 +297,6 @@ class EndpointContext:
 
     def do_sub_func(self, conf):
         _conf = conf.get("sub_func", {})
-        self._sub_func = {}
         for key, args in _conf.items():
             if "class" in args:
                 self._sub_func[key] = init_service(args)
