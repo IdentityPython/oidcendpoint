@@ -101,9 +101,6 @@ class EndpointContext:
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
 
-        # client database
-        self.cdb = client_db or {}
-
         try:
             self.seed = bytes(conf["seed"], "utf-8")
         except KeyError:
@@ -128,6 +125,9 @@ class EndpointContext:
         self.userinfo = None
         # arguments for endpoints add-ons
         self.args = {}
+
+        # client database
+        self.cdb = client_db or {}
 
         # session db
         self._sub_func = {}
@@ -217,22 +217,19 @@ class EndpointContext:
         self.registration_access_token = {}
 
     def set_session_db(self, conf, sso_db=None):
-        # this populate self.sdb
         sso_db = sso_db if sso_db else SSODb()
         self.do_session_db(conf, sso_db)
-        # this append useinfo db to the session db
+        # append useinfo db to the session db
         self.do_userinfo()
         logger.debug('Session DB: {}'.format(self.sdb.__dict__))
 
     def do_add_on(self):
-        _conf = self.conf.get("add_on")
-        if 'add_on' in self.conf:
+        if self.conf.get("add_on"):
             for spec in self.conf["add_on"].values():
                 if isinstance(spec["function"], str):
                     _func = importer(spec["function"])
                 else:
                     _func = spec["function"]
-
                 _func(self.endpoint, **spec["kwargs"])
 
     def do_login_hint2acrs(self):
@@ -256,7 +253,9 @@ class EndpointContext:
             if self.sdb:
                 self.userinfo = init_user_info(_conf, self.cwd)
                 self.sdb.userinfo = self.userinfo
-
+            else:
+                logger.warning(('Cannot init_user_info if any '
+                                'session_db was provided.'))
 
     def do_id_token(self):
         _conf = self.conf.get("id_token")

@@ -418,10 +418,11 @@ class TestEndpoint(object):
         _cdb["frontchannel_logout_session_required"] = True
         _cdb["client_id"] = "client_1"
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
-        assert (
-            res
-            == '<iframe src="https://example.com/fc_logout?iss=https%3A%2F%2Fexample.com%2F&sid=_sid_">'
-        )
+        test_res = ('<iframe src="https://example.com/fc_logout?',
+                    'iss=https%3A%2F%2Fexample.com%2F',
+                    'sid=_sid_') 
+        for i in test_res:
+            assert (i in res)
 
     def test_front_channel_logout_with_query(self):
         self._code_auth("1234567")
@@ -431,10 +432,11 @@ class TestEndpoint(object):
         _cdb["frontchannel_logout_session_required"] = True
         _cdb["client_id"] = "client_1"
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
-        assert (
-            res
-            == '<iframe src="https://example.com/fc_logout?entity_id=foo&iss=https%3A%2F%2Fexample.com%2F&sid=_sid_">'
-        )
+        test_res = ('<iframe', 'src="https://example.com/fc_logout?',
+                    'entity_id=foo',
+                    'iss=https%3A%2F%2Fexample.com%2F','sid=_sid_')
+        for i in test_res:
+            assert (i in res)
 
     def test_logout_from_client_bc(self):
         self._code_auth("1234567")

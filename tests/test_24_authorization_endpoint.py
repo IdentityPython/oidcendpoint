@@ -806,13 +806,10 @@ class TestEndpoint(object):
 
 
 def test_inputs():
-    elems = inputs({"foo": "bar", "home": "stead"})
-    print(elems)
-    assert (
-            elems
-            == """<input type="hidden" name="foo" value="bar"/>
-<input type="hidden" name="home" value="stead"/>"""
-    )
+    elems = inputs(dict(foo = "bar", home = "stead"))
+    test_elems = ('<input type="hidden" name="foo" value="bar"/>',
+                  '<input type="hidden" name="home" value="stead"/>')
+    assert (test_elems[0] in elems and test_elems[1] in elems)
 
 
 def test_acr_claims():
@@ -827,4 +824,6 @@ def test_acr_claims():
 def test_join_query():
     redirect_uris = [("https://rp.example.com/cb", {"foo": ["bar"], "state": ["low"]})]
     uri = join_query(*redirect_uris[0])
-    assert uri == "https://rp.example.com/cb?foo=bar&state=low"
+    test_uri = ("https://rp.example.com/cb?", "foo=bar", "state=low")
+    for i in test_uri:
+        assert i in uri
