@@ -13,11 +13,12 @@ addons:
       - 
 
 install:
-  - pip install pytest
   - pip install codecov
-
+  - pip install tox
+  - pip install tox-travis
 script:
   - codecov --version
+  - tox
 
 after_success:
   - codecov
