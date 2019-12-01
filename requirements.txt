@@ -1,0 +1,6 @@
+jinja2
+git+https://github.com/openid/JWTConnect-Python-CryptoJWT.git
+git+https://github.com/openid/JWTConnect-Python-OidcMsg.git
+git+https://github.com/openid/JWTConnect-Python-OidcService.git
+
+
