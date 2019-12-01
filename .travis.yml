@@ -1,0 +1,23 @@
+dist: buster
+sudo: false
+
+language: python
+python:
+  - 3.6
+  - 3.7
+  - pypy3
+
+addons:
+  apt:
+    packages:
+      - 
+
+install:
+  - pip install pytest
+  - pip install codecov
+
+script:
+  - codecov --version
+
+after_success:
+  - codecov

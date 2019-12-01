@@ -249,11 +249,8 @@ class IDToken(object):
             _client_id = req["client_id"]
 
         _cinfo = _context.cdb[_client_id]
-        try:
-            default_idtoken_claims = self.kwargs["default_claims"]
-        except KeyError:
-            default_idtoken_claims = None
 
+        default_idtoken_claims = self.kwargs.get("default_claims", None)
         lifetime = self.kwargs.get("lifetime")
 
         userinfo = userinfo_in_id_token_claims(
