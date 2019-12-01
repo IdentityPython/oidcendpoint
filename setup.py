@@ -68,7 +68,9 @@ setup(
         "oidcmsg>=0.6.3",
         "oidcservice>=0.6.3",
         "cryptojwt>=0.7.0",
-        "jinja2"
+        "jinja2",
+        "pyyaml",
+        "pycryptodomex"
         ],
     tests_require=[
         "pytest", "requests_mock", 'pytest-localserver'
