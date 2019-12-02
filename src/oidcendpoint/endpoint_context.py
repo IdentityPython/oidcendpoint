@@ -216,9 +216,9 @@ class EndpointContext:
         # client registration access tokens
         self.registration_access_token = {}
 
-    def set_session_db(self, conf, sso_db=None):
-        sso_db = sso_db if sso_db else SSODb()
-        self.do_session_db(conf, sso_db)
+    def set_session_db(self, conf, sso_db=None, db=None):
+        sso_db = sso_db or SSODb()
+        self.do_session_db(conf, sso_db, db)
         # append useinfo db to the session db
         self.do_userinfo()
         logger.debug('Session DB: {}'.format(self.sdb.__dict__))
@@ -288,10 +288,10 @@ class EndpointContext:
                 else:
                     self._sub_func[key] = args["function"]
 
-    def do_session_db(self, conf, sso_db):
+    def do_session_db(self, conf, sso_db, db=None):
         th_args = get_token_handlers(conf)
         self.sdb = create_session_db(
-            self, th_args, db=None,
+            self, th_args, db=db,
             sso_db=sso_db,
             sub_func=self._sub_func
         )
