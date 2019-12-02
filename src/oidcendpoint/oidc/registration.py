@@ -344,9 +344,7 @@ class Registration(Endpoint):
     def add_client_secret(self, cinfo, client_id, context):
         delta_int = int(self.kwargs.get("client_secret_expiration_time",
                                         0))
-        if delta_int:
-            args = {"delta": delta_int} if delta_int else {}
-
+        args = {"delta": delta_int} if delta_int else {}        
         client_secret = secret(context.seed, client_id)
         cinfo.update(
             {
@@ -377,7 +375,7 @@ class Registration(Endpoint):
         _context = self.endpoint_context
         if new_id:
             # create new id och secret
-            #client_id = rndstr(12)
+            client_id = rndstr(12)
             # cdb client_id MUT be unique!
             while client_id in _context.cdb:
                 client_id = rndstr(12)

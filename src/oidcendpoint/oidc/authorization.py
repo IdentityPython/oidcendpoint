@@ -71,7 +71,7 @@ def inputs(form_args):
 
 def max_age(request):
     cn = verified_claim_name("request")
-    return request[cn].get("max_age") or request.get("max_age", 0) 
+    return request.get(cn, {}).get("max_age") or request.get("max_age", 0) 
 
 
 def re_authenticate(request, authn):
@@ -83,12 +83,14 @@ def re_authenticate(request, authn):
 
 
 def acr_claims(request):
-    if "id_token" in request["claims"]:
+    if request["claims"].get("id_token"):
         acrdef = request["claims"]["id_token"].get("acr")
 
     if isinstance(acrdef, dict):
-        values = [acrdef.get("value")] or acrdef.get("values")
-        return values
+        if acrdef.get("value"):
+            return [acrdef["value"]]
+        elif acrdef.get("values"):
+            return acrdef["values"]
 
 
 def verify_uri(endpoint_context, request, uri_type, client_id=None):
@@ -120,7 +122,7 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
         _query = parse_qs(_query)
 
     match = False
-    values = endpoint_context.cdb[_cid].get("{}s".format(uri_type))
+    values = endpoint_context.cdb.get(_cid, {}).get("{}s".format(uri_type))
     if not values:
         raise ValueError("No registered {}".format(uri_type))
     else:
@@ -312,8 +314,9 @@ def create_authn_response(endpoint, request, sid):
 
 def proposed_user(request):
     cn = verified_claim_name("it_token_hint")
-    return request[cn].get("sub", "")
-
+    if request.get(cn):
+        return request[cn].get("sub", "")
+    return ""
 
 class Authorization(Endpoint):
     request_cls = oidc.AuthorizationRequest
@@ -471,9 +474,15 @@ class Authorization(Endpoint):
                 else:
                     identity = json.loads(as_unicode(_id))
 
-                    session = self.endpoint_context.sdb.get(identity["sid"])
-                    if not session or "revoked" in session:
+                    try:
+                        session = self.endpoint_context.sdb[identity["sid"]]
+                    except KeyError:
                         identity = None
+                    else:
+                        if session is None:
+                            identity = None
+                        elif "revoked" in session:
+                            identity = None
 
         authn_args = authn_args_gather(request, authn_class_ref,
                                        cinfo, **kwargs)
