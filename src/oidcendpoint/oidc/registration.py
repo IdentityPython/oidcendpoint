@@ -128,7 +128,7 @@ class Registration(Endpoint):
     name = "registration"
 
     # default
-    # response_placement = 'body'
+    # response_placement = 'body'dcfr
 
     def match_client_request(self, request):
         _context = self.endpoint_context
@@ -193,7 +193,8 @@ class Registration(Endpoint):
                 ] = self._verify_sector_identifier(request)
             except InvalidSectorIdentifier as err:
                 return ResponseMessage(
-                    error="invalid_configuration_parameter", error_description=str(err)
+                    error="invalid_configuration_parameter",
+                    error_description=str(err)
                 )
 
         for item in ["policy_uri", "logo_uri", "tos_uri"]:
@@ -207,7 +208,8 @@ class Registration(Endpoint):
                     )
 
         # Do I have the necessary keys
-        for item in ["id_token_signed_response_alg", "userinfo_signed_response_alg"]:
+        for item in ["id_token_signed_response_alg",
+                     "userinfo_signed_response_alg"]:
             if item in request:
                 if request[item] in _context.provider_info[PREFERENCE2PROVIDER[item]]:
                     ktyp = alg2keytype(request[item])
@@ -235,35 +237,24 @@ class Registration(Endpoint):
         # if it can't load keys because the URL is false it will
         # just silently fail. Waiting for better times.
         _context.keyjar.load_keys(client_id, jwks_uri=t["jwks_uri"], jwks=t["jwks"])
-        try:
-            n_keys = 0
-            for kb in _context.keyjar[client_id]:
-                n_keys += len(kb.keys())
-            msg = "found {} keys for client_id={}"
-            logger.debug(msg.format(n_keys, client_id))
-        except KeyError:
-            pass
+        n_keys = 0
+        for kb in _context.keyjar.get(client_id, []):
+            n_keys += len(kb.keys())
+        msg = "found {} keys for client_id={}"
+        logger.debug(msg.format(n_keys, client_id))
 
         return _cinfo
 
     @staticmethod
     def verify_redirect_uris(registration_request):
         verified_redirect_uris = []
-        try:
-            client_type = registration_request["application_type"]
-        except KeyError:  # default
-            client_type = "web"
+        client_type = registration_request.get("application_type", "web")
 
+        must_https = False
         if client_type == "web":
-            try:
-                if registration_request["response_types"] == ["code"]:
-                    must_https = False
-                else:  # one has to be implicit or hybrid
-                    must_https = True
-            except KeyError:
-                must_https = True
-        else:
-            must_https = False
+            must_https = True
+            if registration_request.get("response_types") == ["code"]:
+                must_https = False
 
         for uri in registration_request["redirect_uris"]:
             _custom = False
@@ -280,18 +271,21 @@ class Registration(Endpoint):
                         p.hostname,
                     )
                     raise InvalidRedirectURIError(
-                        "Redirect_uri must use custom scheme or http and " "localhost"
+                        "Redirect_uri must use custom "
+                        "scheme or http and localhost"
                     )
             elif must_https and p.scheme != "https":
-                raise InvalidRedirectURIError("None https redirect_uri not allowed")
-            elif p.scheme not in ["http", "https"]:  # Custom scheme
+                msg = "None https redirect_uri not allowed"
+                raise InvalidRedirectURIError(msg)
+            elif p.scheme not in ["http", "https"]:
+                # Custom scheme
                 raise InvalidRedirectURIError(
                     "Custom redirect_uri not allowed for web client"
                 )
             elif p.fragment:
                 raise InvalidRedirectURIError("redirect_uri contains fragment")
 
-            if _custom is True:  # Can not verify a custom scheme
+            if _custom:  # Can not verify a custom scheme
                 verified_redirect_uris.append((uri, {}))
             else:
                 base, query = splitquery(uri)
@@ -314,14 +308,11 @@ class Registration(Endpoint):
         si_url = request["sector_identifier_uri"]
         try:
             res = self.endpoint_context.httpc.get(si_url)
+            logger.debug("sector_identifier_uri => %s", sanitize(res.text))
         except Exception as err:
             logger.error(err)
-            res = None
-
-        if not res:
+            #res = None
             raise InvalidSectorIdentifier("Couldn't read from sector_identifier_uri")
-
-        logger.debug("sector_identifier_uri => %s", sanitize(res.text))
 
         try:
             si_redirects = json.loads(res.text)
@@ -351,11 +342,9 @@ class Registration(Endpoint):
         context.registration_access_token[_rat] = client_id
 
     def add_client_secret(self, cinfo, client_id, context):
-        try:
-            args = {"delta": int(self.kwargs["client_secret_expiration_time"])}
-        except KeyError:
-            args = {}
-
+        delta_int = int(self.kwargs.get("client_secret_expiration_time",
+                                        0))
+        args = {"delta": delta_int} if delta_int else {}        
         client_secret = secret(context.seed, client_id)
         cinfo.update(
             {
@@ -387,12 +376,12 @@ class Registration(Endpoint):
         if new_id:
             # create new id och secret
             client_id = rndstr(12)
+            # cdb client_id MUT be unique!
             while client_id in _context.cdb:
                 client_id = rndstr(12)
         else:
-            try:
-                client_id = request["client_id"]
-            except KeyError:
+            client_id = request.get("client_id")
+            if not client_id:
                 raise ValueError("Missing client_id")
 
         _cinfo = {"client_id": client_id, "client_salt": rndstr(8)}
@@ -403,13 +392,12 @@ class Registration(Endpoint):
         if new_id:
             _cinfo["client_id_issued_at"] = utc_time_sans_frac()
 
+        client_secret = ""
         if set_secret:
-            client_secret = self.add_client_secret(_cinfo, client_id, _context)
-        else:
-            client_secret = ""
+            client_secret = self.add_client_secret(_cinfo, client_id,
+                                                   _context)            
 
         _context.cdb[client_id] = _cinfo
-
         _cinfo = self.do_client_registration(
             request,
             client_id,
@@ -419,7 +407,8 @@ class Registration(Endpoint):
             return _cinfo
 
         args = dict(
-            [(k, v) for k, v in _cinfo.items() if k in RegistrationResponse.c_param]
+            [(k, v) for k, v in _cinfo.items()
+             if k in RegistrationResponse.c_param]
         )
 
         comb_uri(args)
@@ -431,21 +420,23 @@ class Registration(Endpoint):
 
         _context.cdb[client_id] = _cinfo
 
-        try:
+        # Not all databases can be sync'ed
+        if hasattr(_context.cdb, 'sync') and callable(_context.cdb.sync):
             _context.cdb.sync()
-        except AttributeError:  # Not all databases can be sync'ed
-            pass
 
-        logger.info("registration_response: %s" % sanitize(response.to_dict()))
+        msg = "registration_response: {}"
+        logger.info(msg.format(sanitize(response.to_dict())))
 
         return response
 
-    def process_request(self, request=None, new_id=True, set_secret=True, **kwargs):
+    def process_request(self, request=None, new_id=True,
+                        set_secret=True, **kwargs):
         try:
             reg_resp = self.client_registration_setup(request, new_id, set_secret)
         except Exception as err:
             return ResponseMessage(
-                error="invalid_configuration_request", error_description="%s" % err
+                error="invalid_configuration_request",
+                error_description="%s" % err
             )
 
         if "error" in reg_resp:
@@ -454,7 +445,7 @@ class Registration(Endpoint):
             _cookie = new_cookie(
                 self.endpoint_context,
                 cookie_name="oidc_op_rp",
-                client_id=reg_resp["client_id"],
+                client_id=reg_resp["client_id"]
             )
 
             return {"response_args": reg_resp, "cookie": _cookie}

@@ -52,26 +52,26 @@ FORM_POST = """<html>
 </html>"""
 
 
+DEFAULT_SCOPES = list(SCOPE2CLAIMS.keys())
+DEFAULT_SCOPES.append("openid")
+
+
 def inputs(form_args):
     """
     Creates list of input elements
     """
     element = []
+    html_field = '<input type="hidden" name="{}" value="{}"/>'
     for name, value in form_args.items():
         element.append(
-            '<input type="hidden" name="{}" value="{}"/>'.format(name, value)
+            html_field.format(name, value)
         )
     return "\n".join(element)
 
 
 def max_age(request):
-    try:
-        return request[verified_claim_name("request")]["max_age"]
-    except KeyError:
-        try:
-            return request["max_age"]
-        except KeyError:
-            return 0
+    cn = verified_claim_name("request")
+    return request.get(cn, {}).get("max_age") or request.get("max_age", 0) 
 
 
 def re_authenticate(request, authn):
@@ -83,21 +83,14 @@ def re_authenticate(request, authn):
 
 
 def acr_claims(request):
-    try:
-        acrdef = request["claims"]["id_token"]["acr"]
-    except KeyError:
-        return None
-    else:
-        if isinstance(acrdef, dict):
-            try:
-                return [acrdef["value"]]
-            except KeyError:
-                try:
-                    return acrdef["values"]
-                except KeyError:
-                    pass
+    if request["claims"].get("id_token"):
+        acrdef = request["claims"]["id_token"].get("acr")
 
-    return None
+    if isinstance(acrdef, dict):
+        if acrdef.get("value"):
+            return [acrdef["value"]]
+        elif acrdef.get("values"):
+            return acrdef["values"]
 
 
 def verify_uri(endpoint_context, request, uri_type, client_id=None):
@@ -112,10 +105,7 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
     :return: An error response if the redirect URI is faulty otherwise
         None
     """
-    try:
-        _cid = request["client_id"]
-    except KeyError:
-        _cid = client_id
+    _cid = request.get("client_id", client_id)
 
     if not _cid:
         LOGGER.error("No client id found")
@@ -132,9 +122,8 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
         _query = parse_qs(_query)
 
     match = False
-    try:
-        values = endpoint_context.cdb[_cid]["{}s".format(uri_type)]
-    except KeyError:
+    values = endpoint_context.cdb.get(_cid, {}).get("{}s".format(uri_type))
+    if not values:
         raise ValueError("No registered {}".format(uri_type))
     else:
         for regbase, rquery in values:
@@ -229,16 +218,12 @@ def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
         authn_args["as_user"] = (kwargs["req_user"],)
 
     for attr in ["policy_uri", "logo_uri", "tos_uri"]:
-        try:
+        if cinfo.get(attr):
             authn_args[attr] = cinfo[attr]
-        except KeyError:
-            pass
 
     for attr in ["ui_locales", "acr_values", "login_hint"]:
-        try:
+        if request.get(attr):
             authn_args[attr] = request[attr]
-        except KeyError:
-            pass
 
     return authn_args
 
@@ -253,10 +238,8 @@ def create_authn_response(endpoint, request, sid):
     """
     # create the response
     aresp = AuthorizationResponse()
-    try:
+    if request.get("state"):
         aresp["state"] = request["state"]
-    except KeyError:
-        pass
 
     if "response_type" in request and request["response_type"] == ["none"]:
         fragment_enc = False
@@ -264,17 +247,15 @@ def create_authn_response(endpoint, request, sid):
         _context = endpoint.endpoint_context
         _sinfo = _context.sdb[sid]
 
-        try:
+        if request.get("scope"):
             aresp["scope"] = request["scope"]
-        except KeyError:
-            pass
 
         rtype = set(request["response_type"][:])
         handled_response_type = []
+
+        fragment_enc = True
         if len(rtype) == 1 and "code" in rtype:
             fragment_enc = False
-        else:
-            fragment_enc = True
 
         if "code" in request["response_type"]:
             _code = aresp["code"] = _context.sdb[sid]["code"]
@@ -293,11 +274,8 @@ def create_authn_response(endpoint, request, sid):
 
             handled_response_type.append("token")
 
-        try:
-            _access_token = aresp["access_token"]
-        except KeyError:
-            _access_token = None
-
+        _access_token = aresp.get("access_token", None)
+        
         if "id_token" in request["response_type"]:
             kwargs = {}
             if {"code", "id_token", "token"}.issubset(rtype):
@@ -335,15 +313,10 @@ def create_authn_response(endpoint, request, sid):
 
 
 def proposed_user(request):
-    try:
-        return request[verified_claim_name("it_token_hint")]["sub"]
-    except KeyError:
-        return ""
-
-
-DEFAULT_SCOPES = list(SCOPE2CLAIMS.keys())
-DEFAULT_SCOPES.append("openid")
-
+    cn = verified_claim_name("it_token_hint")
+    if request.get(cn):
+        return request[cn].get("sub", "")
+    return ""
 
 class Authorization(Endpoint):
     request_cls = oidc.AuthorizationRequest
@@ -381,9 +354,9 @@ class Authorization(Endpoint):
 
     def verify_response_type(self, request, cinfo):
         # Checking response types
-        try:
-            _registered = [set(rt.split(" ")) for rt in cinfo["response_types"]]
-        except KeyError:
+        _registered = [set(rt.split(" "))
+                       for rt in cinfo.get("response_types", [])]
+        if not _registered:
             # If no response_type is registered by the client then we'll
             # code which it the default according to the OIDC spec.
             _registered = [{"code"}]
@@ -408,9 +381,8 @@ class Authorization(Endpoint):
 
         request = self.filter_request(endpoint_context, request)
 
-        try:
-            _cinfo = endpoint_context.cdb[client_id]
-        except KeyError:
+        _cinfo = endpoint_context.cdb.get(client_id)
+        if not _cinfo:
             LOGGER.error(
                 "Client ID ({}) not in client database".format(request["client_id"])
             )
@@ -439,27 +411,27 @@ class Authorization(Endpoint):
         return request
 
     def pick_authn_method(self, request, redirect_uri, acr=None, **kwargs):
-        try:
-            auth_id = kwargs["auth_method_id"]
-        except KeyError:
-            if acr:
-                res = self.endpoint_context.authn_broker.pick(acr)
-            else:
-                res = pick_auth(self.endpoint_context, request)
-
-            if not res:
-                return {
-                    "error": "access_denied",
-                    "error_description": "ACR I do not support",
-                    "return_uri": redirect_uri,
-                    "return_type": request["response_type"],
-                }
+        auth_id = kwargs.get("auth_method_id")
+        if auth_id:
+            return self.endpoint_context.authn_broker[auth_id]
+        
+        if acr:
+            res = self.endpoint_context.authn_broker.pick(acr)
         else:
-            res = self.endpoint_context.authn_broker[auth_id]
+            res = pick_auth(self.endpoint_context, request)
 
-        return res
+        if res:
+            return res
+        else:
+            return {
+                "error": "access_denied",
+                "error_description": "ACR I do not support",
+                "return_uri": redirect_uri,
+                "return_type": request["response_type"],
+            }
 
-    def setup_auth(self, request, redirect_uri, cinfo, cookie, acr=None, **kwargs):
+    def setup_auth(self, request, redirect_uri,
+                   cinfo, cookie, acr=None, **kwargs):
         """
 
         :param request: The authorization/authentication request
@@ -477,11 +449,7 @@ class Authorization(Endpoint):
         authn_class_ref = res["acr"]
 
         try:
-            try:
-                _auth_info = kwargs["authn"]
-            except KeyError:
-                _auth_info = ""
-
+            _auth_info = kwargs.get("authn", "")
             if "upm_answer" in request and request["upm_answer"] == "true":
                 _max_age = 0
             else:
@@ -516,7 +484,8 @@ class Authorization(Endpoint):
                         elif "revoked" in session:
                             identity = None
 
-        authn_args = authn_args_gather(request, authn_class_ref, cinfo, **kwargs)
+        authn_args = authn_args_gather(request, authn_class_ref,
+                                       cinfo, **kwargs)
 
         # To authenticate or Not
         if identity is None:  # No!
@@ -563,12 +532,13 @@ class Authorization(Endpoint):
             authn_info=authn_class_ref,
             time_stamp=_ts,
         )
-        try:
-            authn_event["valid_until"] = time.time() + authn.kwargs["expires_in"]
-        except KeyError:
-            pass
+        if "valid_until" in authn_event:
+            vu = time.time() + authn.kwargs.get("expires_in", 0.0)
+            authn_event["valid_until"] = vu
 
-        return {"authn_event": authn_event, "identity": identity, "user": user}
+        return {"authn_event": authn_event,
+                "identity": identity,
+                "user": user}
 
     def aresp_check(self, aresp, request):
         return ""
@@ -710,9 +680,7 @@ class Authorization(Endpoint):
         if "check_session_iframe" in self.endpoint_context.provider_info:
             ec = self.endpoint_context
             salt = rndstr()
-            if ec.sdb.is_session_revoked(sid):
-                pass
-            else:
+            if not ec.sdb.is_session_revoked(sid):
                 authn_event = ec.sdb.get_authentication_event(
                     sid
                 )  # use the last session
@@ -761,21 +729,16 @@ class Authorization(Endpoint):
 
         _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
-        try:
-            cookie = kwargs["cookie"]
-        except KeyError:
-            cookie = ""
-        else:
+
+        cookie = kwargs.get("cookie", "")
+        if cookie:
             del kwargs["cookie"]
 
         if proposed_user(request_info):
             kwargs["req_user"] = proposed_user(request_info)
         else:
-            try:
+            if request_info.get("login_hint"):
                 _login_hint = request_info["login_hint"]
-            except KeyError:
-                pass
-            else:
                 if self.endpoint_context.login_hint_lookup:
                     kwargs["req_user"] = self.endpoint_context.login_hint_lookup[
                         _login_hint
@@ -788,24 +751,22 @@ class Authorization(Endpoint):
         if "error" in info:
             return info
 
-        try:
-            _function = info["function"]
-        except KeyError:  # already authenticated
+        _function = info.get("function")
+        if not _function:
             LOGGER.debug("- authenticated -")
             LOGGER.debug("AREQ keys: %s" % request_info.keys())
-
             res = self.authz_part2(
-                info["user"], info["authn_event"], request_info, cookie=cookie
+                info["user"], info["authn_event"],
+                request_info, cookie=cookie
             )
-
             return res
-        else:
-            try:
-                # Run the authentication function
-                return {
-                    "http_response": _function(**info["args"]),
-                    "return_uri": request_info["redirect_uri"],
-                }
-            except Exception as err:
-                LOGGER.exception(err)
-                return {"http_response": "Internal error: {}".format(err)}
+
+        try:
+            # Run the authentication function
+            return {
+                "http_response": _function(**info["args"]),
+                "return_uri": request_info["redirect_uri"],
+            }
+        except Exception as err:
+            LOGGER.exception(err)
+            return {"http_response": "Internal error: {}".format(err)}
