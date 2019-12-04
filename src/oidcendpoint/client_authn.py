@@ -136,17 +136,13 @@ class JWSAuthnMethod(ClientAuthnMethod):
             logger.info("%s" % sanitize(err))
             raise AuthnFailure("Could not verify client_assertion.")
 
-        try:
-            logger.debug("authntoken: %s" % sanitize(ca_jwt.to_dict()))
-        except AttributeError:
-            logger.debug("authntoken: %s" % sanitize(ca_jwt))
+        authtoken = sanitize(ca_jwt)
+        if hasattr(ca_jwt, 'to_dict') and callable(ca_jwt, 'to_dict'):
+            authtoken = sanitize(ca_jwt.to_dict())
+        logger.debug("authntoken: {}".format(authtoken))
 
         request[verified_claim_name("client_assertion")] = ca_jwt
-
-        try:
-            client_id = kwargs["client_id"]
-        except KeyError:
-            client_id = ca_jwt["iss"]
+        client_id = kwargs.get("client_id") or ca_jwt["iss"]
 
         # I should be among the audience
         # could be either my issuer id or the token endpoint
@@ -244,51 +240,45 @@ def verify_client(
         else:
             raise UnknownOrNoAuthnMethod(authorization_info)
 
-    try:
-        client_id = auth_info["client_id"]
-    except KeyError:
-        try:
-            _token = auth_info["token"]
-        except KeyError:
-            logger.warning("No token")
-        else:
-            if get_client_id_from_token:
-                try:
-                    _id = get_client_id_from_token(endpoint_context, _token, request)
-                except KeyError:
-                    raise ValueError("Unknown token")
+    client_id = auth_info.get("client_id")
+    _token = auth_info.get("token")
 
-                if _id:
-                    auth_info["client_id"] = _id
-    else:
-        try:
-            _cinfo = endpoint_context.cdb[client_id]
-        except KeyError:
+    if client_id:
+
+        if not client_id in endpoint_context.cdb:
             raise ValueError("Unknown Client ID")
-        else:
-            if isinstance(_cinfo, str):
-                try:
-                    _cinfo = endpoint_context.cdb[_cinfo]
-                except KeyError:
-                    raise ValueError("Unknown Client ID")
 
-            try:
-                valid_client_info(_cinfo)
-            except KeyError:
-                logger.warning("Client registration has timed out")
-                raise ValueError("Not valid client")
+        _cinfo = endpoint_context.cdb[client_id]
+        if isinstance(_cinfo, str):
+            if not _cinfo in endpoint_context.cdb:
+                raise ValueError("Unknown Client ID")
+
+        if not valid_client_info(_cinfo):
+            logger.warning("Client registration has timed out")
+            raise ValueError("Not valid client")
+
+        # store what authn method was used
+        if auth_info.get("method"):
+            if endpoint_context.cdb[client_id].get("auth_method") and \
+               request.__class__.__name__ in endpoint_context.cdb[client_id]["auth_method"]:
+                endpoint_context.cdb[client_id]["auth_method"][
+                    request.__class__.__name__
+                ] = auth_info["method"]
             else:
-                # store what authn method was used
-                try:
-                    endpoint_context.cdb[client_id]["auth_method"][
-                        request.__class__.__name__
-                    ] = auth_info["method"]
-                except KeyError:
-                    try:
-                        endpoint_context.cdb[client_id]["auth_method"] = {
-                            request.__class__.__name__: auth_info["method"]
-                        }
-                    except KeyError:
-                        pass
+                endpoint_context.cdb[client_id]["auth_method"] = {
+                    request.__class__.__name__: auth_info["method"]
+                    }
+
+    elif not client_id and get_client_id_from_token:
+        if not _token:
+            logger.warning("No token")
+            raise ValueError("No token")
+
+        try:
+            # get_client_id_from_token is a callback... Do not abuse for code readability.
+            auth_info["client_id"] = get_client_id_from_token(endpoint_context,
+                                                              _token, request)
+        except KeyError:
+            raise ValueError("Unknown token")
 
     return auth_info
