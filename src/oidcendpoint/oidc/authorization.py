@@ -38,7 +38,7 @@ from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.user_info import SCOPE2CLAIMS
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 FORM_POST = """<html>
   <head>
@@ -71,7 +71,7 @@ def inputs(form_args):
 
 def max_age(request):
     cn = verified_claim_name("request")
-    return request.get(cn, {}).get("max_age") or request.get("max_age", 0) 
+    return request.get(cn, {}).get("max_age") or request.get("max_age", 0)
 
 
 def re_authenticate(request, authn):
@@ -108,7 +108,7 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
     _cid = request.get("client_id", client_id)
 
     if not _cid:
-        LOGGER.error("No client id found")
+        logger.error("No client id found")
         raise UnknownClient("No client_id provided")
 
     _redirect_uri = unquote(request[uri_type])
@@ -185,23 +185,26 @@ def get_uri(endpoint_context, request, uri_type):
     :param uri_type: 'redirect_uri' or 'post_logout_redirect_uri'
     :return: redirect_uri
     """
+    uri = ""
+
     if uri_type in request:
         verify_uri(endpoint_context, request, uri_type)
         uri = request[uri_type]
     else:
-        try:
-            _specs = endpoint_context.cdb[str(request["client_id"])][
-                "{}s".format(uri_type)
-            ]
-        except KeyError:
-            raise ParameterError("Missing {} and none registered".format(uri_type))
-        else:
+
+        uris = "{}s".format(uri_type)
+        client_id = str(request["client_id"])
+        if client_id in endpoint_context.cdb:
+            _specs = endpoint_context.cdb[client_id].get(uris)
+            if not _specs:
+                 raise ParameterError("Missing {} and none registered".format(uri_type))
+
             if len(_specs) > 1:
                 raise ParameterError(
                     "Missing {} and more than one registered".format(uri_type)
                 )
-            else:
-                uri = join_query(*_specs[0])
+
+            uri = join_query(*_specs[0])
 
     return uri
 
@@ -267,7 +270,7 @@ def create_authn_response(endpoint, request, sid):
         if "token" in rtype:
             _dic = _context.sdb.upgrade_to_token(issue_refresh=False, key=sid)
 
-            LOGGER.debug("_dic: %s" % sanitize(_dic))
+            logger.debug("_dic: %s" % sanitize(_dic))
             for key, val in _dic.items():
                 if key in aresp.parameters() and val is not None:
                     aresp[key] = val
@@ -275,7 +278,7 @@ def create_authn_response(endpoint, request, sid):
             handled_response_type.append("token")
 
         _access_token = aresp.get("access_token", None)
-        
+
         if "id_token" in request["response_type"]:
             kwargs = {}
             if {"code", "id_token", "token"}.issubset(rtype):
@@ -291,7 +294,7 @@ def create_authn_response(endpoint, request, sid):
             try:
                 id_token = _context.idtoken.make(request, _sinfo, **kwargs)
             except (JWEException, NoSuitableSigningKeys) as err:
-                LOGGER.warning(str(err))
+                logger.warning(str(err))
                 resp = AuthorizationErrorResponse(
                     error="invalid_request",
                     error_description="Could not sign/encrypt id_token",
@@ -374,7 +377,7 @@ class Authorization(Endpoint):
         :return:
         """
         if not request:
-            LOGGER.debug("No AuthzRequest")
+            logger.debug("No AuthzRequest")
             return AuthorizationErrorResponse(
                 error="invalid_request", error_description="Can not parse AuthzRequest"
             )
@@ -383,7 +386,7 @@ class Authorization(Endpoint):
 
         _cinfo = endpoint_context.cdb.get(client_id)
         if not _cinfo:
-            LOGGER.error(
+            logger.error(
                 "Client ID ({}) not in client database".format(request["client_id"])
             )
             return AuthorizationErrorResponse(
@@ -414,7 +417,7 @@ class Authorization(Endpoint):
         auth_id = kwargs.get("auth_method_id")
         if auth_id:
             return self.endpoint_context.authn_broker[auth_id]
-        
+
         if acr:
             res = self.endpoint_context.authn_broker.pick(acr)
         else:
@@ -462,7 +465,7 @@ class Authorization(Endpoint):
             identity = None
             _ts = 0
         except ToOld:
-            LOGGER.info("Too old authentication")
+            logger.info("Too old authentication")
             identity = None
             _ts = 0
         else:
@@ -474,22 +477,16 @@ class Authorization(Endpoint):
                 else:
                     identity = json.loads(as_unicode(_id))
 
-                    try:
-                        session = self.endpoint_context.sdb[identity["sid"]]
-                    except KeyError:
+                    session = self.endpoint_context.sdb[identity.get("sid")]
+                    if not session or "revoked" in session:
                         identity = None
-                    else:
-                        if session is None:
-                            identity = None
-                        elif "revoked" in session:
-                            identity = None
 
         authn_args = authn_args_gather(request, authn_class_ref,
                                        cinfo, **kwargs)
 
         # To authenticate or Not
         if identity is None:  # No!
-            LOGGER.info("No active authentication")
+            logger.info("No active authentication")
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
                 return {
@@ -500,7 +497,7 @@ class Authorization(Endpoint):
             else:
                 return {"function": authn, "args": authn_args}
         else:
-            LOGGER.info("Active authentication")
+            logger.info("Active authentication")
             if re_authenticate(request, authn):
                 # demand re-authentication
                 return {"function": authn, "args": authn_args}
@@ -516,7 +513,7 @@ class Authorization(Endpoint):
                         sids[-1]
                     ).uid
                     ):
-                        LOGGER.debug("Wanted to be someone else!")
+                        logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
                             # Need to authenticate but not allowed
                             return {
@@ -610,7 +607,7 @@ class Authorization(Endpoint):
                     response_info, "server_error", "{}".format(err.args)
                 )
 
-        LOGGER.debug("response type: %s" % request["response_type"])
+        logger.debug("response type: %s" % request["response_type"])
 
         if self.endpoint_context.sdb.is_session_revoked(sid):
             return self.error_response(
@@ -694,7 +691,7 @@ class Authorization(Endpoint):
 
                 opbs = session_cookie[ec.cookie_name["session_management"]]
 
-                LOGGER.debug("compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
+                logger.debug("compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
                              request["client_id"], resp_info["return_uri"], opbs.value, salt)
 
                 _session_state = compute_session_state(
@@ -753,8 +750,8 @@ class Authorization(Endpoint):
 
         _function = info.get("function")
         if not _function:
-            LOGGER.debug("- authenticated -")
-            LOGGER.debug("AREQ keys: %s" % request_info.keys())
+            logger.debug("- authenticated -")
+            logger.debug("AREQ keys: %s" % request_info.keys())
             res = self.authz_part2(
                 info["user"], info["authn_event"],
                 request_info, cookie=cookie
@@ -768,5 +765,5 @@ class Authorization(Endpoint):
                 "return_uri": request_info["redirect_uri"],
             }
         except Exception as err:
-            LOGGER.exception(err)
+            logger.exception(err)
             return {"http_response": "Internal error: {}".format(err)}

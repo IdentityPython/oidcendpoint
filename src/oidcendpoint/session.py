@@ -13,7 +13,7 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcendpoint import token_handler
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.in_memory_db import InMemoryDataBase
-from oidcendpoint.sso_db import SSODb
+from oidcendpoint.sso_db import (SSODb, KEY_FORMAT)
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import UnknownToken
@@ -119,7 +119,7 @@ def dict_match(a, b):
 
 class SessionDB(object):
     def __init__(self, db, handler, sso_db, userinfo=None, sub_func=None):
-        # db must implement the InMemoryStateDataBase interface
+        # db must implement the InMemoryDataBase interface
         self._db = db
         self.handler = handler
         self.sso_db = sso_db
@@ -224,13 +224,14 @@ class SessionDB(object):
         return self.update(_sid, **kwargs)
 
     def map_kv2sid(self, key, value, sid):
-        self._db.set("__{}__{}__".format(key, value), sid)
+        """ KEY_FORMAT = "__{}__{}" """
+        self._db.set(KEY_FORMAT.format(key, value), sid)
 
     def delete_kv2sid(self, key, value):
-        self._db.delete("__{}__{}__".format(key, value))
+        self._db.delete(KEY_FORMAT.format(key, value))
 
     def get_sid_by_kv(self, key, value):
-        return self._db.get("__{}__{}__".format(key, value))
+        return self._db.get(KEY_FORMAT.format(key, value))
 
     def get_token(self, sid):
         _sess_info = self[sid]
@@ -241,7 +242,8 @@ class SessionDB(object):
             return _sess_info["access_token"]
 
     def do_sub(
-        self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
+        self, sid, uid, client_salt, sector_id="",
+        subject_type="public", user_salt=""
     ):
         """
         Create and store a subject identifier
