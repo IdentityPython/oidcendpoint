@@ -118,7 +118,7 @@ def dict_match(a, b):
 
 
 class SessionDB(object):
-    def __init__(self, db, handler, sso_db, userinfo=None, sub_func=None):
+    def __init__(self, db, handler, sso_db=SSODb(), userinfo=None, sub_func=None):
         # db must implement the InMemoryDataBase interface
         self._db = db
         self.handler = handler

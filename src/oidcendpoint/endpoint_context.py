@@ -125,14 +125,19 @@ class EndpointContext:
         # arguments for endpoints add-ons
         self.args = {}
 
+        self.th_args = get_token_handlers(conf)
+
         # client database
         self.cdb = client_db or {}
 
         # session db
         self._sub_func = {}
         self.do_sub_func()
-        self.sdb = session_db
-        if not self.sdb:
+
+        # set self.sdb
+        if session_db:
+            self.set_session_db(conf, sso_db, db=session_db)
+        else:
             self.set_session_db(conf, sso_db)
 
         self.scope2claims = SCOPE2CLAIMS
@@ -288,9 +293,8 @@ class EndpointContext:
                     self._sub_func[key] = args["function"]
 
     def do_session_db(self, conf, sso_db, db=None):
-        th_args = get_token_handlers(conf)
         self.sdb = create_session_db(
-            self, th_args, db=db,
+            self, self.th_args, db=db,
             sso_db=sso_db,
             sub_func=self._sub_func
         )
