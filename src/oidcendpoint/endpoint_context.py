@@ -10,7 +10,6 @@ from oidcmsg.oidc import IdToken
 
 from oidcendpoint import authz
 from oidcendpoint import rndstr
-from oidcendpoint import util
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.session import create_session_db
@@ -44,7 +43,7 @@ def init_user_info(conf, cwd):
         kwargs["db_file"] = os.path.join(cwd, kwargs["db_file"])
 
     if isinstance(conf["class"], str):
-        return util.importer(conf["class"])(**kwargs)
+        return importer(conf["class"])(**kwargs)
 
     return conf["class"](**kwargs)
 
@@ -56,7 +55,7 @@ def init_service(conf, endpoint_context=None):
         kwargs["endpoint_context"] = endpoint_context
 
     if isinstance(conf["class"], str):
-        return util.importer(conf["class"])(**kwargs)
+        return importer(conf["class"])(**kwargs)
 
     return conf["class"](**kwargs)
 
@@ -126,14 +125,19 @@ class EndpointContext:
         # arguments for endpoints add-ons
         self.args = {}
 
+        self.th_args = get_token_handlers(conf)
+
         # client database
         self.cdb = client_db or {}
 
         # session db
         self._sub_func = {}
         self.do_sub_func()
-        self.sdb = session_db
-        if not self.sdb:
+
+        # set self.sdb
+        if session_db:
+            self.set_session_db(conf, sso_db, db=session_db)
+        else:
             self.set_session_db(conf, sso_db)
 
         self.scope2claims = SCOPE2CLAIMS
@@ -284,14 +288,13 @@ class EndpointContext:
                 self._sub_func[key] = init_service(args)
             elif "function" in args:
                 if isinstance(args["function"], str):
-                    self._sub_func[key] = util.importer(args["function"])
+                    self._sub_func[key] = importer(args["function"])
                 else:
                     self._sub_func[key] = args["function"]
 
     def do_session_db(self, conf, sso_db, db=None):
-        th_args = get_token_handlers(conf)
         self.sdb = create_session_db(
-            self, th_args, db=db,
+            self, self.th_args, db=db,
             sso_db=sso_db,
             sub_func=self._sub_func
         )

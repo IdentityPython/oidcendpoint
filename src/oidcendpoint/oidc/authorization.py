@@ -191,7 +191,6 @@ def get_uri(endpoint_context, request, uri_type):
         verify_uri(endpoint_context, request, uri_type)
         uri = request[uri_type]
     else:
-
         uris = "{}s".format(uri_type)
         client_id = str(request["client_id"])
         if client_id in endpoint_context.cdb:

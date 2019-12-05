@@ -244,7 +244,6 @@ def verify_client(
     _token = auth_info.get("token")
 
     if client_id:
-
         if not client_id in endpoint_context.cdb:
             raise ValueError("Unknown Client ID")
 
