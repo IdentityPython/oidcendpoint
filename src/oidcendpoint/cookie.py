@@ -14,6 +14,7 @@ from cryptojwt.jwe.utils import split_ctx_and_tag
 from cryptojwt.jwk.hmac import SYMKey
 from cryptojwt.jwk.jwk import key_from_jwk_dict
 from cryptojwt.jws.hmac import HMACSigner
+from cryptojwt.key_bundle import init_key
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64e
@@ -105,7 +106,7 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
         mac = base64.b64decode(b64_mac)
         verifier = HMACSigner(algorithm=sign_alg)
         if verifier.verify(
-            load.encode("utf-8") + timestamp.encode("utf-8"), mac, sign_key.key
+                load.encode("utf-8") + timestamp.encode("utf-8"), mac, sign_key.key
         ):
             return load, timestamp
         else:
@@ -124,9 +125,9 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
         if len(p) == 3:
             verifier = HMACSigner(algorithm=sign_alg)
             if verifier.verify(
-                load.encode("utf-8") + timestamp.encode("utf-8"),
-                base64.b64decode(p[2]),
-                sign_key.key,
+                    load.encode("utf-8") + timestamp.encode("utf-8"),
+                    base64.b64decode(p[2]),
+                    sign_key.key,
             ):
                 return load, timestamp
         else:
@@ -135,15 +136,15 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
 
 
 def make_cookie_content(
-    name,
-    load,
-    sign_key,
-    domain=None,
-    path=None,
-    timestamp="",
-    enc_key=None,
-    max_age=0,
-    sign_alg="SHA256",
+        name,
+        load,
+        sign_key,
+        domain=None,
+        path=None,
+        timestamp="",
+        enc_key=None,
+        max_age=0,
+        sign_alg="SHA256",
 ):
     """
     Create and return a cookies content
@@ -196,15 +197,15 @@ def make_cookie_content(
 
 
 def make_cookie(
-    name,
-    payload,
-    sign_key,
-    domain=None,
-    path=None,
-    timestamp="",
-    enc_key=None,
-    max_age=0,
-    sign_alg="SHA256",
+        name,
+        payload,
+        sign_key,
+        domain=None,
+        path=None,
+        timestamp="",
+        enc_key=None,
+        max_age=0,
+        sign_alg="SHA256",
 ):
     content = make_cookie_content(
         name,
@@ -285,13 +286,13 @@ class CookieDealer(object):
     """
 
     def __init__(
-        self,
-        sign_key="",
-        enc_key="",
-        sign_alg="SHA256",
-        default_values=None,
-        sign_jwk="",
-        enc_jwk="",
+            self,
+            sign_key="",
+            enc_key="",
+            sign_alg="SHA256",
+            default_values=None,
+            sign_jwk=None,
+            enc_jwk=None
     ):
 
         if sign_key:
@@ -300,7 +301,7 @@ class CookieDealer(object):
             else:
                 self.sign_key = SYMKey(k=sign_key)
         elif sign_jwk:
-            self.sign_key = import_jwk(sign_jwk)
+            self.sign_key = init_key(**sign_jwk)
         else:
             self.sign_key = None
 
@@ -312,7 +313,7 @@ class CookieDealer(object):
             else:
                 self.enc_key = SYMKey(k=enc_key)
         elif enc_jwk:
-            self.enc_key = import_jwk(enc_jwk)
+            self.enc_key = init_key(**enc_jwk)
         else:
             self.enc_key = None
 
@@ -411,15 +412,15 @@ class CookieDealer(object):
         return None
 
     def append_cookie(
-        self,
-        cookie,
-        name,
-        payload,
-        typ,
-        domain=None,
-        path=None,
-        timestamp="",
-        max_age=0,
+            self,
+            cookie,
+            name,
+            payload,
+            typ,
+            domain=None,
+            path=None,
+            timestamp="",
+            max_age=0,
     ):
         """
         Adds a cookie to a SimpleCookie instance
