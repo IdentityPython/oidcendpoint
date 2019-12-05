@@ -162,7 +162,8 @@ class SessionDB(object):
     def keys(self):
         return self._db.keys()
 
-    def create_authz_session(self, authn_event, areq, client_id="", uid="", **kwargs):
+    def create_authz_session(self, authn_event, areq,
+                             client_id="", uid="", **kwargs):
         """
 
         :param authn_event:
@@ -293,20 +294,14 @@ class SessionDB(object):
         :param token_type: What type of tokens should be replaced
         :return: Updated session info
         """
-        try:
-            # Mint a new one
+
+        if token_type in self.handler:
             refresh_token = self.handler[token_type](sid, sinfo=sinfo)
-        except KeyError:
-            pass
-        else:
             # blacklist the old is there is one
-            try:
+            if sinfo.get(token_type):
                 self.handler[token_type].black_list(sinfo[token_type])
-            except KeyError:
-                pass
 
             sinfo[token_type] = refresh_token
-
         return sinfo
 
     def _make_at(self, sid, session_info, aud=None, client_id_aud=True):
@@ -561,11 +556,8 @@ class SessionDB(object):
         except Exception:
             raise UnknownToken(sid)
         else:
-            try:
-                return session_info["authn_event"]
-            except KeyError:
-                raise ValueError("No Authn event info")
-
+            sesinf = session_info.get("authn_event")
+            return sesinf or ValueError("No Authn event info")
 
 def create_session_db(ec, token_handler_args, db=None,
                       sso_db=None, sub_func=None):

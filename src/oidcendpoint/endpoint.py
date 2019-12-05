@@ -201,15 +201,9 @@ class Endpoint(object):
                 req["client_id"] = auth_info["client_id"]
                 _client_id = auth_info["client_id"]
             else:
-                try:
-                    _client_id = req["client_id"]
-                except KeyError:
-                    pass
+                _client_id = req.get("client_id")
 
-        try:
-            keyjar = self.endpoint_context.keyjar
-        except AttributeError:
-            keyjar = ""
+        keyjar = getattr(self, "endpoint_context", "")
 
         # verify that the request message is correct
         try:

@@ -150,7 +150,6 @@ class Registration(Endpoint):
     def do_client_registration(self, request, client_id, ignore=None):
         if ignore is None:
             ignore = []
-
         _context = self.endpoint_context
         _cinfo = _context.cdb[client_id].copy()
         logger.debug("_cinfo: %s" % sanitize(_cinfo))
@@ -344,7 +343,7 @@ class Registration(Endpoint):
     def add_client_secret(self, cinfo, client_id, context):
         delta_int = int(self.kwargs.get("client_secret_expiration_time",
                                         0))
-        args = {"delta": delta_int} if delta_int else {}        
+        args = {"delta": delta_int} if delta_int else {}
         client_secret = secret(context.seed, client_id)
         cinfo.update(
             {
@@ -395,7 +394,7 @@ class Registration(Endpoint):
         client_secret = ""
         if set_secret:
             client_secret = self.add_client_secret(_cinfo, client_id,
-                                                   _context)            
+                                                   _context)
 
         _context.cdb[client_id] = _cinfo
         _cinfo = self.do_client_registration(
