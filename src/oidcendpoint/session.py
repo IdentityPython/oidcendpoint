@@ -568,10 +568,9 @@ class SessionDB(object):
 
 
 def create_session_db(ec, token_handler_args, db=None,
-                      sso_db=SSODb(), sub_func=None):
+                      sso_db=None, sub_func=None):
     _token_handler = token_handler.factory(ec, **token_handler_args)
 
-    if not db:
-        db = InMemoryDataBase()
-
+    db = db or InMemoryDataBase()
+    sso_db = sso_db or SSODb()
     return SessionDB(db, _token_handler, sso_db, sub_func=sub_func)
