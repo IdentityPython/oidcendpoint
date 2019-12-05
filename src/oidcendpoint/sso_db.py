@@ -23,7 +23,7 @@ class SSODb(object):
         self._db = db or InMemoryDataBase()
 
     def set(self, label, key, value):
-        logger.debug("SSODb set {}: {}".format(key, value))
+        logger.debug("SSODb set {} - {}: {}".format(label, key, value))
         _key = KEY_FORMAT.format(label, key)
         _values = self._db.get(_key)
         if not _values:
