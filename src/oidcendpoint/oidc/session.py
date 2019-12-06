@@ -366,10 +366,10 @@ class Session(Endpoint):
                 pass
             else:
                 if (
-                    _ith.jws_header["alg"]
-                    not in self.endpoint_context.provider_info[
-                        "id_token_signing_alg_values_supported"
-                    ]
+                        _ith.jws_header["alg"]
+                        not in self.endpoint_context.provider_info[
+                    "id_token_signing_alg_values_supported"
+                ]
                 ):
                     raise JWSException("Unsupported signing algorithm")
 
@@ -399,6 +399,8 @@ class Session(Endpoint):
 
                 if res.status_code < 300:
                     logger.info("Logged out from {}".format(_cid))
+                elif res.status_code in [501, 504]:
+                    logger.info("Got a %s which is acceptable", res.status_code)
                 elif res.status_code >= 400:
                     logger.info("failed to logout from {}".format(_cid))
 
