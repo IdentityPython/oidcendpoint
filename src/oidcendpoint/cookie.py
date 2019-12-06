@@ -300,7 +300,10 @@ class CookieDealer(object):
             else:
                 self.sign_key = SYMKey(k=sign_key)
         elif sign_jwk:
-            self.sign_key = import_jwk(sign_jwk)
+            if isinstance(sign_jwk, dict):
+                self.sign_key = import_jwk(sign_jwk['filename'])
+            else:
+                self.sign_key = import_jwk(sign_jwk)
         else:
             self.sign_key = None
 
@@ -312,7 +315,10 @@ class CookieDealer(object):
             else:
                 self.enc_key = SYMKey(k=enc_key)
         elif enc_jwk:
-            self.enc_key = import_jwk(enc_jwk)
+            if isinstance(enc_jwk, dict):
+                self.enc_key = import_jwk(enc_jwk['filename'])
+            else:
+                self.enc_key = import_jwk(enc_jwk)
         else:
             self.enc_key = None
 

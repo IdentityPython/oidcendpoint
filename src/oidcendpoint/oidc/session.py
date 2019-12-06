@@ -381,11 +381,8 @@ class Session(Endpoint):
         else:
             _res = self.logout_from_client(sid=sid, client_id=client_id)
 
-        try:
-            bcl = _res["blu"]
-        except KeyError:
-            pass
-        else:
+        bcl = _res.get("blu")
+        if bcl:
             # take care of Back channel logout first
             for _cid, spec in bcl.items():
                 _url, sjwt = spec
@@ -402,10 +399,7 @@ class Session(Endpoint):
                 elif res.status_code >= 400:
                     logger.info("failed to logout from {}".format(_cid))
 
-        try:
-            return _res["flu"].values()
-        except KeyError:
-            return []
+        return _res["flu"].values() if _res.get("fluu") else []
 
     def kill_cookies(self):
         _ec = self.endpoint_context
