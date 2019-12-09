@@ -232,6 +232,7 @@ class SessionDB(object):
         self._db.delete(KEY_FORMAT.format(key, value))
 
     def get_sid_by_kv(self, key, value):
+        """ KEY_FORMAT = "__{}__{}" """
         return self._db.get(KEY_FORMAT.format(key, value))
 
     def get_token(self, sid):
@@ -558,6 +559,7 @@ class SessionDB(object):
         else:
             sesinf = session_info.get("authn_event")
             return sesinf or ValueError("No Authn event info")
+
 
 def create_session_db(ec, token_handler_args, db=None,
                       sso_db=None, sub_func=None):
