@@ -136,9 +136,9 @@ class EndpointContext:
 
         # set self.sdb
         if session_db:
-            self.set_session_db(conf, sso_db, db=session_db)
+            self.set_session_db(sso_db, db=session_db)
         else:
-            self.set_session_db(conf, sso_db)
+            self.set_session_db(sso_db)
 
         self.scope2claims = SCOPE2CLAIMS
 
@@ -220,9 +220,9 @@ class EndpointContext:
         # client registration access tokens
         self.registration_access_token = {}
 
-    def set_session_db(self, conf, sso_db=None, db=None):
+    def set_session_db(self, sso_db=None, db=None):
         sso_db = sso_db or SSODb()
-        self.do_session_db(conf, sso_db, db)
+        self.do_session_db(sso_db, db)
         # append useinfo db to the session db
         self.do_userinfo()
         logger.debug('Session DB: {}'.format(self.sdb.__dict__))
@@ -292,7 +292,7 @@ class EndpointContext:
                 else:
                     self._sub_func[key] = args["function"]
 
-    def do_session_db(self, conf, sso_db, db=None):
+    def do_session_db(self, sso_db, db=None):
         self.sdb = create_session_db(
             self, self.th_args, db=db,
             sso_db=sso_db,

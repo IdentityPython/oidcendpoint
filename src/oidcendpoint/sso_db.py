@@ -35,7 +35,7 @@ class SSODb(object):
     def get(self, label, key):
         _key = KEY_FORMAT.format(label, key)
         value = self._db.get(_key)
-        logger.debug("SSODb get {} [{}]".format(key, value))
+        logger.debug("SSODb get {} - {}: {}".format(label, key, value))
         return value
 
     def delete(self, label, key):
@@ -46,15 +46,10 @@ class SSODb(object):
         _key = KEY_FORMAT.format(label, key)
         _values = self._db.get(_key)
         if _values:
-            try:
-                _values.remove(value)
-            except ValueError:
-                pass
-            else:
-                if _values:
-                    self._db.set(_key, _values)
-                else:
-                    self._db.delete(_key)
+            _values.remove(value)
+        else:
+            self._db.set(_key, _values)
+            self._db.delete(_key)
 
     def map_sid2uid(self, sid, uid):
         """

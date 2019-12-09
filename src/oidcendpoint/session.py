@@ -232,6 +232,7 @@ class SessionDB(object):
         self._db.delete(KEY_FORMAT.format(key, value))
 
     def get_sid_by_kv(self, key, value):
+        """ KEY_FORMAT = "__{}__{}" """
         return self._db.get(KEY_FORMAT.format(key, value))
 
     def get_token(self, sid):
@@ -451,10 +452,8 @@ class SessionDB(object):
     def revoke_all_tokens(self, token):
         _sinfo = self[token]
         for typ in self.handler.keys():
-            try:
+            if _sinfo.get(typ):
                 self.revoke_token(_sinfo[typ], typ)
-            except KeyError:
-                pass
 
     def revoke_session(self, sid="", token=""):
         """
@@ -559,10 +558,10 @@ class SessionDB(object):
             sesinf = session_info.get("authn_event")
             return sesinf or ValueError("No Authn event info")
 
+
 def create_session_db(ec, token_handler_args, db=None,
                       sso_db=None, sub_func=None):
     _token_handler = token_handler.factory(ec, **token_handler_args)
-
     db = db or InMemoryDataBase()
     sso_db = sso_db or SSODb()
     return SessionDB(db, _token_handler, sso_db, sub_func=sub_func)
