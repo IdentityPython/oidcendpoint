@@ -275,6 +275,10 @@ class EndpointContext:
         else:
             self.authn_broker = None
 
+        self.endpoint_to_authn_method = {}
+        for method in self.authn_broker:
+            self.endpoint_to_authn_method[method.action] = method
+
     def do_cookie_dealer(self):
         _conf = self.conf.get('cookie_dealer')
         if _conf:

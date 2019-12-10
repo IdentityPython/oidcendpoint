@@ -97,7 +97,6 @@ class AuthnBroker(object):
     def __iter__(self):
         for item in self.db.values():
             yield item["method"]
-        raise StopIteration
 
     def __len__(self):
         return len(self.db.keys())
