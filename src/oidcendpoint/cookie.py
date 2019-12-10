@@ -14,7 +14,7 @@ from cryptojwt.jwe.utils import split_ctx_and_tag
 from cryptojwt.jwk.hmac import SYMKey
 from cryptojwt.jwk.jwk import key_from_jwk_dict
 from cryptojwt.jws.hmac import HMACSigner
-from cryptojwt.key_bundle import init_key
+from cryptojwt.key_bundle import init_key, import_jwk
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64e
@@ -301,7 +301,10 @@ class CookieDealer(object):
             else:
                 self.sign_key = SYMKey(k=sign_key)
         elif sign_jwk:
-            self.sign_key = init_key(**sign_jwk)
+            if isinstance(sign_jwk, dict):
+                self.sign_key = init_key(**sign_jwk)
+            else:
+                self.sign_key = import_jwk(sign_jwk)
         else:
             self.sign_key = None
 
@@ -313,7 +316,10 @@ class CookieDealer(object):
             else:
                 self.enc_key = SYMKey(k=enc_key)
         elif enc_jwk:
-            self.enc_key = init_key(**enc_jwk)
+            if isinstance(enc_jwk, dict):
+                self.enc_key = init_key(**enc_jwk)
+            else:
+                self.enc_key = import_jwk(enc_jwk)
         else:
             self.enc_key = None
 
