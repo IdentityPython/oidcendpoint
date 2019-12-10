@@ -45,11 +45,16 @@ class SSODb(object):
     def remove(self, label, key, value):
         _key = KEY_FORMAT.format(label, key)
         _values = self._db.get(_key)
-        if _values:
+        vcount = len(_values)
+        # full clean up
+        while value in _values:
             _values.remove(value)
-        else:
-            self._db.set(_key, _values)
-            self._db.delete(_key)
+        # if changes have been made -> update them
+        if vcount != len(_values):
+            if _values:
+                self._db.set(_key, _values)
+            else:
+                self._db.delete(_key)
 
     def map_sid2uid(self, sid, uid):
         """
