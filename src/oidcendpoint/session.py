@@ -72,7 +72,9 @@ def setup_session(
     sid = endpoint_context.sdb.create_authz_session(
         authn_event, areq, client_id=client_id, uid=uid
     )
-    endpoint_context.sdb.do_sub(sid, uid, "")
+
+    client_salt = endpoint_context.cdb.get(client_id, {}).get('client_salt', salt)
+    endpoint_context.sdb.do_sub(sid, uid, client_salt)
     return sid
 
 
@@ -90,14 +92,14 @@ class SessionInfo(Message):
     }
 
 
-def pairwise_id(uid, sector_identifier, client_salt, **kwargs):
+def pairwise_id(uid, sector_identifier, salt, **kwargs):
     return hashlib.sha256(
-        ("%s%s%s" % (uid, sector_identifier, client_salt)).encode("utf-8")
+        ("%s%s%s" % (uid, sector_identifier, salt)).encode("utf-8")
     ).hexdigest()
 
 
-def public_id(uid, user_salt="", **kwargs):
-    return hashlib.sha256("{}{}".format(uid, user_salt).encode("utf-8")).hexdigest()
+def public_id(uid, salt="", **kwargs):
+    return hashlib.sha256("{}{}".format(uid, salt).encode("utf-8")).hexdigest()
 
 
 def dict_match(a, b):
@@ -260,8 +262,7 @@ class SessionDB(object):
         """
         sub = self.sub_func[subject_type](
             uid,
-            user_salt=user_salt,
-            client_salt=client_salt,
+            salt=client_salt or user_salt,
             sector_identifier=sector_id,
         )
 
