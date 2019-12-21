@@ -117,8 +117,7 @@ class UserInfo(Endpoint):
 
         if allowed:
             # Scope can translate to userinfo_claims
-            info = collect_user_info(self.endpoint_context, session,
-                                     scope_to_claims=self.scope_to_claims)
+            info = collect_user_info(self.endpoint_context, session)
         else:
             info = {
                 "error": "invalid_request",

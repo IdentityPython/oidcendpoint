@@ -258,8 +258,7 @@ class IDToken(object):
         )
 
         if user_claims:
-            info = collect_user_info(_context, sess_info,
-                                     scope_to_claims=self.scope_to_claims)
+            info = collect_user_info(_context, sess_info)
             if userinfo is None:
                 userinfo = info
             else:

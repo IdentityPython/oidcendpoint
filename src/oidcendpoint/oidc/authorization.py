@@ -320,6 +320,7 @@ def proposed_user(request):
         return request[cn].get("sub", "")
     return ""
 
+
 class Authorization(Endpoint):
     request_cls = oidc.AuthorizationRequest
     response_cls = oidc.AuthorizationResponse

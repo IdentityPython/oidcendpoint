@@ -114,6 +114,8 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None,
     :return: User info
     """
     authn_req = session["authn_req"]
+    if scope_to_claims is None:
+        scope_to_claims = endpoint_context.scope2claims
 
     if userinfo_claims is None:
         uic = scope2claims(authn_req["scope"], map=scope_to_claims)
@@ -156,8 +158,7 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None,
     return info
 
 
-def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None,
-                                scope_to_claims=None):
+def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
     """
     Collect user info claims that are to be placed in the id token.
 
@@ -179,7 +180,6 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None,
     _claims = by_schema(endpoint_context.id_token_schema, **itc)
 
     if _claims:
-        return collect_user_info(endpoint_context, session, _claims,
-                                 scope_to_claims=scope_to_claims)
+        return collect_user_info(endpoint_context, session, _claims)
     else:
         return None

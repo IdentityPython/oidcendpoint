@@ -20,8 +20,6 @@ from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import NotForMe
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.session import SessionInfo
-from oidcmsg.oidc import AuthorizationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
