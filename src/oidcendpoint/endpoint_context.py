@@ -273,11 +273,14 @@ class EndpointContext:
         if _conf:
             self.authn_broker = populate_authn_broker(_conf, self, self.template_handler)
         else:
-            self.authn_broker = None
+            self.authn_broker = {}
 
         self.endpoint_to_authn_method = {}
         for method in self.authn_broker:
-            self.endpoint_to_authn_method[method.action] = method
+            try:
+                self.endpoint_to_authn_method[method.action] = method
+            except AttributeError:
+                pass
 
     def do_cookie_dealer(self):
         _conf = self.conf.get('cookie_dealer')
