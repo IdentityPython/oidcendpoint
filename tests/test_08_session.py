@@ -344,7 +344,7 @@ class TestSessionDB(object):
         info = self.sdb[sid]
         assert (
             info["sub"]
-            == "04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb"
+            == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
         )
 
         self.sdb.do_sub(
