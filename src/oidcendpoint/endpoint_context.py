@@ -122,6 +122,7 @@ class EndpointContext:
         self.login_hint_lookup = None
         self.login_hint2acrs = None
         self.userinfo = None
+        self.scope2claims = SCOPE2CLAIMS
         # arguments for endpoints add-ons
         self.args = {}
 
@@ -139,8 +140,6 @@ class EndpointContext:
             self.set_session_db(sso_db, db=session_db)
         else:
             self.set_session_db(sso_db)
-
-        self.scope2claims = SCOPE2CLAIMS
 
         if cookie_name:
             self.cookie_name = cookie_name
