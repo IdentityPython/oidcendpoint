@@ -70,7 +70,7 @@ class JWTToken(Token):
 
         if "add_claims" in self.args:
             self.add_claims(payload, uinfo, self.args["add_claims"])
-        if "add_claims_by_scope":
+        if self.args.get("add_claims_by_scope", False):
             self.add_claims(
                 payload, uinfo,
                 scope2claims(sinfo["authn_req"]["scope"],
