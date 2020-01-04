@@ -203,7 +203,7 @@ class Endpoint(object):
             else:
                 _client_id = req.get("client_id")
 
-        keyjar = getattr(self, "endpoint_context", "")
+        keyjar = self.endpoint_context.keyjar
 
         # verify that the request message is correct
         try:
