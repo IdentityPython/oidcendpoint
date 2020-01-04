@@ -34,10 +34,7 @@ class JWTToken(Token):
 
         self.def_aud = aud or []
         self.alg = alg
-        if 'scope_claims_map' in kwargs:
-            self.scope_claims_map = kwargs['scope_claims_map']
-        else:
-            self.scope_claims_map = None
+        self.scope_claims_map = kwargs.get('scope_claims_map', ec.scope2claims)
 
     def add_claims(self, payload, uinfo, claims):
         for attr in claims:
