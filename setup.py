@@ -67,9 +67,11 @@ setup(
     },
     install_requires=[
         "oidcmsg>=0.6.5",
-        "cryptojwt>=0.7.11",
+        "cryptojwt>=0.7.12",
         "jinja2",
-        "pyyaml"
+        "pyyaml",
+        "requests",
+        "responses"
         ],
     tests_require=[
         "pytest", "requests_mock", 'pytest-localserver'
