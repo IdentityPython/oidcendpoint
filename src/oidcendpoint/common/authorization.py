@@ -39,9 +39,7 @@ def inputs(form_args):
     element = []
     html_field = '<input type="hidden" name="{}" value="{}"/>'
     for name, value in form_args.items():
-        element.append(
-            html_field.format(name, value)
-        )
+        element.append(html_field.format(name, value))
     return "\n".join(element)
 
 
@@ -263,7 +261,9 @@ class AllowedAlgorithms:
             _allowed = _pinfo.get(_sup)
 
         if alg not in _allowed:
-            logger.error("Signing alg user: {} not among allowed: {}".format(alg, _allowed))
+            logger.error(
+                "Signing alg user: {} not among allowed: {}".format(alg, _allowed)
+            )
             raise ValueError("Not allowed '%s' algorithm used", alg)
 
 

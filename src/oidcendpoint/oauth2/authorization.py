@@ -101,9 +101,18 @@ def create_authn_response(endpoint, request, sid):
 
 # For the time being. This is JAR specific and should probably be configurable.
 ALG_PARAMS = {
-    "sign": ["request_object_signing_alg", "request_object_signing_alg_values_supported"],
-    "enc_alg": ["request_object_encryption_alg", "request_object_encryption_alg_values_supported"],
-    "enc_enc": ["request_object_encryption_enc", "request_object_encryption_enc_values_supported"]
+    "sign": [
+        "request_object_signing_alg",
+        "request_object_signing_alg_values_supported",
+    ],
+    "enc_alg": [
+        "request_object_encryption_alg",
+        "request_object_encryption_alg_values_supported",
+    ],
+    "enc_enc": [
+        "request_object_encryption_enc",
+        "request_object_encryption_enc_values_supported",
+    ],
 }
 
 
@@ -123,17 +132,13 @@ class Authorization(Endpoint):
         "claims_parameter_supported": True,
         "request_parameter_supported": True,
         "request_uri_parameter_supported": True,
-        "response_types_supported": [
-            "code", "token", "code token"
-        ],
-        "response_modes_supported": [
-            "query", "fragment", "form_post"
-        ],
+        "response_types_supported": ["code", "token", "code token"],
+        "response_modes_supported": ["query", "fragment", "form_post"],
         "request_object_signing_alg_values_supported": None,
         "request_object_encryption_alg_values_supported": None,
         "request_object_encryption_enc_values_supported": None,
         "grant_types_supported": ["authorization_code", "implicit"],
-        "scopes_supported": DEFAULT_SCOPES
+        "scopes_supported": DEFAULT_SCOPES,
     }
 
     def __init__(self, endpoint_context, **kwargs):
@@ -148,8 +153,7 @@ class Authorization(Endpoint):
 
     def verify_response_type(self, request, cinfo):
         # Checking response types
-        _registered = [set(rt.split(" "))
-                       for rt in cinfo.get("response_types", [])]
+        _registered = [set(rt.split(" ")) for rt in cinfo.get("response_types", [])]
         if not _registered:
             # If no response_type is registered by the client then we'll
             # code which it the default according to the OIDC spec.
@@ -173,29 +177,40 @@ class Authorization(Endpoint):
                         raise ValueError("Got a request_uri I can not resolve")
 
             # Do I support request_uri ?
-            _supported = endpoint_context.provider_info.get("request_uri_parameter_supported", True)
+            _supported = endpoint_context.provider_info.get(
+                "request_uri_parameter_supported", True
+            )
             _registered = endpoint_context.cdb[client_id].get("request_uris")
             # Not registered should be handled else where
             if _registered:
                 # Before matching remove a possible fragment
-                _p = _request_uri.split('#')
+                _p = _request_uri.split("#")
                 if _p[0] not in _registered:
                     raise ValueError("A request_uri outside the registered")
             # Fetch the request
             _resp = endpoint_context.httpc.get(_request_uri)
             if _resp.status_code == 200:
-                args = {
-                    "keyjar": endpoint_context.keyjar,
-                }
+                args = {"keyjar": endpoint_context.keyjar}
                 request = AuthorizationRequest().from_jwt(_resp.text, **args)
-                self.allowed_request_algorithms(client_id, endpoint_context,
-                                                request.jws_header.get('alg', "RS256"),
-                                                "sign")
+                self.allowed_request_algorithms(
+                    client_id,
+                    endpoint_context,
+                    request.jws_header.get("alg", "RS256"),
+                    "sign",
+                )
                 if request.jwe_header is not None:
-                    self.allowed_request_algorithms(client_id, endpoint_context,
-                                                    request.jws_header.get('alg'), "enc_alg")
-                    self.allowed_request_algorithms(client_id, endpoint_context,
-                                                    request.jws_header.get('enc'), "enc_enc")
+                    self.allowed_request_algorithms(
+                        client_id,
+                        endpoint_context,
+                        request.jws_header.get("alg"),
+                        "enc_alg",
+                    )
+                    self.allowed_request_algorithms(
+                        client_id,
+                        endpoint_context,
+                        request.jws_header.get("enc"),
+                        "enc_enc",
+                    )
                 request[verified_claim_name("request")] = request
             else:
                 raise ServiceError("Got a %s response", _resp.status)
@@ -269,8 +284,7 @@ class Authorization(Endpoint):
                 "return_type": request["response_type"],
             }
 
-    def setup_auth(self, request, redirect_uri,
-                   cinfo, cookie, acr=None, **kwargs):
+    def setup_auth(self, request, redirect_uri, cinfo, cookie, acr=None, **kwargs):
         """
 
         :param request: The authorization/authentication request
@@ -317,8 +331,7 @@ class Authorization(Endpoint):
                     if not session or "revoked" in session:
                         identity = None
 
-        authn_args = authn_args_gather(request, authn_class_ref,
-                                       cinfo, **kwargs)
+        authn_args = authn_args_gather(request, authn_class_ref, cinfo, **kwargs)
 
         # To authenticate or Not
         if identity is None:  # No!
@@ -343,11 +356,11 @@ class Authorization(Endpoint):
                 if "req_user" in kwargs:
                     sids = self.endpoint_context.sdb.get_sids_by_sub(kwargs["req_user"])
                     if (
-                            sids
-                            and user
-                            != self.endpoint_context.sdb.get_authentication_event(
-                        sids[-1]
-                    ).uid
+                        sids
+                        and user
+                        != self.endpoint_context.sdb.get_authentication_event(
+                            sids[-1]
+                        ).uid
                     ):
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
@@ -369,11 +382,7 @@ class Authorization(Endpoint):
             vu = time.time() + authn.kwargs.get("expires_in", 0.0)
             authn_event["valid_until"] = vu
 
-        return {
-            "authn_event": authn_event,
-            "identity": identity,
-            "user": user
-        }
+        return {"authn_event": authn_event, "identity": identity, "user": user}
 
     def aresp_check(self, aresp, request):
         return ""
@@ -519,7 +528,9 @@ class Authorization(Endpoint):
                 authn_event = ec.sdb.get_authentication_event(
                     sid
                 )  # use the last session
-                _state = b64e(as_bytes(json.dumps({"authn_time": authn_event["authn_time"]})))
+                _state = b64e(
+                    as_bytes(json.dumps({"authn_time": authn_event["authn_time"]}))
+                )
 
                 session_cookie = ec.cookie_dealer.create_cookie(
                     as_unicode(_state),
@@ -529,8 +540,13 @@ class Authorization(Endpoint):
 
                 opbs = session_cookie[ec.cookie_name["session_management"]]
 
-                logger.debug("compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
-                             request["client_id"], resp_info["return_uri"], opbs.value, salt)
+                logger.debug(
+                    "compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
+                    request["client_id"],
+                    resp_info["return_uri"],
+                    opbs.value,
+                    salt,
+                )
 
                 _session_state = compute_session_state(
                     opbs.value, salt, request["client_id"], resp_info["return_uri"]
@@ -581,8 +597,7 @@ class Authorization(Endpoint):
             logger.debug("- authenticated -")
             logger.debug("AREQ keys: %s" % request_info.keys())
             res = self.authz_part2(
-                info["user"], info["authn_event"],
-                request_info, cookie=cookie
+                info["user"], info["authn_event"], request_info, cookie=cookie
             )
             return res
 

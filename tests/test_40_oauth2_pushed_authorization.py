@@ -5,9 +5,6 @@ import yaml
 from cryptojwt import JWT
 from cryptojwt.jwt import remove_jwt_parameters
 from cryptojwt.key_jar import init_key_jar
-from oidcmsg.message import Message
-from oidcmsg.oauth2 import AuthorizationRequest
-
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -15,6 +12,8 @@ from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.oauth2.pushed_authorization import PushedAuthorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
+from oidcmsg.message import Message
+from oidcmsg.oauth2 import AuthorizationRequest
 
 CAPABILITIES = {
     "subject_types_supported": ["public", "pairwise"],
@@ -58,10 +57,12 @@ oidc_clients:
         - 'code id_token token'
 """
 
-AUTHN_REQUEST = "response_type=code&state=af0ifjsldkj&client_id=s6BhdRkqt3&redirect_uri" \
-                "=https%3A%2F%2Fclient.example.org%2Fcb&code_challenge=K2" \
-                "-ltc83acc4h0c9w6ESC_rEMTJ3bww-uCHaoeK1t8U&code_challenge_method=S256" \
-                "&scope=ais"
+AUTHN_REQUEST = (
+    "response_type=code&state=af0ifjsldkj&client_id=s6BhdRkqt3&redirect_uri"
+    "=https%3A%2F%2Fclient.example.org%2Fcb&code_challenge=K2"
+    "-ltc83acc4h0c9w6ESC_rEMTJ3bww-uCHaoeK1t8U&code_challenge_method=S256"
+    "&scope=ais"
+)
 
 
 class TestEndpoint(object):
@@ -72,35 +73,27 @@ class TestEndpoint(object):
             "password": "mycket hemligt zebra",
             "token_handler_args": {
                 "jwks_def": {
-                    "private_path": 'private/token_jwks.json',
+                    "private_path": "private/token_jwks.json",
                     "read_only": False,
                     "key_defs": [
-                        {
-                            "type": "oct",
-                            "bytes": 24,
-                            "use": ["enc"],
-                            "kid": "code"
-                        },
-                        {
-                            "type": "oct",
-                            "bytes": 24,
-                            "use": ["enc"],
-                            "kid": "refresh"
-                        }
-                    ]
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "code"},
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "refresh"},
+                    ],
                 },
                 "code": {"lifetime": 600},
                 "token": {
                     "class": "oidcendpoint.jwt_token.JWTToken",
                     "lifetime": 3600,
                     "add_claims": [
-                        "email", "email_verified", "phone_number", "phone_number_verified"
+                        "email",
+                        "email_verified",
+                        "phone_number",
+                        "phone_number_verified",
                     ],
                     "add_claim_by_scope": True,
-                    "aud":
-                        ["https://example.org/appl"]
+                    "aud": ["https://example.org/appl"],
                 },
-                "refresh": {"lifetime": 86400}
+                "refresh": {"lifetime": 86400},
             },
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
@@ -129,11 +122,13 @@ class TestEndpoint(object):
                     "path": "{}/pushed_authorization",
                     "class": Authorization,
                     "kwargs": {
-                        "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
+                        "response_types_supported": [
+                            " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
+                        ],
                         "response_modes_supported": ["query", "fragment", "form_post"],
                         "claims_parameter_supported": True,
                         "request_parameter_supported": True,
-                        "request_uri_parameter_supported": True
+                        "request_uri_parameter_supported": True,
                     },
                 },
                 "pushed_authorization": {
@@ -144,7 +139,8 @@ class TestEndpoint(object):
                             "client_secret_post",
                             "client_secret_basic",
                             "client_secret_jwt",
-                            "private_key_jwt"]
+                            "private_key_jwt",
+                        ]
                     },
                 },
             },
@@ -179,10 +175,13 @@ class TestEndpoint(object):
         self.rp_keyjar = init_key_jar(key_defs=KEYDEFS, owner="s6BhdRkqt3")
         # Add RP's keys to the OP's keyjar
         endpoint_context.keyjar.import_jwks(
-            self.rp_keyjar.export_jwks(issuer="s6BhdRkqt3"), "s6BhdRkqt3")
+            self.rp_keyjar.export_jwks(issuer="s6BhdRkqt3"), "s6BhdRkqt3"
+        )
 
-        self.pushed_authorization_endpoint = endpoint_context.endpoint['pushed_authorization']
-        self.authorization_endpoint = endpoint_context.endpoint['authorization']
+        self.pushed_authorization_endpoint = endpoint_context.endpoint[
+            "pushed_authorization"
+        ]
+        self.authorization_endpoint = endpoint_context.endpoint["authorization"]
 
     def test_init(self):
         assert self.pushed_authorization_endpoint
@@ -190,38 +189,60 @@ class TestEndpoint(object):
     def test_pushed_auth_urlencoded(self):
 
         _req = self.pushed_authorization_endpoint.parse_request(
-            AUTHN_REQUEST,
-            auth="Basic czZCaGRSa3F0Mzo3RmpmcDBaQnIxS3REUmJuZlZkbUl3")
+            AUTHN_REQUEST, auth="Basic czZCaGRSa3F0Mzo3RmpmcDBaQnIxS3REUmJuZlZkbUl3"
+        )
 
         assert isinstance(_req, AuthorizationRequest)
-        assert set(_req.keys()) == {'state', 'redirect_uri', 'response_type', 'scope',
-                                    'code_challenge_method', 'client_id', 'code_challenge'}
+        assert set(_req.keys()) == {
+            "state",
+            "redirect_uri",
+            "response_type",
+            "scope",
+            "code_challenge_method",
+            "client_id",
+            "code_challenge",
+        }
 
     def test_pushed_auth_request(self):
         _msg = Message().from_urlencoded(AUTHN_REQUEST)
         _jwt = JWT(key_jar=self.rp_keyjar, iss="s6BhdRkqt3")
-        _jws = _jwt.pack(_msg.to_dict(), )
+        _jws = _jwt.pack(_msg.to_dict())
 
         authn_request = "request={}".format(_jws)
 
         _req = self.pushed_authorization_endpoint.parse_request(
-            authn_request,
-            auth="Basic czZCaGRSa3F0Mzo3RmpmcDBaQnIxS3REUmJuZlZkbUl3")
+            authn_request, auth="Basic czZCaGRSa3F0Mzo3RmpmcDBaQnIxS3REUmJuZlZkbUl3"
+        )
 
         assert isinstance(_req, AuthorizationRequest)
         _req = remove_jwt_parameters(_req)
-        assert set(_req.keys()) == {'state', 'redirect_uri', 'response_type', 'scope',
-                                    'code_challenge_method', 'client_id', 'code_challenge',
-                                    "request", "__verified_request"}
+        assert set(_req.keys()) == {
+            "state",
+            "redirect_uri",
+            "response_type",
+            "scope",
+            "code_challenge_method",
+            "client_id",
+            "code_challenge",
+            "request",
+            "__verified_request",
+        }
 
     def test_pushed_auth_urlencoded_process(self):
         _req = self.pushed_authorization_endpoint.parse_request(
-            AUTHN_REQUEST,
-            auth="Basic czZCaGRSa3F0Mzo3RmpmcDBaQnIxS3REUmJuZlZkbUl3")
+            AUTHN_REQUEST, auth="Basic czZCaGRSa3F0Mzo3RmpmcDBaQnIxS3REUmJuZlZkbUl3"
+        )
 
         assert isinstance(_req, AuthorizationRequest)
-        assert set(_req.keys()) == {'state', 'redirect_uri', 'response_type', 'scope',
-                                    'code_challenge_method', 'client_id', 'code_challenge'}
+        assert set(_req.keys()) == {
+            "state",
+            "redirect_uri",
+            "response_type",
+            "scope",
+            "code_challenge_method",
+            "client_id",
+            "code_challenge",
+        }
 
         _resp = self.pushed_authorization_endpoint.process_request(_req)
 
@@ -231,9 +252,9 @@ class TestEndpoint(object):
         # And now for the authorization request with the OP provided request_uri
 
         _msg["request_uri"] = _resp["http_response"]["request_uri"]
-        for parameter in ['code_challenge', 'code_challenge_method']:
+        for parameter in ["code_challenge", "code_challenge_method"]:
             del _msg[parameter]
 
         _req = self.authorization_endpoint.parse_request(_msg)
 
-        assert 'code_challenge' in _req
+        assert "code_challenge" in _req

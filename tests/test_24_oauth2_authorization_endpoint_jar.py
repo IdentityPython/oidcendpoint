@@ -9,27 +9,21 @@ import yaml
 from cryptojwt import JWT
 from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
-from oidcmsg.oauth2 import AuthorizationRequest
-from oidcmsg.oauth2 import JWTSecuredAuthorizationRequest
-from oidcmsg.time_util import in_a_while
-
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oauth2 import AuthorizationRequest
+from oidcmsg.oauth2 import JWTSecuredAuthorizationRequest
+from oidcmsg.time_util import in_a_while
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
     # {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-RESPONSE_TYPES_SUPPORTED = [
-    ["code"],
-    ["token"],
-    ["code", "token"],
-    ["none"],
-]
+RESPONSE_TYPES_SUPPORTED = [["code"], ["token"], ["code", "token"], ["none"]]
 
 CAPABILITIES = {
     "grant_types_supported": [
@@ -37,7 +31,7 @@ CAPABILITIES = {
         "implicit",
         "urn:ietf:params:oauth:grant-type:jwt-bearer",
         "refresh_token",
-    ],
+    ]
 }
 
 AUTH_REQ = AuthorizationRequest(
@@ -147,14 +141,16 @@ class TestEndpoint(object):
                     "path": "{}/authorization",
                     "class": Authorization,
                     "kwargs": {
-                        "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
+                        "response_types_supported": [
+                            " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
+                        ],
                         "response_modes_supported": ["query", "fragment", "form_post"],
                         "claims_parameter_supported": True,
                         "request_parameter_supported": True,
                         "request_uri_parameter_supported": True,
-                        "request_cls": JWTSecuredAuthorizationRequest
+                        "request_cls": JWTSecuredAuthorizationRequest,
                     },
-                },
+                }
             },
             "authentication": {
                 "anon": {
@@ -184,40 +180,49 @@ class TestEndpoint(object):
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
-        self.endpoint = endpoint_context.endpoint['authorization']
+        self.endpoint = endpoint_context.endpoint["authorization"]
 
         self.rp_keyjar = KeyJar()
         self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")
-        self.endpoint.endpoint_context.keyjar.add_symmetric("client_1",
-                                                            "hemligtkodord1234567890")
+        self.endpoint.endpoint_context.keyjar.add_symmetric(
+            "client_1", "hemligtkodord1234567890"
+        )
 
     def test_parse_request_parameter(self):
-        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg='HS256')
-        _jws = _jwt.pack(AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info['issuer'])
+        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg="HS256")
+        _jws = _jwt.pack(
+            AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info["issuer"]
+        )
         # -----------------
-        _req = self.endpoint.parse_request({
-            "request": _jws,
-            "redirect_uri": AUTH_REQ.get('redirect_uri'),
-            "response_type": AUTH_REQ.get('response_type'),
-            "client_id": AUTH_REQ.get('client_id'),
-            "scope": AUTH_REQ.get('scope')
-        })
+        _req = self.endpoint.parse_request(
+            {
+                "request": _jws,
+                "redirect_uri": AUTH_REQ.get("redirect_uri"),
+                "response_type": AUTH_REQ.get("response_type"),
+                "client_id": AUTH_REQ.get("client_id"),
+                "scope": AUTH_REQ.get("scope"),
+            }
+        )
         assert "__verified_request" in _req
 
     def test_parse_request_uri(self):
-        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg='HS256')
-        _jws = _jwt.pack(AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info['issuer'])
+        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg="HS256")
+        _jws = _jwt.pack(
+            AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info["issuer"]
+        )
 
         request_uri = "https://client.example.com/req"
         # -----------------
         with responses.RequestsMock() as rsps:
             rsps.add("GET", request_uri, body=_jws, status=200)
-            _req = self.endpoint.parse_request({
-                "request_uri": request_uri,
-                "redirect_uri": AUTH_REQ.get('redirect_uri'),
-                "response_type": AUTH_REQ.get('response_type'),
-                "client_id": AUTH_REQ.get('client_id'),
-                "scope": AUTH_REQ.get('scope')
-            })
+            _req = self.endpoint.parse_request(
+                {
+                    "request_uri": request_uri,
+                    "redirect_uri": AUTH_REQ.get("redirect_uri"),
+                    "response_type": AUTH_REQ.get("response_type"),
+                    "client_id": AUTH_REQ.get("client_id"),
+                    "scope": AUTH_REQ.get("scope"),
+                }
+            )
 
         assert "__verified_request" in _req

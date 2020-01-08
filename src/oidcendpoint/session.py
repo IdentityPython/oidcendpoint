@@ -13,7 +13,7 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcendpoint import token_handler
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.in_memory_db import InMemoryDataBase
-from oidcendpoint.sso_db import (SSODb, KEY_FORMAT)
+from oidcendpoint.sso_db import SSODb, KEY_FORMAT
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import UnknownToken
@@ -73,7 +73,7 @@ def setup_session(
         authn_event, areq, client_id=client_id, uid=uid
     )
 
-    client_salt = endpoint_context.cdb.get(client_id, {}).get('client_salt', salt)
+    client_salt = endpoint_context.cdb.get(client_id, {}).get("client_salt", salt)
     endpoint_context.sdb.do_sub(sid, uid, client_salt)
     return sid
 
@@ -164,8 +164,7 @@ class SessionDB(object):
     def keys(self):
         return self._db.keys()
 
-    def create_authz_session(self, authn_event, areq,
-                             client_id="", uid="", **kwargs):
+    def create_authz_session(self, authn_event, areq, client_id="", uid="", **kwargs):
         """
 
         :param authn_event:
@@ -246,8 +245,7 @@ class SessionDB(object):
             return _sess_info["access_token"]
 
     def do_sub(
-        self, sid, uid, client_salt, sector_id="",
-        subject_type="public", user_salt=""
+        self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
     ):
         """
         Create and store a subject identifier
@@ -261,9 +259,7 @@ class SessionDB(object):
         :return:
         """
         sub = self.sub_func[subject_type](
-            uid,
-            salt=client_salt or user_salt,
-            sector_identifier=sector_id,
+            uid, salt=client_salt or user_salt, sector_identifier=sector_id
         )
 
         self.sso_db.map_sid2uid(sid, uid)
@@ -560,8 +556,7 @@ class SessionDB(object):
             return sesinf or ValueError("No Authn event info")
 
 
-def create_session_db(ec, token_handler_args, db=None,
-                      sso_db=None, sub_func=None):
+def create_session_db(ec, token_handler_args, db=None, sso_db=None, sub_func=None):
     _token_handler = token_handler.factory(ec, **token_handler_args)
     db = db or InMemoryDataBase()
     sso_db = sso_db or SSODb()

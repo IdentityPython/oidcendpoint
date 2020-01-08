@@ -192,8 +192,7 @@ class Registration(Endpoint):
                 ] = self._verify_sector_identifier(request)
             except InvalidSectorIdentifier as err:
                 return ResponseMessage(
-                    error="invalid_configuration_parameter",
-                    error_description=str(err)
+                    error="invalid_configuration_parameter", error_description=str(err)
                 )
 
         for item in ["policy_uri", "logo_uri", "tos_uri"]:
@@ -207,8 +206,7 @@ class Registration(Endpoint):
                     )
 
         # Do I have the necessary keys
-        for item in ["id_token_signed_response_alg",
-                     "userinfo_signed_response_alg"]:
+        for item in ["id_token_signed_response_alg", "userinfo_signed_response_alg"]:
             if item in request:
                 if request[item] in _context.provider_info[PREFERENCE2PROVIDER[item]]:
                     ktyp = alg2keytype(request[item])
@@ -270,8 +268,7 @@ class Registration(Endpoint):
                         p.hostname,
                     )
                     raise InvalidRedirectURIError(
-                        "Redirect_uri must use custom "
-                        "scheme or http and localhost"
+                        "Redirect_uri must use custom " "scheme or http and localhost"
                     )
             elif must_https and p.scheme != "https":
                 msg = "None https redirect_uri not allowed"
@@ -310,7 +307,7 @@ class Registration(Endpoint):
             logger.debug("sector_identifier_uri => %s", sanitize(res.text))
         except Exception as err:
             logger.error(err)
-            #res = None
+            # res = None
             raise InvalidSectorIdentifier("Couldn't read from sector_identifier_uri")
 
         try:
@@ -341,8 +338,7 @@ class Registration(Endpoint):
         context.registration_access_token[_rat] = client_id
 
     def add_client_secret(self, cinfo, client_id, context):
-        delta_int = int(self.kwargs.get("client_secret_expiration_time",
-                                        0))
+        delta_int = int(self.kwargs.get("client_secret_expiration_time", 0))
         args = {"delta": delta_int} if delta_int else {}
         client_secret = secret(context.seed, client_id)
         cinfo.update(
@@ -393,8 +389,7 @@ class Registration(Endpoint):
 
         client_secret = ""
         if set_secret:
-            client_secret = self.add_client_secret(_cinfo, client_id,
-                                                   _context)
+            client_secret = self.add_client_secret(_cinfo, client_id, _context)
 
         _context.cdb[client_id] = _cinfo
         _cinfo = self.do_client_registration(
@@ -406,8 +401,7 @@ class Registration(Endpoint):
             return _cinfo
 
         args = dict(
-            [(k, v) for k, v in _cinfo.items()
-             if k in RegistrationResponse.c_param]
+            [(k, v) for k, v in _cinfo.items() if k in RegistrationResponse.c_param]
         )
 
         comb_uri(args)
@@ -420,7 +414,7 @@ class Registration(Endpoint):
         _context.cdb[client_id] = _cinfo
 
         # Not all databases can be sync'ed
-        if hasattr(_context.cdb, 'sync') and callable(_context.cdb.sync):
+        if hasattr(_context.cdb, "sync") and callable(_context.cdb.sync):
             _context.cdb.sync()
 
         msg = "registration_response: {}"
@@ -428,14 +422,12 @@ class Registration(Endpoint):
 
         return response
 
-    def process_request(self, request=None, new_id=True,
-                        set_secret=True, **kwargs):
+    def process_request(self, request=None, new_id=True, set_secret=True, **kwargs):
         try:
             reg_resp = self.client_registration_setup(request, new_id, set_secret)
         except Exception as err:
             return ResponseMessage(
-                error="invalid_configuration_request",
-                error_description="%s" % err
+                error="invalid_configuration_request", error_description="%s" % err
             )
 
         if "error" in reg_resp:
@@ -444,7 +436,7 @@ class Registration(Endpoint):
             _cookie = new_cookie(
                 self.endpoint_context,
                 cookie_name="oidc_op_rp",
-                client_id=reg_resp["client_id"]
+                client_id=reg_resp["client_id"],
             )
 
             return {"response_args": reg_resp, "cookie": _cookie}

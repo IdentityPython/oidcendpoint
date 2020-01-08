@@ -13,9 +13,7 @@ class ProviderConfiguration(Endpoint):
     request_format = ""
     response_format = "json"
     name = "provider_config"
-    default_capabilities = {
-        "require_request_uri_registration": None
-    }
+    default_capabilities = {"require_request_uri_registration": None}
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)

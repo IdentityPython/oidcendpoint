@@ -137,7 +137,7 @@ class JWSAuthnMethod(ClientAuthnMethod):
             raise AuthnFailure("Could not verify client_assertion.")
 
         authtoken = sanitize(ca_jwt)
-        if hasattr(ca_jwt, 'to_dict') and callable(ca_jwt, 'to_dict'):
+        if hasattr(ca_jwt, "to_dict") and callable(ca_jwt, "to_dict"):
             authtoken = sanitize(ca_jwt.to_dict())
         logger.debug("authntoken: {}".format(authtoken))
 
@@ -258,15 +258,18 @@ def verify_client(
 
         # store what authn method was used
         if auth_info.get("method"):
-            if endpoint_context.cdb[client_id].get("auth_method") and \
-               request.__class__.__name__ in endpoint_context.cdb[client_id]["auth_method"]:
+            if (
+                endpoint_context.cdb[client_id].get("auth_method")
+                and request.__class__.__name__
+                in endpoint_context.cdb[client_id]["auth_method"]
+            ):
                 endpoint_context.cdb[client_id]["auth_method"][
                     request.__class__.__name__
                 ] = auth_info["method"]
             else:
                 endpoint_context.cdb[client_id]["auth_method"] = {
                     request.__class__.__name__: auth_info["method"]
-                    }
+                }
 
     elif not client_id and get_client_id_from_token:
         if not _token:
@@ -275,8 +278,9 @@ def verify_client(
 
         try:
             # get_client_id_from_token is a callback... Do not abuse for code readability.
-            auth_info["client_id"] = get_client_id_from_token(endpoint_context,
-                                                              _token, request)
+            auth_info["client_id"] = get_client_id_from_token(
+                endpoint_context, _token, request
+            )
         except KeyError:
             raise ValueError("Unknown token")
 

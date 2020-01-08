@@ -19,7 +19,7 @@ class PushedAuthorization(Authorization):
         Authorization.__init__(self, endpoint_context, **kwargs)
         # self.pre_construct.append(self._pre_construct)
         self.post_parse_request.append(self._post_parse_request)
-        self.ttl = kwargs.get('ttl', 3600)
+        self.ttl = kwargs.get("ttl", 3600)
 
     def process_request(self, request=None, **kwargs):
         """
@@ -33,9 +33,6 @@ class PushedAuthorization(Authorization):
         self.endpoint_context.par_db[_urn] = request
 
         return {
-            "http_response": {
-                "request_uri": _urn,
-                "expires_in": self.ttl
-            },
+            "http_response": {"request_uri": _urn, "expires_in": self.ttl},
             "return_uri": request["redirect_uri"],
         }

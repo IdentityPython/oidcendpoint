@@ -81,15 +81,27 @@ class UserInfo(object):
 
 SCOPE2CLAIMS = {
     "openid": ["sub"],
-    "profile": ["name", "given_name", "family_name", "middle_name",
-                "nickname", "profile", "picture", "website", "gender",
-                "birthdate", "zoneinfo", "locale", "updated_at",
-                "preferred_username"],
+    "profile": [
+        "name",
+        "given_name",
+        "family_name",
+        "middle_name",
+        "nickname",
+        "profile",
+        "picture",
+        "website",
+        "gender",
+        "birthdate",
+        "zoneinfo",
+        "locale",
+        "updated_at",
+        "preferred_username",
+    ],
     "email": ["email", "email_verified"],
     "address": ["address"],
     "phone": ["phone_number", "phone_number_verified"],
-    "offline_access": []
-    }
+    "offline_access": [],
+}
 
 
 def scope2claims(scopes, map=None):
@@ -104,4 +116,3 @@ def scope2claims(scopes, map=None):
         except KeyError:
             continue
     return res
-

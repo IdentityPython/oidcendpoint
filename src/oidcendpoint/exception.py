@@ -81,4 +81,3 @@ class InvalidRequest(OidcEndpointError):
 
 class CapabilitiesMisMatch(OidcEndpointError):
     pass
-

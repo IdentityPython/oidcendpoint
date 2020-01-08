@@ -6,12 +6,6 @@ from urllib.parse import urlparse
 
 import pytest
 from cryptojwt.key_jar import build_keyjar
-from oidcmsg.exception import InvalidRequest
-from oidcmsg.message import Message
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import verified_claim_name
-from oidcmsg.oidc import verify_id_token
-
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import new_cookie
@@ -26,6 +20,11 @@ from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.exception import InvalidRequest
+from oidcmsg.message import Message
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import verified_claim_name
+from oidcmsg.oidc import verify_id_token
 
 ISS = "https://example.com/"
 
@@ -419,11 +418,13 @@ class TestEndpoint(object):
         _cdb["frontchannel_logout_session_required"] = True
         _cdb["client_id"] = "client_1"
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
-        test_res = ('<iframe src="https://example.com/fc_logout?',
-                    'iss=https%3A%2F%2Fexample.com%2F',
-                    'sid=_sid_')
+        test_res = (
+            '<iframe src="https://example.com/fc_logout?',
+            "iss=https%3A%2F%2Fexample.com%2F",
+            "sid=_sid_",
+        )
         for i in test_res:
-            assert (i in res)
+            assert i in res
 
     def test_front_channel_logout_with_query(self):
         self._code_auth("1234567")
@@ -433,11 +434,15 @@ class TestEndpoint(object):
         _cdb["frontchannel_logout_session_required"] = True
         _cdb["client_id"] = "client_1"
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
-        test_res = ('<iframe', 'src="https://example.com/fc_logout?',
-                    'entity_id=foo',
-                    'iss=https%3A%2F%2Fexample.com%2F', 'sid=_sid_')
+        test_res = (
+            "<iframe",
+            'src="https://example.com/fc_logout?',
+            "entity_id=foo",
+            "iss=https%3A%2F%2Fexample.com%2F",
+            "sid=_sid_",
+        )
         for i in test_res:
-            assert (i in res)
+            assert i in res
 
     def test_logout_from_client_bc(self):
         self._code_auth("1234567")

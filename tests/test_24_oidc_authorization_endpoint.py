@@ -14,16 +14,6 @@ from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
 from oidcendpoint.common.authorization import FORM_POST
-from oidcmsg.exception import ParameterError
-from oidcmsg.exception import URIError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import AuthorizationResponse
-from oidcmsg.oidc import verified_claim_name
-from oidcmsg.oidc import verify_id_token
-from oidcmsg.time_util import in_a_while
-
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import CookieDealer
@@ -51,6 +41,15 @@ from oidcendpoint.user_authn.authn_context import init_method
 from oidcendpoint.user_authn.user import NoAuthn
 from oidcendpoint.user_authn.user import UserAuthnMethod
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.exception import ParameterError
+from oidcmsg.exception import URIError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import verified_claim_name
+from oidcmsg.oidc import verify_id_token
+from oidcmsg.time_util import in_a_while
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -208,7 +207,9 @@ class TestEndpoint(object):
                     "path": "{}/authorization",
                     "class": Authorization,
                     "kwargs": {
-                        "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
+                        "response_types_supported": [
+                            " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
+                        ],
                         "response_modes_supported": ["query", "fragment", "form_post"],
                         "claims_parameter_supported": True,
                         "request_parameter_supported": True,
@@ -224,15 +225,19 @@ class TestEndpoint(object):
                             "client_secret_basic",
                             "client_secret_jwt",
                             "private_key_jwt",
-                        ],
-                    }
+                        ]
+                    },
                 },
                 "userinfo": {
                     "path": "userinfo",
                     "class": userinfo.UserInfo,
                     "kwargs": {
                         "db_file": "users.json",
-                        "claim_types_supported": ["normal", "aggregated", "distributed"]
+                        "claim_types_supported": [
+                            "normal",
+                            "aggregated",
+                            "distributed",
+                        ],
                     },
                 },
             },
@@ -268,12 +273,13 @@ class TestEndpoint(object):
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
-        self.endpoint = endpoint_context.endpoint['authorization']
+        self.endpoint = endpoint_context.endpoint["authorization"]
 
         self.rp_keyjar = KeyJar()
         self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")
-        self.endpoint.endpoint_context.keyjar.add_symmetric("client_1",
-                                                            "hemligtkodord1234567890")
+        self.endpoint.endpoint_context.keyjar.add_symmetric(
+            "client_1", "hemligtkodord1234567890"
+        )
 
     def test_init(self):
         assert self.endpoint
@@ -720,7 +726,7 @@ class TestEndpoint(object):
         assert set(info.keys()) == {"response_args", "return_uri", "response_msg"}
         assert info["response_msg"] == FORM_POST.format(
             action="https://example.com/cb",
-            inputs='<input type="hidden" name="foo" value="bar"/>'
+            inputs='<input type="hidden" name="foo" value="bar"/>',
         )
 
     def test_response_mode_fragment(self):
@@ -801,42 +807,52 @@ class TestEndpoint(object):
         pass
 
     def test_parse_request(self):
-        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg='HS256')
-        _jws = _jwt.pack(AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info['issuer'])
+        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg="HS256")
+        _jws = _jwt.pack(
+            AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info["issuer"]
+        )
         # -----------------
-        _req = self.endpoint.parse_request({
-            "request": _jws,
-            "redirect_uri": AUTH_REQ.get('redirect_uri'),
-            "response_type": AUTH_REQ.get('response_type'),
-            "client_id": AUTH_REQ.get('client_id'),
-            "scope": AUTH_REQ.get('scope')
-        })
+        _req = self.endpoint.parse_request(
+            {
+                "request": _jws,
+                "redirect_uri": AUTH_REQ.get("redirect_uri"),
+                "response_type": AUTH_REQ.get("response_type"),
+                "client_id": AUTH_REQ.get("client_id"),
+                "scope": AUTH_REQ.get("scope"),
+            }
+        )
         assert "__verified_request" in _req
 
     def test_parse_request_uri(self):
-        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg='HS256')
-        _jws = _jwt.pack(AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info['issuer'])
+        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg="HS256")
+        _jws = _jwt.pack(
+            AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info["issuer"]
+        )
 
         request_uri = "https://client.example.com/req"
         # -----------------
         with responses.RequestsMock() as rsps:
             rsps.add("GET", request_uri, body=_jws, status=200)
-            _req = self.endpoint.parse_request({
-                "request_uri": request_uri,
-                "redirect_uri": AUTH_REQ.get('redirect_uri'),
-                "response_type": AUTH_REQ.get('response_type'),
-                "client_id": AUTH_REQ.get('client_id'),
-                "scope": AUTH_REQ.get('scope')
-            })
+            _req = self.endpoint.parse_request(
+                {
+                    "request_uri": request_uri,
+                    "redirect_uri": AUTH_REQ.get("redirect_uri"),
+                    "response_type": AUTH_REQ.get("response_type"),
+                    "client_id": AUTH_REQ.get("client_id"),
+                    "scope": AUTH_REQ.get("scope"),
+                }
+            )
 
         assert "__verified_request" in _req
 
 
 def test_inputs():
-    elems = inputs(dict(foo = "bar", home = "stead"))
-    test_elems = ('<input type="hidden" name="foo" value="bar"/>',
-                  '<input type="hidden" name="home" value="stead"/>')
-    assert (test_elems[0] in elems and test_elems[1] in elems)
+    elems = inputs(dict(foo="bar", home="stead"))
+    test_elems = (
+        '<input type="hidden" name="foo" value="bar"/>',
+        '<input type="hidden" name="home" value="stead"/>',
+    )
+    assert test_elems[0] in elems and test_elems[1] in elems
 
 
 def test_acr_claims():

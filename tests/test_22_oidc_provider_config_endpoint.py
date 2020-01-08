@@ -2,10 +2,7 @@ import json
 
 import pytest
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.oidc import userinfo
-from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
-from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 
 KEYDEFS = [

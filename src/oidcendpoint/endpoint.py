@@ -112,7 +112,10 @@ def construct_provider_info(default_capabilities, **kwargs):
 
                 if _permitted and not _permitted.issuperset(set(_proposal)):
                     raise ValueError(
-                        "Proposed set of values outside set of permitted ({})".__format__(attr))
+                        "Proposed set of values outside set of permitted ({})".__format__(
+                            attr
+                        )
+                    )
 
                 provider_info[attr] = _proposal
         return provider_info
@@ -142,8 +145,14 @@ class Endpoint(object):
         self.kwargs = kwargs
         self.full_path = ""
 
-        for param in ["request_cls", "response_cls", "request_format", "request_placement",
-                      "response_format", "response_placement"]:
+        for param in [
+            "request_cls",
+            "response_cls",
+            "request_format",
+            "request_placement",
+            "response_format",
+            "response_placement",
+        ]:
             _val = kwargs.get(param)
             if _val:
                 setattr(self, param, _val)
@@ -152,9 +161,13 @@ class Endpoint(object):
             self.client_authn_method = kwargs["client_authn_method"]
         elif self.default_capabilities is not None:
             if "client_authn_method" in self.default_capabilities:
-                self.client_authn_method = self.default_capabilities["client_authn_method"]
+                self.client_authn_method = self.default_capabilities[
+                    "client_authn_method"
+                ]
 
-        self.provider_info = construct_provider_info(self.default_capabilities, **kwargs)
+        self.provider_info = construct_provider_info(
+            self.default_capabilities, **kwargs
+        )
 
     def parse_request(self, request, auth=None, **kwargs):
         """

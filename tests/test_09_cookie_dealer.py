@@ -1,4 +1,3 @@
-import time
 from http.cookies import SimpleCookie
 
 import pytest

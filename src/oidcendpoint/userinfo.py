@@ -102,8 +102,9 @@ def by_schema(cls, **kwa):
     return dict([(key, val) for key, val in kwa.items() if key in cls.c_param])
 
 
-def collect_user_info(endpoint_context, session, userinfo_claims=None,
-                      scope_to_claims=None):
+def collect_user_info(
+    endpoint_context, session, userinfo_claims=None, scope_to_claims=None
+):
     """
     Collect information about a user.
     This can happen in two cases, either when constructing an IdToken or

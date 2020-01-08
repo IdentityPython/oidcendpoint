@@ -38,4 +38,4 @@ def rndstr(size=16):
     :return: string
     """
     chars = string.ascii_letters + string.digits
-    return ''.join(rnd.choice(chars) for i in range(size))
+    return "".join(rnd.choice(chars) for i in range(size))

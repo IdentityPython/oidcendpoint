@@ -84,17 +84,17 @@ def get_token_handlers(conf):
 
 class EndpointContext:
     def __init__(
-            self,
-            conf,
-            keyjar=None,
-            client_db=None,
-            session_db=None,
-            sso_db=None,
-            cwd="",
-            cookie_dealer=None,
-            httpc=None,
-            cookie_name=None,
-            jwks_uri_path=None,
+        self,
+        conf,
+        keyjar=None,
+        client_db=None,
+        session_db=None,
+        sso_db=None,
+        cwd="",
+        cookie_dealer=None,
+        httpc=None,
+        cookie_name=None,
+        jwks_uri_path=None,
     ):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
@@ -173,8 +173,9 @@ class EndpointContext:
                 loader = conf["template_loader"]
             except KeyError:
                 template_dir = conf["template_dir"]
-                loader = Environment(loader=FileSystemLoader(template_dir),
-                                     autoescape=True)
+                loader = Environment(
+                    loader=FileSystemLoader(template_dir), autoescape=True
+                )
             self.template_handler = Jinja2TemplateHandler(loader)
 
         self.setup = {}
@@ -196,15 +197,20 @@ class EndpointContext:
             args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
             self.keyjar = init_key_jar(**args)
 
-        for item in ['cookie_dealer', "authz", "authentication", "id_token", "scope2claims"]:
+        for item in [
+            "cookie_dealer",
+            "authz",
+            "authentication",
+            "id_token",
+            "scope2claims",
+        ]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
                 _func()
 
         _cap = self.do_endpoints()
 
-        for item in ["userinfo", "login_hint_lookup", "login_hint2acrs",
-                     "add_on"]:
+        for item in ["userinfo", "login_hint_lookup", "login_hint2acrs", "add_on"]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
                 _func()
@@ -225,7 +231,7 @@ class EndpointContext:
         self.do_session_db(sso_db, db)
         # append useinfo db to the session db
         self.do_userinfo()
-        logger.debug('Session DB: {}'.format(self.sdb.__dict__))
+        logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
     def do_add_on(self):
         if self.conf.get("add_on"):
@@ -258,8 +264,9 @@ class EndpointContext:
                 self.userinfo = init_user_info(_conf, self.cwd)
                 self.sdb.userinfo = self.userinfo
             else:
-                logger.warning(('Cannot init_user_info if any '
-                                'session_db was provided.'))
+                logger.warning(
+                    ("Cannot init_user_info if any " "session_db was provided.")
+                )
 
     def do_id_token(self):
         _conf = self.conf.get("id_token")
@@ -271,7 +278,9 @@ class EndpointContext:
     def do_authentication(self):
         _conf = self.conf.get("authentication")
         if _conf:
-            self.authn_broker = populate_authn_broker(_conf, self, self.template_handler)
+            self.authn_broker = populate_authn_broker(
+                _conf, self, self.template_handler
+            )
         else:
             self.authn_broker = {}
 
@@ -283,7 +292,7 @@ class EndpointContext:
                 pass
 
     def do_cookie_dealer(self):
-        _conf = self.conf.get('cookie_dealer')
+        _conf = self.conf.get("cookie_dealer")
         if _conf:
             if not self.cookie_dealer:
                 self.cookie_dealer = init_service(_conf)
@@ -301,9 +310,7 @@ class EndpointContext:
 
     def do_session_db(self, sso_db, db=None):
         self.sdb = create_session_db(
-            self, self.th_args, db=db,
-            sso_db=sso_db,
-            sub_func=self._sub_func
+            self, self.th_args, db=db, sso_db=sso_db, sub_func=self._sub_func
         )
 
     def do_endpoints(self):
@@ -363,6 +370,6 @@ class EndpointContext:
             _provider_info["jwks_uri"] = self.jwks_uri
 
         _provider_info.update(self.idtoken.provider_info)
-        _provider_info['claims_supported'] = self.claims_supported()
+        _provider_info["claims_supported"] = self.claims_supported()
 
         return _provider_info

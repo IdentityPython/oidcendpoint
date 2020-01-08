@@ -12,7 +12,7 @@ from oidcendpoint.client_authn import WrongAuthnMethod
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oauth2.introspection import Introspection
-from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo

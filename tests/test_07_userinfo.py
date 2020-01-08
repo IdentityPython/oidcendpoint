@@ -1,10 +1,6 @@
 import json
 import os
 
-from oidcmsg.message import Message
-from oidcmsg.oidc import OpenIDRequest
-from oidcmsg.oidc import OpenIDSchema
-
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -15,6 +11,9 @@ from oidcendpoint.userinfo import by_schema
 from oidcendpoint.userinfo import claims_match
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import update_claims
+from oidcmsg.message import Message
+from oidcmsg.oidc import OpenIDRequest
+from oidcmsg.oidc import OpenIDSchema
 
 CLAIMS = {
     "userinfo": {
@@ -51,42 +50,77 @@ USERINFO_DB = json.loads(open(full_path("users.json")).read())
 
 
 def test_default_scope2claims():
-    assert scope2claims(['openid']) == {'sub': None}
-    assert set(scope2claims(['profile']).keys()) == {
-        "name", "given_name", "family_name", "middle_name", "nickname",
-        "profile", "picture", "website", "gender", "birthdate", "zoneinfo",
-        "locale", "updated_at", "preferred_username"}
-    assert set(scope2claims(['email']).keys()) == {"email", "email_verified"}
-    assert set(scope2claims(['address']).keys()) == {'address'}
-    assert set(scope2claims(['phone']).keys()) == {"phone_number",
-                                                   "phone_number_verified"}
-    assert scope2claims(['offline_access']) == {}
+    assert scope2claims(["openid"]) == {"sub": None}
+    assert set(scope2claims(["profile"]).keys()) == {
+        "name",
+        "given_name",
+        "family_name",
+        "middle_name",
+        "nickname",
+        "profile",
+        "picture",
+        "website",
+        "gender",
+        "birthdate",
+        "zoneinfo",
+        "locale",
+        "updated_at",
+        "preferred_username",
+    }
+    assert set(scope2claims(["email"]).keys()) == {"email", "email_verified"}
+    assert set(scope2claims(["address"]).keys()) == {"address"}
+    assert set(scope2claims(["phone"]).keys()) == {
+        "phone_number",
+        "phone_number_verified",
+    }
+    assert scope2claims(["offline_access"]) == {}
 
-    assert scope2claims(['openid', 'email', 'phone']) == {
-        'sub': None, "email": None, "email_verified": None,
-        "phone_number": None, "phone_number_verified": None
+    assert scope2claims(["openid", "email", "phone"]) == {
+        "sub": None,
+        "email": None,
+        "email_verified": None,
+        "phone_number": None,
+        "phone_number_verified": None,
     }
 
 
 def test_custom_scopes():
     custom_scopes = {
-        "research_and_scholarship": ["name", "given_name", "family_name",
-                                     "email", "email_verified", "sub", "iss",
-                                     "eduperson_scoped_affiliation"]
+        "research_and_scholarship": [
+            "name",
+            "given_name",
+            "family_name",
+            "email",
+            "email_verified",
+            "sub",
+            "iss",
+            "eduperson_scoped_affiliation",
+        ]
     }
 
     _scopes = SCOPE2CLAIMS.copy()
     _scopes.update(custom_scopes)
 
-    assert set(scope2claims(['email'], map=_scopes).keys()) == {"email", "email_verified"}
-    assert set(scope2claims(['address'], map=_scopes).keys()) == {'address'}
-    assert set(scope2claims(['phone'], map=_scopes).keys()) == {"phone_number",
-                                                                "phone_number_verified"}
+    assert set(scope2claims(["email"], map=_scopes).keys()) == {
+        "email",
+        "email_verified",
+    }
+    assert set(scope2claims(["address"], map=_scopes).keys()) == {"address"}
+    assert set(scope2claims(["phone"], map=_scopes).keys()) == {
+        "phone_number",
+        "phone_number_verified",
+    }
 
-    assert set(scope2claims(['research_and_scholarship'], map=_scopes).keys()) == {"name", "given_name", "family_name",
-                                                                                   "email", "email_verified", "sub",
-                                                                                   "iss",
-                                                                                   "eduperson_scoped_affiliation"}
+    assert set(scope2claims(["research_and_scholarship"], map=_scopes).keys()) == {
+        "name",
+        "given_name",
+        "family_name",
+        "email",
+        "email_verified",
+        "sub",
+        "iss",
+        "eduperson_scoped_affiliation",
+    }
 
 
 def test_update_claims_authn_req_id_token():

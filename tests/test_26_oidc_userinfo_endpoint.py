@@ -3,11 +3,7 @@ import os
 
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-
 from oidcendpoint import user_info
-from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
@@ -18,6 +14,8 @@ from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -85,10 +83,7 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
-            "id_token": {
-                "class": IDToken,
-                "kwargs": {},
-            },
+            "id_token": {"class": IDToken, "kwargs": {}},
             "endpoint": {
                 "provider_config": {
                     "path": ".well-known/openid-configuration",
@@ -114,24 +109,25 @@ class TestEndpoint(object):
                             "client_secret_basic",
                             "client_secret_jwt",
                             "private_key_jwt",
-                        ],
-
-                    }
+                        ]
+                    },
                 },
                 "userinfo": {
                     "path": "userinfo",
                     "class": userinfo.UserInfo,
                     "kwargs": {
-                        "claim_types_supported": ["normal", "aggregated", "distributed"],
-                        "client_authn_method" : ["bearer_header"]
+                        "claim_types_supported": [
+                            "normal",
+                            "aggregated",
+                            "distributed",
+                        ],
+                        "client_authn_method": ["bearer_header"],
                     },
                 },
             },
             "userinfo": {
                 "class": user_info.UserInfo,
-                "kwargs": {
-                    "db_file": full_path("users.json")
-                },
+                "kwargs": {"db_file": full_path("users.json")},
             },
             # "client_authn": verify_client,
             "authentication": {
@@ -147,10 +143,16 @@ class TestEndpoint(object):
                     "function": "oidcendpoint.oidc.add_on.custom_scopes.add_custom_scopes",
                     "kwargs": {
                         "research_and_scholarship": [
-                            "name", "given_name", "family_name",
-                            "email", "email_verified", "sub", "iss",
-                            "eduperson_scoped_affiliation"]
-                    }
+                            "name",
+                            "given_name",
+                            "family_name",
+                            "email",
+                            "email_verified",
+                            "sub",
+                            "iss",
+                            "eduperson_scoped_affiliation",
+                        ]
+                    },
                 }
             },
         }
@@ -293,7 +295,7 @@ class TestEndpoint(object):
 
     def test_custom_scope(self):
         _auth_req = AUTH_REQ.copy()
-        _auth_req['scope'] = ["openid", "research_and_scholarship"]
+        _auth_req["scope"] = ["openid", "research_and_scholarship"]
         session_id = setup_session(
             self.endpoint.endpoint_context,
             _auth_req,
@@ -311,5 +313,11 @@ class TestEndpoint(object):
         )
         args = self.endpoint.process_request(_req)
         assert set(args["response_args"].keys()) == {
-            "sub", "name", "given_name", "family_name", "email", "email_verified",
-            "eduperson_scoped_affiliation"}
+            "sub",
+            "name",
+            "given_name",
+            "family_name",
+            "email",
+            "email_verified",
+            "eduperson_scoped_affiliation",
+        }

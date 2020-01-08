@@ -6,20 +6,11 @@ from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 import pytest
-import responses
 import yaml
-from cryptojwt import JWT
 from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
-from oidcmsg.exception import ParameterError
-from oidcmsg.exception import URIError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import AuthorizationRequest
-from oidcmsg.oauth2 import AuthorizationResponse
-from oidcmsg.time_util import in_a_while
-
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import create_authn_response
 from oidcendpoint.common.authorization import get_uri
@@ -37,18 +28,19 @@ from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.session import SessionInfo
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.exception import ParameterError
+from oidcmsg.exception import URIError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import AuthorizationRequest
+from oidcmsg.oauth2 import AuthorizationResponse
+from oidcmsg.time_util import in_a_while
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
     # {"type": "EC", "crv": "P-256", "use": ["sig"]}
 ]
 
-RESPONSE_TYPES_SUPPORTED = [
-    ["code"],
-    ["token"],
-    ["code", "token"],
-    ["none"],
-]
+RESPONSE_TYPES_SUPPORTED = [["code"], ["token"], ["code", "token"], ["none"]]
 
 CAPABILITIES = {
     "grant_types_supported": [
@@ -56,7 +48,7 @@ CAPABILITIES = {
         "implicit",
         "urn:ietf:params:oauth:grant-type:jwt-bearer",
         "refresh_token",
-    ],
+    ]
 }
 
 AUTH_REQ = AuthorizationRequest(
@@ -166,13 +158,15 @@ class TestEndpoint(object):
                     "path": "{}/authorization",
                     "class": Authorization,
                     "kwargs": {
-                        "response_types_supported": [" ".join(x) for x in RESPONSE_TYPES_SUPPORTED],
+                        "response_types_supported": [
+                            " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
+                        ],
                         "response_modes_supported": ["query", "fragment", "form_post"],
                         "claims_parameter_supported": True,
                         "request_parameter_supported": True,
                         "request_uri_parameter_supported": True,
                     },
-                },
+                }
             },
             "authentication": {
                 "anon": {
@@ -202,12 +196,13 @@ class TestEndpoint(object):
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
-        self.endpoint = endpoint_context.endpoint['authorization']
+        self.endpoint = endpoint_context.endpoint["authorization"]
 
         self.rp_keyjar = KeyJar()
         self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")
-        self.endpoint.endpoint_context.keyjar.add_symmetric("client_1",
-                                                            "hemligtkodord1234567890")
+        self.endpoint.endpoint_context.keyjar.add_symmetric(
+            "client_1", "hemligtkodord1234567890"
+        )
 
     def test_init(self):
         assert self.endpoint
@@ -549,7 +544,8 @@ class TestEndpoint(object):
         assert set(info.keys()) == {"response_args", "return_uri", "response_msg"}
         assert info["response_msg"] == FORM_POST.format(
             action="https://example.com/cb",
-            inputs='<input type="hidden" name="foo" value="bar"/>')
+            inputs='<input type="hidden" name="foo" value="bar"/>',
+        )
 
     def test_response_mode_fragment(self):
         request = {"response_mode": "fragment"}
@@ -564,9 +560,11 @@ class TestEndpoint(object):
 
 def test_inputs():
     elems = inputs(dict(foo="bar", home="stead"))
-    test_elems = ('<input type="hidden" name="foo" value="bar"/>',
-                  '<input type="hidden" name="home" value="stead"/>')
-    assert (test_elems[0] in elems and test_elems[1] in elems)
+    test_elems = (
+        '<input type="hidden" name="foo" value="bar"/>',
+        '<input type="hidden" name="home" value="stead"/>',
+    )
+    assert test_elems[0] in elems and test_elems[1] in elems
 
 
 def test_join_query():

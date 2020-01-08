@@ -106,7 +106,7 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
         mac = base64.b64decode(b64_mac)
         verifier = HMACSigner(algorithm=sign_alg)
         if verifier.verify(
-                load.encode("utf-8") + timestamp.encode("utf-8"), mac, sign_key.key
+            load.encode("utf-8") + timestamp.encode("utf-8"), mac, sign_key.key
         ):
             return load, timestamp
         else:
@@ -125,9 +125,9 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
         if len(p) == 3:
             verifier = HMACSigner(algorithm=sign_alg)
             if verifier.verify(
-                    load.encode("utf-8") + timestamp.encode("utf-8"),
-                    base64.b64decode(p[2]),
-                    sign_key.key,
+                load.encode("utf-8") + timestamp.encode("utf-8"),
+                base64.b64decode(p[2]),
+                sign_key.key,
             ):
                 return load, timestamp
         else:
@@ -136,15 +136,15 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
 
 
 def make_cookie_content(
-        name,
-        load,
-        sign_key,
-        domain=None,
-        path=None,
-        timestamp="",
-        enc_key=None,
-        max_age=0,
-        sign_alg="SHA256",
+    name,
+    load,
+    sign_key,
+    domain=None,
+    path=None,
+    timestamp="",
+    enc_key=None,
+    max_age=0,
+    sign_alg="SHA256",
 ):
     """
     Create and return a cookies content
@@ -197,15 +197,15 @@ def make_cookie_content(
 
 
 def make_cookie(
-        name,
-        payload,
-        sign_key,
-        domain=None,
-        path=None,
-        timestamp="",
-        enc_key=None,
-        max_age=0,
-        sign_alg="SHA256",
+    name,
+    payload,
+    sign_key,
+    domain=None,
+    path=None,
+    timestamp="",
+    enc_key=None,
+    max_age=0,
+    sign_alg="SHA256",
 ):
     content = make_cookie_content(
         name,
@@ -286,13 +286,13 @@ class CookieDealer(object):
     """
 
     def __init__(
-            self,
-            sign_key="",
-            enc_key="",
-            sign_alg="SHA256",
-            default_values=None,
-            sign_jwk=None,
-            enc_jwk=None
+        self,
+        sign_key="",
+        enc_key="",
+        sign_alg="SHA256",
+        default_values=None,
+        sign_jwk=None,
+        enc_jwk=None,
     ):
 
         if sign_key:
@@ -418,15 +418,15 @@ class CookieDealer(object):
         return None
 
     def append_cookie(
-            self,
-            cookie,
-            name,
-            payload,
-            typ,
-            domain=None,
-            path=None,
-            timestamp="",
-            max_age=0,
+        self,
+        cookie,
+        name,
+        payload,
+        typ,
+        domain=None,
+        path=None,
+        timestamp="",
+        max_age=0,
     ):
         """
         Adds a cookie to a SimpleCookie instance
