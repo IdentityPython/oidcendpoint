@@ -1,8 +1,8 @@
 import logging
 
-from oidcservice import sanitize
 from oidcmsg.oidc import Claims
 
+from oidcendpoint import sanitize
 from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.user_info import scope2claims
 

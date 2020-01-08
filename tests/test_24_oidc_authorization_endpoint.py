@@ -23,12 +23,12 @@ from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
 from oidcmsg.time_util import in_a_while
-from oidcservice.exception import InvalidRequest
 
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld

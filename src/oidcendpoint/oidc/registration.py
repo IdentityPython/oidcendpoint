@@ -16,12 +16,12 @@ from oidcmsg.oidc import ClientRegistrationErrorResponse
 from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import RegistrationResponse
 from oidcmsg.time_util import utc_time_sans_frac
-from oidcservice import sanitize
-from oidcservice.exception import CapabilitiesMisMatch
 
 from oidcendpoint import rndstr
+from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import CapabilitiesMisMatch
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
 

@@ -73,3 +73,12 @@ class ProcessError(OidcEndpointError):
 
 class ServiceError(OidcEndpointError):
     pass
+
+
+class InvalidRequest(OidcEndpointError):
+    pass
+
+
+class CapabilitiesMisMatch(OidcEndpointError):
+    pass
+

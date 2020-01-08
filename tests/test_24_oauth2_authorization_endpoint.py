@@ -19,7 +19,6 @@ from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
-from oidcservice.exception import InvalidRequest
 
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import create_authn_response
@@ -29,6 +28,7 @@ from oidcendpoint.common.authorization import join_query
 from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld

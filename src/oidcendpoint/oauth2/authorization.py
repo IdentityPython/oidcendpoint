@@ -13,7 +13,6 @@ from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
-from oidcservice.exception import InvalidRequest
 
 from oidcendpoint import rndstr
 from oidcendpoint import sanitize
@@ -29,6 +28,7 @@ from oidcendpoint.cookie import append_cookie
 from oidcendpoint.cookie import compute_session_state
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ServiceError
