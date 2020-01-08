@@ -6,10 +6,14 @@ from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 import pytest
+import responses
 import yaml
+from cryptojwt import JWT
+from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
+from oidcendpoint.common.authorization import FORM_POST
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
@@ -21,6 +25,8 @@ from oidcmsg.oidc import verify_id_token
 from oidcmsg.time_util import in_a_while
 from oidcservice.exception import InvalidRequest
 
+from oidcendpoint.common.authorization import join_query
+from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import NoSuchAuthentication
@@ -35,9 +41,7 @@ from oidcendpoint.oidc.authorization import acr_claims
 from oidcendpoint.oidc.authorization import create_authn_response
 from oidcendpoint.oidc.authorization import get_uri
 from oidcendpoint.oidc.authorization import inputs
-from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.authorization import re_authenticate
-from oidcendpoint.oidc.authorization import verify_uri
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
@@ -95,17 +99,6 @@ def full_path(local_file):
 
 USERINFO_db = json.loads(open(full_path("users.json")).read())
 
-FORM_POST = """<html>
-  <head>
-    <title>Submit This Form</title>
-  </head>
-  <body onload="javascript:document.forms[0].submit()">
-    <form method="post" action=https://example.com/cb>
-        <input type="hidden" name="foo" value="bar"/>
-    </form>
-  </body>
-</html>"""
-
 
 class SimpleCookieDealer(object):
     def __init__(self, name=""):
@@ -150,7 +143,7 @@ class SimpleCookieDealer(object):
 client_yaml = """
 oidc_clients:
   client_1:
-    "client_secret": 'hemligt'
+    "client_secret": 'hemligtkodord'
     "redirect_uris": 
         - ['https://example.com/cb', '']
     "client_salt": "salted"
@@ -276,6 +269,11 @@ class TestEndpoint(object):
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
         self.endpoint = endpoint_context.endpoint['authorization']
+
+        self.rp_keyjar = KeyJar()
+        self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")
+        self.endpoint.endpoint_context.keyjar.add_symmetric("client_1",
+                                                            "hemligtkodord1234567890")
 
     def test_init(self):
         assert self.endpoint
@@ -720,7 +718,10 @@ class TestEndpoint(object):
         }
         info = self.endpoint.response_mode(request, **info)
         assert set(info.keys()) == {"response_args", "return_uri", "response_msg"}
-        assert info["response_msg"] == FORM_POST
+        assert info["response_msg"] == FORM_POST.format(
+            action="https://example.com/cb",
+            inputs='<input type="hidden" name="foo" value="bar"/>'
+        )
 
     def test_response_mode_fragment(self):
         request = {"response_mode": "fragment"}
@@ -775,11 +776,6 @@ class TestEndpoint(object):
             login_hint="email:foo@bar",
         )
         redirect_uri = request["redirect_uri"]
-        cinfo = {
-            "client_id": "client_id",
-            "redirect_uris": [("https://rp.example.com/cb", {})],
-            "id_token_signed_response_alg": "RS256",
-        }
 
         method_spec = {
             "acr": INTERNETPROTOCOLPASSWORD,
@@ -803,6 +799,37 @@ class TestEndpoint(object):
 
     def test_post_logout_uri(self):
         pass
+
+    def test_parse_request(self):
+        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg='HS256')
+        _jws = _jwt.pack(AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info['issuer'])
+        # -----------------
+        _req = self.endpoint.parse_request({
+            "request": _jws,
+            "redirect_uri": AUTH_REQ.get('redirect_uri'),
+            "response_type": AUTH_REQ.get('response_type'),
+            "client_id": AUTH_REQ.get('client_id'),
+            "scope": AUTH_REQ.get('scope')
+        })
+        assert "__verified_request" in _req
+
+    def test_parse_request_uri(self):
+        _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg='HS256')
+        _jws = _jwt.pack(AUTH_REQ_DICT, aud=self.endpoint.endpoint_context.provider_info['issuer'])
+
+        request_uri = "https://client.example.com/req"
+        # -----------------
+        with responses.RequestsMock() as rsps:
+            rsps.add("GET", request_uri, body=_jws, status=200)
+            _req = self.endpoint.parse_request({
+                "request_uri": request_uri,
+                "redirect_uri": AUTH_REQ.get('redirect_uri'),
+                "response_type": AUTH_REQ.get('response_type'),
+                "client_id": AUTH_REQ.get('client_id'),
+                "scope": AUTH_REQ.get('scope')
+            })
+
+        assert "__verified_request" in _req
 
 
 def test_inputs():

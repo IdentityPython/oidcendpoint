@@ -3,13 +3,11 @@ import logging
 import time
 
 from cryptojwt import BadSyntax
-from cryptojwt.jwe.exception import JWEException
-from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
-from oidcmsg import oidc
+from oidcmsg import oauth2
 from oidcmsg.exception import ParameterError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import AuthorizationRequest
@@ -91,32 +89,6 @@ def create_authn_response(endpoint, request, sid):
 
         _access_token = aresp.get("access_token", None)
 
-        if "id_token" in request["response_type"]:
-            kwargs = {}
-            if {"code", "id_token", "token"}.issubset(rtype):
-                kwargs = {"code": _code, "access_token": _access_token}
-            elif {"code", "id_token"}.issubset(rtype):
-                kwargs = {"code": _code}
-            elif {"id_token", "token"}.issubset(rtype):
-                kwargs = {"access_token": _access_token}
-
-            if request["response_type"] == ["id_token"]:
-                kwargs["user_claims"] = True
-
-            try:
-                id_token = _context.idtoken.make(request, _sinfo, **kwargs)
-            except (JWEException, NoSuitableSigningKeys) as err:
-                logger.warning(str(err))
-                resp = AuthorizationErrorResponse(
-                    error="invalid_request",
-                    error_description="Could not sign/encrypt id_token",
-                )
-                return {"response_args": resp, "fragment_enc": fragment_enc}
-
-            aresp["id_token"] = id_token
-            _sinfo["id_token"] = id_token
-            handled_response_type.append("id_token")
-
         not_handled = rtype.difference(handled_response_type)
         if not_handled:
             resp = AuthorizationErrorResponse(
@@ -127,26 +99,7 @@ def create_authn_response(endpoint, request, sid):
     return {"response_args": aresp, "fragment_enc": fragment_enc}
 
 
-def proposed_user(request):
-    cn = verified_claim_name("it_token_hint")
-    if request.get(cn):
-        return request[cn].get("sub", "")
-    return ""
-
-
-def acr_claims(request):
-    if request["claims"].get("id_token"):
-        acrdef = request["claims"]["id_token"].get("acr")
-    else:
-        acrdef = None
-
-    if isinstance(acrdef, dict):
-        if acrdef.get("value"):
-            return [acrdef["value"]]
-        elif acrdef.get("values"):
-            return acrdef["values"]
-
-
+# For the time being. This is JAR specific and should probably be configurable.
 ALG_PARAMS = {
     "sign": ["request_object_signing_alg", "request_object_signing_alg_values_supported"],
     "enc_alg": ["request_object_encryption_alg", "request_object_encryption_alg_values_supported"],
@@ -155,16 +108,12 @@ ALG_PARAMS = {
 
 
 def re_authenticate(request, authn):
-    if "prompt" in request and "login" in request["prompt"]:
-        if authn.done(request):
-            return True
-
     return False
 
 
 class Authorization(Endpoint):
-    request_cls = oidc.AuthorizationRequest
-    response_cls = oidc.AuthorizationResponse
+    request_cls = oauth2.AuthorizationRequest
+    response_cls = oauth2.AuthorizationResponse
     request_format = "urlencoded"
     response_format = "urlencoded"
     response_placement = "url"
@@ -175,8 +124,7 @@ class Authorization(Endpoint):
         "request_parameter_supported": True,
         "request_uri_parameter_supported": True,
         "response_types_supported": [
-            "code", "token", "id_token", "code token", "code id_token",
-            "id_token token", "code id_token token"
+            "code", "token", "code token"
         ],
         "response_modes_supported": [
             "query", "fragment", "form_post"
@@ -219,8 +167,7 @@ class Authorization(Endpoint):
                 if _request_uri.startswith("urn:uuid:"):
                     _req = endpoint_context.par_db.get(_request_uri)
                     if _req:
-                        del endpoint_context.par_db[_request_uri]  # One time
-                        # usage
+                        del endpoint_context.par_db[_request_uri]  # One time usage
                         return _req
                     else:
                         raise ValueError("Got a request_uri I can not resolve")
@@ -621,16 +568,6 @@ class Authorization(Endpoint):
         cookie = kwargs.get("cookie", "")
         if cookie:
             del kwargs["cookie"]
-
-        if proposed_user(request_info):
-            kwargs["req_user"] = proposed_user(request_info)
-        else:
-            if request_info.get("login_hint"):
-                _login_hint = request_info["login_hint"]
-                if self.endpoint_context.login_hint_lookup:
-                    kwargs["req_user"] = self.endpoint_context.login_hint_lookup[
-                        _login_hint
-                    ]
 
         info = self.setup_auth(
             request_info, request_info["redirect_uri"], cinfo, cookie, **kwargs

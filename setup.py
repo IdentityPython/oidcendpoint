@@ -51,7 +51,8 @@ setup(
     url='https://github.com/IdentityPython/oicsrv',
     packages=["oidcendpoint", 'oidcendpoint/oidc', 'oidcendpoint/authz',
               'oidcendpoint/user_authn', 'oidcendpoint/user_info',
-              'oidcendpoint/oauth2', 'oidcendpoint/oidc/add_on'],
+              'oidcendpoint/oauth2', 'oidcendpoint/oidc/add_on',
+              'oidcendpoint/common'],
     package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",

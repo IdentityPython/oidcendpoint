@@ -125,6 +125,7 @@ class EndpointContext:
         self.scope2claims = SCOPE2CLAIMS
         # arguments for endpoints add-ons
         self.args = {}
+        self.par_db = {}
 
         self.th_args = get_token_handlers(conf)
 

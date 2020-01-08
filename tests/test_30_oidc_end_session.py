@@ -6,13 +6,19 @@ from urllib.parse import urlparse
 
 import pytest
 from cryptojwt.key_jar import build_keyjar
+from oidcmsg.exception import InvalidRequest
+from oidcmsg.message import Message
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import verified_claim_name
+from oidcmsg.oidc import verify_id_token
+
+from oidcendpoint.common.authorization import join_query
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
-from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
@@ -20,11 +26,6 @@ from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.exception import InvalidRequest
-from oidcmsg.message import Message
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import verified_claim_name
-from oidcmsg.oidc import verify_id_token
 
 ISS = "https://example.com/"
 
@@ -420,7 +421,7 @@ class TestEndpoint(object):
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
         test_res = ('<iframe src="https://example.com/fc_logout?',
                     'iss=https%3A%2F%2Fexample.com%2F',
-                    'sid=_sid_') 
+                    'sid=_sid_')
         for i in test_res:
             assert (i in res)
 
@@ -434,7 +435,7 @@ class TestEndpoint(object):
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
         test_res = ('<iframe', 'src="https://example.com/fc_logout?',
                     'entity_id=foo',
-                    'iss=https%3A%2F%2Fexample.com%2F','sid=_sid_')
+                    'iss=https%3A%2F%2Fexample.com%2F', 'sid=_sid_')
         for i in test_res:
             assert (i in res)
 

@@ -19,9 +19,9 @@ from oidcmsg.oidc.session import BACK_CHANNEL_LOGOUT_EVENT
 from oidcmsg.oidc.session import EndSessionRequest
 
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
+from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.oidc.authorization import verify_uri
 
 logger = logging.getLogger(__name__)
 

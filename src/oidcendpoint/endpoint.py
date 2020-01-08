@@ -142,6 +142,12 @@ class Endpoint(object):
         self.kwargs = kwargs
         self.full_path = ""
 
+        for param in ["request_cls", "response_cls", "request_format", "request_placement",
+                      "response_format", "response_placement"]:
+            _val = kwargs.get(param)
+            if _val:
+                setattr(self, param, _val)
+
         if "client_authn_method" in kwargs:
             self.client_authn_method = kwargs["client_authn_method"]
         elif self.default_capabilities is not None:
