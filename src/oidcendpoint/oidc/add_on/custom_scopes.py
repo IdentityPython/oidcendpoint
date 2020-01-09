@@ -18,3 +18,10 @@ def add_custom_scopes(endpoint, **kwargs):
     _endpoint.scope_to_claims = _scopes
     _endpoint.endpoint_context.idtoken.scope_to_claims = _scopes
     _endpoint.endpoint_context.scope2claims = _scopes
+
+    # add to defaults
+    authz_enp = endpoint.get("authorization")
+    if authz_enp:
+        _supported = set(authz_enp.default_capabilities['scopes_supported'])
+        _supported.update(set(kwargs.keys()))
+        authz_enp.default_capabilities['scopes_supported'] = list(_supported)
