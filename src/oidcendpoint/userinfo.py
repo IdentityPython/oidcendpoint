@@ -103,7 +103,7 @@ def by_schema(cls, **kwa):
 
 
 def collect_user_info(
-    endpoint_context, session, userinfo_claims=None, scope_to_claims=None
+        endpoint_context, session, userinfo_claims=None, scope_to_claims=None
 ):
     """
     Collect information about a user.
@@ -118,8 +118,11 @@ def collect_user_info(
     if scope_to_claims is None:
         scope_to_claims = endpoint_context.scope2claims
 
+    supported_scopes = [s for s in authn_req["scope"] if
+                        s in endpoint_context.provider_info["scopes_supported"]]
+
     if userinfo_claims is None:
-        uic = scope2claims(authn_req["scope"], map=scope_to_claims)
+        uic = scope2claims(supported_scopes, map=scope_to_claims)
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session

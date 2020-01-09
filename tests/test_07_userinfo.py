@@ -1,8 +1,13 @@
 import json
 import os
 
+import pytest
+
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.provider_config import ProviderConfiguration
+from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.user_info import UserInfo
@@ -38,6 +43,17 @@ OIDR = OpenIDRequest(
     state="state000",
     claims=CLAIMS,
 )
+
+RESPONSE_TYPES_SUPPORTED = [
+    ["code"],
+    ["token"],
+    ["id_token"],
+    ["code", "token"],
+    ["code", "id_token"],
+    ["id_token", "token"],
+    ["code", "token", "id_token"],
+    ["none"],
+]
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -193,44 +209,118 @@ KEYDEFS = [
 ]
 
 
-def test_collect_user_info():
-    _session_info = {"authn_req": OIDR}
-    session = _session_info.copy()
-    session["sub"] = "doe"
-    session["uid"] = "diana"
-    session["authn_event"] = create_authn_event("diana", "salt")
+class TestCollectUserInfo:
+    @pytest.fixture(autouse=True)
+    def create_endpoint_context(self):
+        self.endpoint_context = EndpointContext(
+            {
+                "userinfo": {"class": UserInfo, "kwargs": {"db": USERINFO_DB}},
+                "password": "we didn't start the fire",
+                "issuer": "https://example.com/op",
+                "token_expires_in": 900,
+                "grant_expires_in": 600,
+                "refresh_token_expires_in": 86400,
+                "endpoint": {
+                    "provider_config": {
+                        "path": "{}/.well-known/openid-configuration",
+                        "class": ProviderConfiguration,
+                        "kwargs": {},
+                    },
+                    "registration": {
+                        "path": "{}/registration",
+                        "class": Registration,
+                        "kwargs": {},
+                    },
+                    "authorization": {
+                        "path": "{}/authorization",
+                        "class": Authorization,
+                        "kwargs": {
+                            "response_types_supported": [
+                                " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
+                            ],
+                            "response_modes_supported": ["query", "fragment", "form_post"],
+                            "claims_parameter_supported": True,
+                            "request_parameter_supported": True,
+                            "request_uri_parameter_supported": True,
+                        },
+                    },
+                },
+                "jwks": {
+                    "public_path": "jwks.json",
+                    "key_defs": KEYDEFS,
+                    "uri_path": "static/jwks.json",
+                },
+                "authentication": {
+                    "anon": {
+                        "acr": INTERNETPROTOCOLPASSWORD,
+                        "class": "oidcendpoint.user_authn.user.NoAuthn",
+                        "kwargs": {"user": "diana"},
+                    }
+                },
+                "template_dir": "template",
+            }
+        )
 
-    endpoint_context = EndpointContext(
-        {
-            "userinfo": {"class": UserInfo, "kwargs": {"db": USERINFO_DB}},
-            "password": "we didn't start the fire",
-            "issuer": "https://example.com/op",
-            "token_expires_in": 900,
-            "grant_expires_in": 600,
-            "refresh_token_expires_in": 86400,
-            "endpoint": {},
-            "jwks": {
-                "public_path": "jwks.json",
-                "key_defs": KEYDEFS,
-                "uri_path": "static/jwks.json",
-            },
-            "authentication": {
-                "anon": {
-                    "acr": INTERNETPROTOCOLPASSWORD,
-                    "class": "oidcendpoint.user_authn.user.NoAuthn",
-                    "kwargs": {"user": "diana"},
-                }
-            },
-            "template_dir": "template",
+    def test_collect_user_info(self):
+        _session_info = {"authn_req": OIDR}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "given_name": "Diana",
+            "nickname": "Dina",
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
         }
-    )
 
-    res = collect_user_info(endpoint_context, session)
+    def test_collect_user_info_2(self):
+        _req = OIDR.copy()
+        _req["scope"] = "openid email"
+        del _req["claims"]
 
-    assert res == {
-        "given_name": "Diana",
-        "nickname": "Dina",
-        "sub": "doe",
-        "email": "diana@example.org",
-        "email_verified": False,
-    }
+        _session_info = {"authn_req": _req}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        self.endpoint_context.provider_info["scopes_supported"] = [
+            "openid", "email", "offline_access"
+        ]
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
+        }
+
+    def test_collect_user_info_scope_not_supported(self):
+        _req = OIDR.copy()
+        _req["scope"] = "openid email address"
+        del _req["claims"]
+
+        _session_info = {"authn_req": _req}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        # Scope address not supported
+        self.endpoint_context.provider_info["scopes_supported"] = [
+            "openid", "email", "offline_access"
+        ]
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
+        }
+
+
