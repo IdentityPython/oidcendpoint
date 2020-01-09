@@ -3,6 +3,9 @@ import os
 
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+
 from oidcendpoint import user_info
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -14,8 +17,6 @@ from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -168,6 +169,11 @@ class TestEndpoint(object):
 
     def test_init(self):
         assert self.endpoint
+        assert set(self.endpoint.endpoint_context.provider_info["claims_supported"]) == {
+            'iss', 'picture', 'birthdate', 'middle_name', 'zoneinfo', 'locale', 'address', 'gender',
+            'email', 'nickname', 'phone_number_verified', 'sub', 'phone_number', 'name',
+            'family_name', 'preferred_username', 'email_verified', 'updated_at', 'website',
+            'given_name', 'eduperson_scoped_affiliation', 'profile'}
 
     def test_parse(self):
         session_id = setup_session(

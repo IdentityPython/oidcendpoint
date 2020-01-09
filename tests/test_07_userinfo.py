@@ -2,6 +2,9 @@ import json
 import os
 
 import pytest
+from oidcmsg.message import Message
+from oidcmsg.oidc import OpenIDRequest
+from oidcmsg.oidc import OpenIDSchema
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
@@ -16,9 +19,6 @@ from oidcendpoint.userinfo import by_schema
 from oidcendpoint.userinfo import claims_match
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import update_claims
-from oidcmsg.message import Message
-from oidcmsg.oidc import OpenIDRequest
-from oidcmsg.oidc import OpenIDSchema
 
 CLAIMS = {
     "userinfo": {
@@ -33,6 +33,15 @@ CLAIMS = {
         "auth_time": {"essential": True},
         "acr": {"values": ["urn:mace:incommon:iap:silver"]},
     },
+}
+
+CLAIMS_2 = {
+    "userinfo": {
+        "eduperson_scoped_affiliation": {"essential": True},
+        "nickname": None,
+        "email": {"essential": True},
+        "email_verified": {"essential": True},
+    }
 }
 
 OIDR = OpenIDRequest(
@@ -138,16 +147,25 @@ def test_custom_scopes():
         "eduperson_scoped_affiliation",
     }
 
+PROVIDER_INFO = {
+    "claims_supported": ["auth_time", "acr", "given_name",
+                         "nickname",
+                         "email",
+                         "email_verified",
+                         "picture",
+                         "http://example.info/claims/groups",
+                         ]
+}
 
 def test_update_claims_authn_req_id_token():
     _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "id_token")
+    claims = update_claims(_session_info, "id_token", PROVIDER_INFO)
     assert set(claims.keys()) == {"auth_time", "acr"}
 
 
 def test_update_claims_authn_req_userinfo():
     _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "userinfo")
+    claims = update_claims(_session_info, "userinfo", PROVIDER_INFO)
     assert set(claims.keys()) == {
         "given_name",
         "nickname",
@@ -160,13 +178,13 @@ def test_update_claims_authn_req_userinfo():
 
 def test_update_claims_authzreq_id_token():
     _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "id_token")
+    claims = update_claims(_session_info, "id_token", PROVIDER_INFO)
     assert set(claims.keys()) == {"auth_time", "acr"}
 
 
 def test_update_claims_authzreq_userinfo():
     _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "userinfo")
+    claims = update_claims(_session_info, "userinfo", PROVIDER_INFO)
     assert set(claims.keys()) == {
         "given_name",
         "nickname",
@@ -262,7 +280,10 @@ class TestCollectUserInfo:
         )
 
     def test_collect_user_info(self):
-        _session_info = {"authn_req": OIDR}
+        _req = OIDR.copy()
+        _req["claims"] = CLAIMS_2
+
+        _session_info = {"authn_req": _req}
         session = _session_info.copy()
         session["sub"] = "doe"
         session["uid"] = "diana"
@@ -271,7 +292,6 @@ class TestCollectUserInfo:
         res = collect_user_info(self.endpoint_context, session)
 
         assert res == {
-            "given_name": "Diana",
             "nickname": "Dina",
             "sub": "doe",
             "email": "diana@example.org",
@@ -324,3 +344,133 @@ class TestCollectUserInfo:
         }
 
 
+class TestCollectUserInfoCustomScopes:
+    @pytest.fixture(autouse=True)
+    def create_endpoint_context(self):
+        self.endpoint_context = EndpointContext(
+            {
+                "userinfo": {"class": UserInfo, "kwargs": {"db": USERINFO_DB}},
+                "password": "we didn't start the fire",
+                "issuer": "https://example.com/op",
+                "token_expires_in": 900,
+                "grant_expires_in": 600,
+                "refresh_token_expires_in": 86400,
+                "endpoint": {
+                    "provider_config": {
+                        "path": "{}/.well-known/openid-configuration",
+                        "class": ProviderConfiguration,
+                        "kwargs": {},
+                    },
+                    "registration": {
+                        "path": "{}/registration",
+                        "class": Registration,
+                        "kwargs": {},
+                    },
+                    "authorization": {
+                        "path": "{}/authorization",
+                        "class": Authorization,
+                        "kwargs": {
+                            "response_types_supported": [
+                                " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
+                            ],
+                            "response_modes_supported": ["query", "fragment", "form_post"],
+                            "claims_parameter_supported": True,
+                            "request_parameter_supported": True,
+                            "request_uri_parameter_supported": True,
+                        },
+                    },
+                },
+                "add_on": {
+                    "custom_scopes": {
+                        "function": "oidcendpoint.oidc.add_on.custom_scopes.add_custom_scopes",
+                        "kwargs": {
+                            "research_and_scholarship": [
+                                "name",
+                                "given_name",
+                                "family_name",
+                                "email",
+                                "email_verified",
+                                "sub",
+                                "iss",
+                                "eduperson_scoped_affiliation",
+                            ]
+                        },
+                    }
+                },
+                "jwks": {
+                    "public_path": "jwks.json",
+                    "key_defs": KEYDEFS,
+                    "uri_path": "static/jwks.json",
+                },
+                "authentication": {
+                    "anon": {
+                        "acr": INTERNETPROTOCOLPASSWORD,
+                        "class": "oidcendpoint.user_authn.user.NoAuthn",
+                        "kwargs": {"user": "diana"},
+                    }
+                },
+                "template_dir": "template",
+            }
+        )
+
+    def test_collect_user_info(self):
+        _session_info = {"authn_req": OIDR}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            'email': 'diana@example.org',
+            'email_verified': False,
+            'nickname': 'Dina',
+            'given_name': 'Diana',
+            'sub': 'doe'
+        }
+
+    def test_collect_user_info_2(self):
+        _req = OIDR.copy()
+        _req["scope"] = "openid email"
+        del _req["claims"]
+
+        _session_info = {"authn_req": _req}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        self.endpoint_context.provider_info["claims_supported"].remove("email")
+        self.endpoint_context.provider_info["claims_supported"].remove("email_verified")
+
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
+        }
+
+    def test_collect_user_info_scope_not_supported(self):
+        _req = OIDR.copy()
+        _req["scope"] = "openid email address"
+        del _req["claims"]
+
+        _session_info = {"authn_req": _req}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        # Scope address not supported
+        self.endpoint_context.provider_info["scopes_supported"] = [
+            "openid", "email", "offline_access"
+        ]
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
+        }

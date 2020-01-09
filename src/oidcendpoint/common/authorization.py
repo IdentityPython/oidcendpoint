@@ -30,6 +30,10 @@ FORM_POST = """<html>
 </html>"""
 
 DEFAULT_SCOPES = list(SCOPE2CLAIMS.keys())
+_CLAIMS = set()
+for scope, claims in SCOPE2CLAIMS.items():
+    _CLAIMS.update(set(claims))
+DEFAULT_CLAIMS = list(_CLAIMS)
 
 
 def inputs(form_args):

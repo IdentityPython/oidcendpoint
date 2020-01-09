@@ -25,3 +25,8 @@ def add_custom_scopes(endpoint, **kwargs):
         _supported = set(authz_enp.default_capabilities['scopes_supported'])
         _supported.update(set(kwargs.keys()))
         authz_enp.default_capabilities['scopes_supported'] = list(_supported)
+
+        _claims = set(authz_enp.default_capabilities['claims_supported'])
+        for vals in kwargs.values():
+            _claims.update(set(vals))
+        authz_enp.default_capabilities['claims_supported'] = list(_claims)
