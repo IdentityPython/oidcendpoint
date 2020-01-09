@@ -85,21 +85,21 @@ def assign_algorithms(typ):
         return jwe.SUPPORTED["enc"]
 
 
-def construct_provider_info(default_capabilities, **kwargs):
+def construct_endpoint_info(default_capabilities, **kwargs):
     if default_capabilities is not None:
-        provider_info = {}
+        _info = {}
         for attr, default_val in default_capabilities.items():
             try:
                 _proposal = kwargs[attr]
             except KeyError:
                 if default_val is not None:
-                    provider_info[attr] = default_val
+                    _info[attr] = default_val
                 elif "signing_alg_values_supported" in attr:
-                    provider_info[attr] = assign_algorithms("signing_alg")
+                    _info[attr] = assign_algorithms("signing_alg")
                 elif "encryption_alg_values_supported" in attr:
-                    provider_info[attr] = assign_algorithms("encryption_alg")
+                    _info[attr] = assign_algorithms("encryption_alg")
                 elif "encryption_enc_values_supported" in attr:
-                    provider_info[attr] = assign_algorithms("encryption_enc")
+                    _info[attr] = assign_algorithms("encryption_enc")
             else:
                 _permitted = None
 
@@ -117,8 +117,8 @@ def construct_provider_info(default_capabilities, **kwargs):
                         )
                     )
 
-                provider_info[attr] = _proposal
-        return provider_info
+                _info[attr] = _proposal
+        return _info
     else:
         return None
 
@@ -165,7 +165,7 @@ class Endpoint(object):
                     "client_authn_method"
                 ]
 
-        self.provider_info = construct_provider_info(
+        self.endpoint_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
         )
 

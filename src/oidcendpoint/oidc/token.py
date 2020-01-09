@@ -32,7 +32,7 @@ class AccessToken(Endpoint):
         Endpoint.__init__(self, endpoint_context, **kwargs)
         self.post_parse_request.append(self._post_parse_request)
         if "client_authn_method" in kwargs:
-            self.provider_info["token_endpoint_auth_methods_supported"] = kwargs[
+            self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
                 "client_authn_method"
             ]
 

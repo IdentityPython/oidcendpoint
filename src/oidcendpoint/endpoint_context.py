@@ -324,14 +324,11 @@ class EndpointContext:
         _cap = self.conf.get("capabilities", {})
 
         for endpoint, endpoint_instance in self.endpoint.items():
-            if endpoint_instance.provider_info:
-                _cap.update(endpoint_instance.provider_info)
+            if endpoint_instance.endpoint_info:
+                _cap.update(endpoint_instance.endpoint_info)
 
-            if endpoint in ["webfinger", "provider_info"]:
+            if endpoint in ["webfinger", "provider_config"]:
                 continue
-
-            if endpoint_instance.endpoint_name:
-                _cap[endpoint_instance.endpoint_name] = endpoint_instance.full_path
 
         return _cap
 

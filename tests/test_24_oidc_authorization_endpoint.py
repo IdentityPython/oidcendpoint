@@ -74,7 +74,7 @@ CAPABILITIES = {
         "implicit",
         "urn:ietf:params:oauth:grant-type:jwt-bearer",
         "refresh_token",
-    ],
+    ]
 }
 
 CLAIMS = {"id_token": {"given_name": {"essential": True}, "nickname": None}}
