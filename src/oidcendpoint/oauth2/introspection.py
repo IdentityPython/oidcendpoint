@@ -43,18 +43,20 @@ class Introspection(Endpoint):
         if "error" in _introspect_request:
             return _introspect_request
 
+        _resp = self.response_cls(active=False)
+
         _jwt = JWT(key_jar=self.endpoint_context.keyjar)
 
         try:
             _jwt_info = _jwt.unpack(_introspect_request["token"])
         except Exception:
-            return {"response": {"active": False}}
+            return {"response_args": _resp}
 
         # expired ?
         if "exp" in _jwt_info:
             now = utc_time_sans_frac()
             if _jwt_info["exp"] < now:
-                return {"response": {"active": False}}
+                return {"response_args": _resp}
 
         if "release" in self.kwargs:
             if "username" in self.kwargs["release"]:
@@ -63,9 +65,9 @@ class Introspection(Endpoint):
                         sub=_jwt_info["sub"]
                     )
                 except KeyError:
-                    return {"response": {"active": False}}
+                    return {"response_args": _resp}
 
-        _resp = self.response_cls(**_jwt_info)
+        _resp.update(_jwt_info)
         _resp.weed()
         _resp["active"] = True
 
