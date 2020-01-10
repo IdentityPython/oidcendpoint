@@ -226,3 +226,15 @@ class TestEndpoint(object):
             "jti",
         }
         assert _payload["active"] == True
+
+    def test_do_response_no_token(self):
+        _context = self.introspection_endpoint.endpoint_context
+        _ = setup_session(_context, AUTH_REQ, uid="diana")
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        assert "error" in _resp

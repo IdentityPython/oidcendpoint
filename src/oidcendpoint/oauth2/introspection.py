@@ -40,6 +40,8 @@ class Introspection(Endpoint):
         :return:
         """
         _introspect_request = self.request_cls(**request)
+        if "error" in _introspect_request:
+            return _introspect_request
 
         _jwt = JWT(key_jar=self.endpoint_context.keyjar)
 
