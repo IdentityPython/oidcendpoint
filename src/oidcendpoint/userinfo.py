@@ -9,18 +9,18 @@ from oidcendpoint.user_info import scope2claims
 logger = logging.getLogger(__name__)
 
 
-def id_token_claims(session):
+def id_token_claims(session, provider_info):
     """
     Pick the IdToken claims from the request
 
     :param session: Session information
     :return: The IdToken claims
     """
-    itc = update_claims(session, "id_token", {})
+    itc = update_claims(session, "id_token", provider_info=provider_info, old_claims={})
     return itc
 
 
-def update_claims(session, about, old_claims=None):
+def update_claims(session, about, provider_info, old_claims=None):
     """
 
     :param session:
@@ -45,6 +45,11 @@ def update_claims(session, about, old_claims=None):
             pass
         else:
             if _claims:
+                # Deal only with supported claims
+                _unsup = [c for c in _claims.keys() if c not in provider_info["claims_supported"]]
+                for _c in _unsup:
+                    del _claims[_c]
+
                 # update with old claims, do not overwrite
                 for key, val in old_claims.items():
                     if key not in _claims:
@@ -130,7 +135,9 @@ def collect_user_info(
         if perm_set:
             uic = {key: uic[key] for key in uic if key in perm_set}
 
-        uic = update_claims(session, "userinfo", uic)
+        uic = update_claims(session, "userinfo",
+                            provider_info=endpoint_context.provider_info,
+                            old_claims=uic)
 
         if uic:
             userinfo_claims = Claims(**uic)
@@ -176,7 +183,7 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
     else:
         itc = {}
 
-    itc.update(id_token_claims(session))
+    itc.update(id_token_claims(session, provider_info=endpoint_context.provider_info))
 
     if not itc:
         return None

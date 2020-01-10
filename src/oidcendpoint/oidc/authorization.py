@@ -20,6 +20,7 @@ from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.common.authorization import AllowedAlgorithms
+from oidcendpoint.common.authorization import DEFAULT_CLAIMS
 from oidcendpoint.common.authorization import DEFAULT_SCOPES
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import authn_args_gather
@@ -198,6 +199,8 @@ class Authorization(Endpoint):
         "request_object_encryption_enc_values_supported": None,
         "grant_types_supported": ["authorization_code", "implicit"],
         "scopes_supported": DEFAULT_SCOPES,
+        "claims_supported": DEFAULT_CLAIMS,
+        "claim_types_supported": ["normal", "aggregated", "distributed"]
     }
 
     def __init__(self, endpoint_context, **kwargs):

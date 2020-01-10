@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.token import AccessToken
@@ -77,4 +78,10 @@ class TestEndpoint(object):
         assert _msg
         assert _msg["token_endpoint"] == "https://example.com/token"
         assert _msg["jwks_uri"] == "https://example.com/static/jwks.json"
+        assert set(_msg["claims_supported"]) == {
+            'gender', 'zoneinfo', 'website', 'phone_number_verified', 'middle_name', 'family_name',
+            'nickname', 'email', 'preferred_username', 'profile', 'name', 'phone_number',
+            'given_name', 'email_verified', 'sub', 'locale', 'picture', 'address', 'updated_at',
+            'birthdate'
+        }
         assert ("Content-type", "application/json") in msg["http_headers"]
