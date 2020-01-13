@@ -458,6 +458,7 @@ class Authorization(Endpoint):
                 action=kwargs["return_uri"],
             )
             kwargs["response_msg"] = msg
+            kwargs["content_type"] = 'text/html'
         elif resp_mode == "fragment":
             if "fragment_enc" in kwargs:
                 if not kwargs["fragment_enc"]:

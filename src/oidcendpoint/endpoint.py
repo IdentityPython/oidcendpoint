@@ -35,6 +35,22 @@ do_response
             - _parse_args
             - post_construct (*)
     - update_http_args
+    
+do_response returns a dictionary that can look like this:
+{
+  'response': 
+    _response as a string or as a Message instance_ 
+  'http_headers': [
+    ('Content-type', 'application/json'), 
+    ('Pragma', 'no-cache'), 
+    ('Cache-Control', 'no-store')
+  ],
+  'cookie': _list of cookies_
+}
+
+"response" MUST be present
+"http_headers" MAY be present
+"cookie": MAY be present 
 """
 
 
@@ -319,6 +335,9 @@ class Endpoint(object):
         return self.construct(response_args, request, **kwargs)
 
     def do_response(self, response_args=None, request=None, error="", **kwargs):
+        """
+
+        """
         do_placement = True
         content_type = "text/html"
         _resp = {}
@@ -336,43 +355,47 @@ class Endpoint(object):
         elif "response_msg" in kwargs:
             resp = kwargs["response_msg"]
             do_placement = False
-            _response = ""  # This is just for my IDE
-            if self.response_format == "json":
-                content_type = "application/json"
-            elif self.request_format in ["jws", "jwe", "jose"]:
-                content_type = "application/jose"
-            else:
-                content_type = "application/x-www-form-urlencoded"
+            _response = ""
+            content_type = kwargs.get('content_type')
+            if content_type is None:
+                if self.response_format == "json":
+                    content_type = "application/json"
+                elif self.request_format in ["jws", "jwe", "jose"]:
+                    content_type = "application/jose"
+                else:
+                    content_type = "application/x-www-form-urlencoded"
         else:
             _response = self.response_info(response_args, request, **kwargs)
 
         if do_placement:
-            if self.response_placement == "body":
-                if self.response_format == "json":
-                    content_type = "application/json"
-                    resp = _response.to_json()
-                elif self.request_format in ["jws", "jwe", "jose"]:
-                    content_type = "application/jose"
-                    resp = _response
-                else:
-                    content_type = "application/x-www-form-urlencoded"
-                    resp = _response.to_urlencoded()
-            elif self.response_placement == "url":
-                # content_type = 'application/x-www-form-urlencoded'
-                content_type = ""
-                try:
-                    fragment_enc = kwargs["fragment_enc"]
-                except KeyError:
-                    fragment_enc = fragment_encoding(kwargs["return_type"])
+            content_type = kwargs.get('content_type')
+            if content_type is None:
+                if self.response_placement == "body":
+                    if self.response_format == "json":
+                        content_type = "application/json"
+                        resp = _response.to_json()
+                    elif self.request_format in ["jws", "jwe", "jose"]:
+                        content_type = "application/jose"
+                        resp = _response
+                    else:
+                        content_type = "application/x-www-form-urlencoded"
+                        resp = _response.to_urlencoded()
+                elif self.response_placement == "url":
+                    # content_type = 'application/x-www-form-urlencoded'
+                    content_type = ""
+                    try:
+                        fragment_enc = kwargs["fragment_enc"]
+                    except KeyError:
+                        fragment_enc = fragment_encoding(kwargs["return_type"])
 
-                if fragment_enc:
-                    resp = _response.request(kwargs["return_uri"], True)
+                    if fragment_enc:
+                        resp = _response.request(kwargs["return_uri"], True)
+                    else:
+                        resp = _response.request(kwargs["return_uri"])
                 else:
-                    resp = _response.request(kwargs["return_uri"])
-            else:
-                raise ValueError(
-                    "Don't know where that is: '{}".format(self.response_placement)
-                )
+                    raise ValueError(
+                        "Don't know where that is: '{}".format(self.response_placement)
+                    )
 
         if content_type:
             try:

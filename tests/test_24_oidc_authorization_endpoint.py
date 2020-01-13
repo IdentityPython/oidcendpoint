@@ -723,11 +723,19 @@ class TestEndpoint(object):
             "return_uri": "https://example.com/cb",
         }
         info = self.endpoint.response_mode(request, **info)
-        assert set(info.keys()) == {"response_args", "return_uri", "response_msg"}
+        assert set(info.keys()) == {"response_args", "return_uri", "response_msg", "content_type"}
         assert info["response_msg"] == FORM_POST.format(
             action="https://example.com/cb",
             inputs='<input type="hidden" name="foo" value="bar"/>',
         )
+
+    def test_do_response_code_form_post(self):
+        _req = AUTH_REQ_DICT.copy()
+        _req["response_mode"] = "form_post"
+        _pr_resp = self.endpoint.parse_request(_req)
+        _resp = self.endpoint.process_request(_pr_resp)
+        msg = self.endpoint.do_response(**_resp)
+        assert ('Content-type', 'text/html') in msg["http_headers"]
 
     def test_response_mode_fragment(self):
         request = {"response_mode": "fragment"}
