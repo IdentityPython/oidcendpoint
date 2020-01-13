@@ -419,11 +419,11 @@ class Authorization(Endpoint):
                 if "req_user" in kwargs:
                     sids = self.endpoint_context.sdb.get_sids_by_sub(kwargs["req_user"])
                     if (
-                        sids
-                        and user
-                        != self.endpoint_context.sdb.get_authentication_event(
-                            sids[-1]
-                        ).uid
+                            sids
+                            and user
+                            != self.endpoint_context.sdb.get_authentication_event(
+                        sids[-1]
+                    ).uid
                     ):
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
@@ -457,8 +457,10 @@ class Authorization(Endpoint):
                 inputs=inputs(kwargs["response_args"].to_dict()),
                 action=kwargs["return_uri"],
             )
-            kwargs["response_msg"] = msg
-            kwargs["content_type"] = 'text/html'
+            kwargs.update({
+                "response_msg": msg,
+                "content_type": 'text/html',
+                "response_placement": "body"})
         elif resp_mode == "fragment":
             if "fragment_enc" in kwargs:
                 if not kwargs["fragment_enc"]:

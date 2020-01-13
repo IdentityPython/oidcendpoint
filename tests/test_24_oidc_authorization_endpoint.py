@@ -723,7 +723,8 @@ class TestEndpoint(object):
             "return_uri": "https://example.com/cb",
         }
         info = self.endpoint.response_mode(request, **info)
-        assert set(info.keys()) == {"response_args", "return_uri", "response_msg", "content_type"}
+        assert set(info.keys()) == {"response_args", "return_uri", "response_msg",
+                                    "content_type", "response_placement"}
         assert info["response_msg"] == FORM_POST.format(
             action="https://example.com/cb",
             inputs='<input type="hidden" name="foo" value="bar"/>',
@@ -736,6 +737,7 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(_pr_resp)
         msg = self.endpoint.do_response(**_resp)
         assert ('Content-type', 'text/html') in msg["http_headers"]
+        assert "response_placement" in msg
 
     def test_response_mode_fragment(self):
         request = {"response_mode": "fragment"}

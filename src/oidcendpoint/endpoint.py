@@ -45,12 +45,15 @@ do_response returns a dictionary that can look like this:
     ('Pragma', 'no-cache'), 
     ('Cache-Control', 'no-store')
   ],
-  'cookie': _list of cookies_
+  'cookie': _list of cookies_,
+  'response_placement': 'body'
 }
 
 "response" MUST be present
 "http_headers" MAY be present
 "cookie": MAY be present 
+"response_placement": If absent defaults the endpoints response_placement parameter value
+    or if that is also missing 'url'
 """
 
 
@@ -341,7 +344,7 @@ class Endpoint(object):
         do_placement = True
         content_type = "text/html"
         _resp = {}
-
+        _response_placement = None
         if response_args is None:
             response_args = {}
 
@@ -354,6 +357,7 @@ class Endpoint(object):
                 pass
         elif "response_msg" in kwargs:
             resp = kwargs["response_msg"]
+            _response_placement = kwargs.get('response_placement')
             do_placement = False
             _response = ""
             content_type = kwargs.get('content_type')
@@ -407,6 +411,9 @@ class Endpoint(object):
                 http_headers = kwargs["http_headers"]
             except KeyError:
                 http_headers = []
+
+        if _response_placement:
+            _resp["response_placement"] = _response_placement
 
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 

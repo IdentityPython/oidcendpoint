@@ -541,7 +541,8 @@ class TestEndpoint(object):
             "return_uri": "https://example.com/cb",
         }
         info = self.endpoint.response_mode(request, **info)
-        assert set(info.keys()) == {"response_args", "return_uri", "response_msg"}
+        assert set(info.keys()) == {"response_args", "return_uri", "response_msg",
+                                    "content_type", "response_placement"}
         assert info["response_msg"] == FORM_POST.format(
             action="https://example.com/cb",
             inputs='<input type="hidden" name="foo" value="bar"/>',
