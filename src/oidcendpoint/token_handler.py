@@ -14,7 +14,7 @@ from oidcendpoint.util import importer
 from oidcendpoint.util import lv_pack
 from oidcendpoint.util import lv_unpack
 
-__author__ = 'Roland Hedberg'
+__author__ = "Roland Hedberg"
 
 logger = logging.getLogger(__name__)
 
@@ -51,27 +51,29 @@ def is_expired(exp, when=0):
 class Crypt(object):
     def __init__(self, password, mode=None):
         self.key = base64.urlsafe_b64encode(
-            hashlib.sha256(password.encode("utf-8")).digest())
+            hashlib.sha256(password.encode("utf-8")).digest()
+        )
         self.core = Fernet(self.key)
 
     def encrypt(self, text):
         # Padding to blocksize of AES
         text = as_bytes(text)
         if len(text) % 16:
-            text += b' ' * (16 - len(text) % 16)
+            text += b" " * (16 - len(text) % 16)
         return self.core.encrypt(as_bytes(text))
 
     def decrypt(self, ciphertext):
         dec_text = self.core.decrypt(ciphertext)
-        dec_text = dec_text.rstrip(b' ')
+        dec_text = dec_text.rstrip(b" ")
         return as_unicode(dec_text)
 
 
 class Token(object):
-    def __init__(self, typ, lifetime=300, **kwargs):
+    def __init__(self, typ, black_list=None, lifetime=300, **kwargs):
         self.type = typ
         self.lifetime = lifetime
         self.args = kwargs
+        self.blist = [] if black_list is None else black_list
 
     def __call__(self, sid, *args, **kwargs):
         """
@@ -111,16 +113,23 @@ class Token(object):
     def gather_args(self, *args, **kwargs):
         return {}
 
+    def black_list(self, token):
+        if token:
+            self.blist.append(token)
+
+    def is_black_listed(self, token):
+        return token in self.blist
+
 
 class DefaultToken(Token):
-    def __init__(self, password, typ='', black_list=None, token_type='Bearer',
-                 **kwargs):
-        Token.__init__(self, typ, **kwargs)
+    def __init__(
+        self, password, typ="", black_list=None, token_type="Bearer", **kwargs
+    ):
+        Token.__init__(self, typ, black_list, **kwargs)
         self.crypt = Crypt(password)
         self.token_type = token_type
-        self.blist = [] if black_list is None else black_list
 
-    def __call__(self, sid='', ttype='', **kwargs):
+    def __call__(self, sid="", ttype="", **kwargs):
         """
         Return a token.
 
@@ -132,21 +141,21 @@ class DefaultToken(Token):
         if not ttype and self.type:
             ttype = self.type
         else:
-            ttype = 'A'
+            ttype = "A"
 
         if self.lifetime >= 0:
             exp = str(time_sans_frac() + self.lifetime)
         else:
-            exp = '-1'  # Live for ever
+            exp = "-1"  # Live for ever
 
-        tmp = ''
-        rnd = ''
+        tmp = ""
+        rnd = ""
         while rnd == tmp:  # Don't use the same random value again
             rnd = rndstr(32)  # Ultimate length multiple of 16
 
         return base64.b64encode(
-            self.crypt.encrypt(lv_pack(rnd, ttype, sid, exp).encode())).decode(
-            "utf-8")
+            self.crypt.encrypt(lv_pack(rnd, ttype, sid, exp).encode())
+        ).decode("utf-8")
 
     def key(self, user="", areq=None):
         """
@@ -156,8 +165,8 @@ class DefaultToken(Token):
         :param areq: The authorization request
         :return: An ID
         """
-        csum = hashlib.new('sha224')
-        csum.update(rndstr(32).encode('utf-8'))
+        csum = hashlib.new("sha224")
+        csum.update(rndstr(32).encode("utf-8"))
         return csum.hexdigest()  # 56 bytes long, 224 bits
 
     def split_token(self, token):
@@ -175,45 +184,35 @@ class DefaultToken(Token):
         :param token: A token
         :return: dictionary with info about the token
         """
-        _res = dict(zip(['_id', 'type', 'sid', 'exp'],
-                        self.split_token(token)))
-        if _res['type'] != self.type:
-            raise WrongTokenType(_res['type'])
+        _res = dict(zip(["_id", "type", "sid", "exp"], self.split_token(token)))
+        if _res["type"] != self.type:
+            raise WrongTokenType(_res["type"])
         else:
-            _res['handler'] = self
-            _res['black_listed'] = self.is_black_listed(token)
+            _res["handler"] = self
+            _res["black_listed"] = self.is_black_listed(token)
             return _res
 
     def is_expired(self, token, when=0):
-        _exp = self.info(token)['exp']
-        if _exp == '-1':
+        _exp = self.info(token)["exp"]
+        if _exp == "-1":
             return False
         else:
             exp = int(_exp)
         return is_expired(exp, when)
 
-    def black_list(self, token):
-        if token:
-            self.blist.append(token)
-
-    def is_black_listed(self, token):
-        return token in self.blist
-
 
 class TokenHandler(object):
-    def __init__(self, access_token_handler=None, code_handler=None,
-                 refresh_token_handler=None):
+    def __init__(
+        self, access_token_handler=None, code_handler=None, refresh_token_handler=None
+    ):
 
-        self.handler = {
-            'code': code_handler,
-            'access_token': access_token_handler,
-        }
+        self.handler = {"code": code_handler, "access_token": access_token_handler}
 
-        self.handler_order = ['code', 'access_token']
+        self.handler_order = ["code", "access_token"]
 
         if refresh_token_handler:
-            self.handler['refresh_token'] = refresh_token_handler
-            self.handler_order.append('refresh_token')
+            self.handler["refresh_token"] = refresh_token_handler
+            self.handler_order.append("refresh_token")
 
     def __getitem__(self, typ):
         return self.handler[typ]
@@ -235,10 +234,10 @@ class TokenHandler(object):
         raise KeyError(item)
 
     def sid(self, token, order=None):
-        return self.info(token, order)['sid']
+        return self.info(token, order)["sid"]
 
     def type(self, token, order=None):
-        return self.info(token, order)['type']
+        return self.info(token, order)["type"]
 
     def is_black_listed(self, token, order=None):
         _handler = self.get_handler(token, order)
@@ -268,7 +267,7 @@ class TokenHandler(object):
 
 def init_token_handler(ec, spec, typ):
     try:
-        _cls = spec['class']
+        _cls = spec["class"]
     except KeyError:
         cls = DefaultToken
     else:
@@ -288,7 +287,7 @@ def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
     :return: TokenHandler instance
     """
 
-    TTYPE = {'code': 'A', 'token': 'T', 'refresh': 'R'}
+    TTYPE = {"code": "A", "token": "T", "refresh": "R"}
 
     if jwks_def:
         kj = init_key_jar(**jwks_def)
@@ -299,25 +298,25 @@ def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
 
     if code:
         if kj:
-            _keys = kj.get_encrypt_key(key_type='oct', kid='code')
+            _keys = kj.get_encrypt_key(key_type="oct", kid="code")
             if _keys:
-                code['password'] = as_unicode(_keys[0].k)
-        args['code_handler'] = init_token_handler(ec, code, TTYPE['code'])
+                code["password"] = as_unicode(_keys[0].k)
+        args["code_handler"] = init_token_handler(ec, code, TTYPE["code"])
 
     if token:
         if kj:
-            _keys = kj.get_encrypt_key(key_type='oct', kid='token')
+            _keys = kj.get_encrypt_key(key_type="oct", kid="token")
             if _keys:
-                token['password'] = as_unicode(_keys[0].k)
-        args['access_token_handler'] = init_token_handler(ec, token,
-                                                          TTYPE['token'])
+                token["password"] = as_unicode(_keys[0].k)
+        args["access_token_handler"] = init_token_handler(ec, token, TTYPE["token"])
 
     if refresh:
         if kj:
-            _keys = kj.get_encrypt_key(key_type='oct', kid='refresh')
+            _keys = kj.get_encrypt_key(key_type="oct", kid="refresh")
             if _keys:
-                refresh['password'] = as_unicode(_keys[0].k)
-        args['refresh_token_handler'] = init_token_handler(ec, refresh,
-                                                           TTYPE['refresh'])
+                refresh["password"] = as_unicode(_keys[0].k)
+        args["refresh_token_handler"] = init_token_handler(
+            ec, refresh, TTYPE["refresh"]
+        )
 
     return TokenHandler(**args)

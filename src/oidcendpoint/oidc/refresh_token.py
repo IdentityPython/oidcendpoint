@@ -20,11 +20,12 @@ class RefreshAccessToken(Endpoint):
     request_cls = oidc.RefreshAccessTokenRequest
     response_cls = oidc.AccessTokenResponse
     error_cls = TokenErrorResponse
-    request_format = 'json'
-    request_placement = 'body'
-    response_format = 'json'
-    response_placement = 'body'
-    endpoint_name = 'token_endpoint'
+    request_format = "json"
+    request_placement = "body"
+    response_format = "json"
+    response_placement = "body"
+    endpoint_name = "token_endpoint"
+    name = "refresh_token"
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
@@ -33,18 +34,20 @@ class RefreshAccessToken(Endpoint):
     def _refresh_access_token(self, req, **kwargs):
         _sdb = self.endpoint_context.sdb
 
-        client_id = str(req['client_id'])
+        # client_id = str(req["client_id"])
 
         if req["grant_type"] != "refresh_token":
-            return self.error_cls(error='invalid_request',
-                                  error_description='Wrong grant_type')
+            return self.error_cls(
+                error="invalid_request", error_description="Wrong grant_type"
+            )
 
         rtoken = req["refresh_token"]
         try:
             _info = _sdb.refresh_token(rtoken)
         except ExpiredToken:
-            return self.error_cls(error="invalid_request",
-                                  error_description="Refresh token is expired")
+            return self.error_cls(
+                error="invalid_request", error_description="Refresh token is expired"
+            )
 
         return by_schema(AccessTokenResponse, **_info)
 
@@ -60,21 +63,21 @@ class RefreshAccessToken(Endpoint):
         """
         try:
             auth_info = verify_client(self.endpoint_context, request, auth)
-            msg = ''
+            msg = ""
         except Exception as err:
             msg = "Failed to verify client due to: {}".format(err)
             logger.error(msg)
-            return self.error_cls(error="unauthorized_client",
-                                  error_description=msg)
+            return self.error_cls(error="unauthorized_client", error_description=msg)
         else:
-            if 'client_id' not in auth_info:
-                logger.error('No client_id, authentication failed')
-                return self.error_cls(error="unauthorized_client",
-                                      error_description='unknown client')
+            if "client_id" not in auth_info:
+                logger.error("No client_id, authentication failed")
+                return self.error_cls(
+                    error="unauthorized_client", error_description="unknown client"
+                )
 
         return auth_info
 
-    def _post_parse_request(self, request, client_id='', **kwargs):
+    def _post_parse_request(self, request, client_id="", **kwargs):
         """
         This is where clients come to refresh their access tokens
 
@@ -111,11 +114,12 @@ class RefreshAccessToken(Endpoint):
         if isinstance(response_args, ResponseMessage):
             return response_args
 
-        _token = request["refresh_token"].replace(' ', '+')
-        _cookie = new_cookie(self.endpoint_context,
-                             sub=self.endpoint_context.sdb[_token]['sub'])
-        _headers = [('Content-type', 'application/json')]
-        resp = {'response_args': response_args, 'http_headers': _headers}
+        _token = request["refresh_token"].replace(" ", "+")
+        _cookie = new_cookie(
+            self.endpoint_context, sub=self.endpoint_context.sdb[_token]["sub"]
+        )
+        _headers = [("Content-type", "application/json")]
+        resp = {"response_args": response_args, "http_headers": _headers}
         if _cookie:
-            resp['cookie'] = _cookie
+            resp["cookie"] = _cookie
         return resp

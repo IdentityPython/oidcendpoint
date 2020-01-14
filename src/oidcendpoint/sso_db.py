@@ -1,6 +1,10 @@
+import logging
 from oidcendpoint.in_memory_db import InMemoryDataBase
 
-KEY_FORMAT = '__{}__{}'
+KEY_FORMAT = "__{}__{}"
+
+
+logger = logging.getLogger(__name__)
 
 
 class SSODb(object):
@@ -19,6 +23,7 @@ class SSODb(object):
         self._db = db or InMemoryDataBase()
 
     def set(self, label, key, value):
+        logger.debug("SSODb set {} - {}: {}".format(label, key, value))
         _key = KEY_FORMAT.format(label, key)
         _values = self._db.get(_key)
         if not _values:
@@ -29,7 +34,9 @@ class SSODb(object):
 
     def get(self, label, key):
         _key = KEY_FORMAT.format(label, key)
-        return self._db.get(_key)
+        value = self._db.get(_key)
+        logger.debug("SSODb get {} - {}: {}".format(label, key, value))
+        return value
 
     def delete(self, label, key):
         _key = KEY_FORMAT.format(label, key)
@@ -38,16 +45,16 @@ class SSODb(object):
     def remove(self, label, key, value):
         _key = KEY_FORMAT.format(label, key)
         _values = self._db.get(_key)
-        if _values:
-            try:
-                _values.remove(value)
-            except ValueError:
-                pass
+        vcount = len(_values)
+        # full clean up
+        while value in _values:
+            _values.remove(value)
+        # if changes have been made -> update them
+        if vcount != len(_values):
+            if _values:
+                self._db.set(_key, _values)
             else:
-                if _values:
-                    self._db.set(_key, _values)
-                else:
-                    self._db.delete(_key)
+                self._db.delete(_key)
 
     def map_sid2uid(self, sid, uid):
         """
@@ -56,8 +63,8 @@ class SSODb(object):
         :param sid: Session ID
         :param uid: User ID
         """
-        self.set('sid2uid', sid, uid)
-        self.set('uid2sid', uid, sid)
+        self.set("sid2uid", sid, uid)
+        self.set("uid2sid", uid, sid)
 
     def map_sid2sub(self, sid, sub):
         """
@@ -66,8 +73,8 @@ class SSODb(object):
         :param sid: Session ID
         :param sub: subject ID
         """
-        self.set('sid2sub', sid, sub)
-        self.set('sub2sid', sub, sid)
+        self.set("sid2sub", sid, sub)
+        self.set("sub2sid", sub, sid)
 
     def get_sids_by_uid(self, uid):
         """
@@ -76,13 +83,13 @@ class SSODb(object):
         :param uid: The subject ID
         :return: list of session IDs
         """
-        return self.get('uid2sid', uid)
+        return self.get("uid2sid", uid)
 
     def get_sids_by_sub(self, sub):
-        return self.get('sub2sid', sub)
+        return self.get("sub2sid", sub)
 
     def get_sub_by_sid(self, sid):
-        _subs =self.get('sid2sub', sid)
+        _subs = self.get("sid2sub", sid)
         if _subs:
             return _subs[0]
         else:
@@ -95,7 +102,7 @@ class SSODb(object):
         :param sid: A Session ID
         :return: A User ID, always just one
         """
-        _uids = self.get('sid2uid', sid)
+        _uids = self.get("sid2uid", sid)
         if _uids:
             return _uids[0]
         else:
@@ -109,8 +116,8 @@ class SSODb(object):
         :return: A set of subject identifiers
         """
         res = set()
-        for sid in self.get('uid2sid', uid):
-            res |= set(self.get('sid2sub', sid))
+        for sid in self.get("uid2sid", uid):
+            res |= set(self.get("sid2sub", sid))
         return res
 
     def remove_sid2sub(self, sid, sub):
@@ -120,8 +127,8 @@ class SSODb(object):
         :param sid: Session ID
         :param sub: Subject identifier
 ´       """
-        self.remove('sub2sid', sub, sid)
-        self.remove('sid2sub', sid, sub)
+        self.remove("sub2sid", sub, sid)
+        self.remove("sid2sub", sid, sub)
 
     def remove_sid2uid(self, sid, uid):
         """
@@ -130,8 +137,8 @@ class SSODb(object):
         :param sid: Session ID
         :param uid: User identifier
 ´       """
-        self.remove('uid2sid', uid, sid)
-        self.remove('sid2uid', sid, uid)
+        self.remove("uid2sid", uid, sid)
+        self.remove("sid2uid", sid, uid)
 
     def remove_session_id(self, sid):
         """
@@ -139,13 +146,13 @@ class SSODb(object):
 
         :param sid: A Session ID
         """
-        for uid in self.get('sid2uid', sid):
-            self.remove('uid2sid', uid, sid)
-        self.delete('sid2uid', sid)
+        for uid in self.get("sid2uid", sid):
+            self.remove("uid2sid", uid, sid)
+        self.delete("sid2uid", sid)
 
-        for sub in self.get('sid2sub', sid):
-            self.remove('sub2sid', sub, sid)
-        self.delete('sid2sub', sid)
+        for sub in self.get("sid2sub", sid):
+            self.remove("sub2sid", sub, sid)
+        self.delete("sid2sub", sid)
 
     def remove_uid(self, uid):
         """
@@ -153,9 +160,9 @@ class SSODb(object):
 
         :param uid: A User ID
         """
-        for sid in self.get('uid2sid', uid):
-            self.remove('sid2uid', sid, uid)
-        self.delete('uid2sid', uid)
+        for sid in self.get("uid2sid", uid):
+            self.remove("sid2uid", sid, uid)
+        self.delete("uid2sid", uid)
 
     def remove_sub(self, sub):
         """
@@ -163,6 +170,6 @@ class SSODb(object):
 
         :param sub: A Subject ID
         """
-        for _sid in self.get('sub2sid', sub):
-            self.remove('sid2sub', _sid, sub)
-        self.delete('sub2sid', sub)
+        for _sid in self.get("sub2sid", sub):
+            self.remove("sid2sub", _sid, sub)
+        self.delete("sub2sid", sub)

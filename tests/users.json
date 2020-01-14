@@ -13,7 +13,10 @@
       "locality": "Umeå",
       "postal_code": "SE-90187",
       "country": "Sweden"
-    }
+    },
+    "eduperson_scoped_affiliation": [
+      "staff@example.org"
+    ]
   },
   "babs": {
     "sub": "babs0001",
