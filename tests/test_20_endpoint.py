@@ -2,7 +2,6 @@ import json
 from urllib.parse import urlparse
 
 import pytest
-from cryptojwt.key_jar import build_keyjar
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD

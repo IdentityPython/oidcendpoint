@@ -1,4 +1,3 @@
-import time
 from http.cookies import SimpleCookie
 
 import pytest
@@ -9,6 +8,7 @@ from oidcendpoint.cookie import append_cookie
 from oidcendpoint.cookie import compute_session_state
 from oidcendpoint.cookie import cookie_value
 from oidcendpoint.cookie import create_session_cookie
+from oidcendpoint.cookie import make_cookie
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.token import AccessToken
@@ -253,3 +253,36 @@ def test_new_cookie():
     b64val, ts, typ = val
     info = cookie_value(b64val)
     assert set(info.keys()) == {"client_id", "sid"}
+
+
+def test_cookie_default():
+    _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
+    kaka = make_cookie('test', "data", sign_key=_key)
+    assert kaka['test']["secure"] is True
+    assert kaka["test"]["httponly"] is True
+    assert kaka["test"]["samesite"] is ""
+
+
+def test_cookie_http_only_false():
+    _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
+    kaka = make_cookie('test', "data", sign_key=_key, http_only=False)
+    assert kaka['test']["secure"] is True
+    assert kaka["test"]["httponly"] is False
+    assert kaka["test"]["samesite"] is ""
+
+
+def test_cookie_not_secure():
+    _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
+    kaka = make_cookie('test', "data", _key, secure=False)
+    assert kaka['test']["secure"] is False
+    assert kaka["test"]["httponly"] is True
+    assert kaka["test"]["samesite"] is ""
+
+
+def test_cookie_same_site_none():
+    _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
+    kaka = make_cookie('test', "data", sign_key=_key, same_site="None")
+    assert kaka['test']["secure"] is True
+    assert kaka["test"]["httponly"] is True
+    assert kaka["test"]["samesite"] is "None"
+

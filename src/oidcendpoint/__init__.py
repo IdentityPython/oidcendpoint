@@ -6,7 +6,7 @@ try:
 except ImportError:
     import random as rnd
 
-__version__ = "0.11.1"
+__version__ = "0.12.0"
 
 
 DEF_SIGN_ALG = {
@@ -38,4 +38,4 @@ def rndstr(size=16):
     :return: string
     """
     chars = string.ascii_letters + string.digits
-    return ''.join(rnd.choice(chars) for i in range(size))
+    return "".join(rnd.choice(chars) for i in range(size))

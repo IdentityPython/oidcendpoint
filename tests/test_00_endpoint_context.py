@@ -4,9 +4,7 @@ from copy import copy
 import pytest
 import yaml
 from cryptojwt.key_jar import build_keyjar
-
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.exception import ConfigurationError
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.add_on.pkce import add_pkce_support
 from oidcendpoint.oidc.authorization import Authorization
@@ -33,10 +31,7 @@ conf = {
     "verify_ssl": False,
     "capabilities": {},
     "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS, "read_only": True},
-    "id_token": {
-        "class": IDToken,
-        "kwargs": {}
-    },
+    "id_token": {"class": IDToken, "kwargs": {}},
     "endpoint": {
         "provider_config": {
             "path": ".well-known/openid-configuration",
@@ -68,14 +63,7 @@ conf = {
             "kwargs": {"user": "diana"},
         }
     },
-    "add_on": {
-        "pkce": {
-            "function": add_pkce_support,
-            "kwargs": {
-                "essential": True
-            }
-        }
-    },
+    "add_on": {"pkce": {"function": add_pkce_support, "kwargs": {"essential": True}}},
     "template_dir": "template",
 }
 
@@ -122,7 +110,9 @@ def test_capabilities_default():
 
 def test_capabilities_subset1():
     _cnf = copy(conf)
-    _cnf["endpoint"]["authorization_endpoint"]["kwargs"] = {"response_types_supported": ["code"]}
+    _cnf["endpoint"]["authorization_endpoint"]["kwargs"] = {
+        "response_types_supported": ["code"]
+    }
     endpoint_context = EndpointContext(_cnf)
     assert endpoint_context.provider_info["response_types_supported"] == ["code"]
 
@@ -141,7 +131,9 @@ def test_capabilities_subset2():
 
 def test_capabilities_bool():
     _cnf = copy(conf)
-    _cnf["endpoint"]["authorization_endpoint"]["kwargs"] = {"request_uri_parameter_supported": False}
+    _cnf["endpoint"]["authorization_endpoint"]["kwargs"] = {
+        "request_uri_parameter_supported": False
+    }
     endpoint_context = EndpointContext(_cnf)
     assert endpoint_context.provider_info["request_uri_parameter_supported"] is False
 

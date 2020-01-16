@@ -2,10 +2,6 @@ import json
 import os
 
 import pytest
-from oidcendpoint.client_authn import ClientSecretBasic
-from oidcendpoint.client_authn import ClientSecretJWT
-from oidcendpoint.client_authn import ClientSecretPost
-from oidcendpoint.client_authn import PrivateKeyJWT
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc import userinfo

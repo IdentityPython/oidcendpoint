@@ -26,16 +26,15 @@ class AccessToken(Endpoint):
     response_placement = "body"
     endpoint_name = "token_endpoint"
     name = "token"
-    default_capabilities = {
-        "token_endpoint_auth_signing_alg_values_supported": None
-    }
+    default_capabilities = {"token_endpoint_auth_signing_alg_values_supported": None}
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
         self.post_parse_request.append(self._post_parse_request)
         if "client_authn_method" in kwargs:
-            self.provider_info[
-                "token_endpoint_auth_methods_supported"] = kwargs["client_authn_method"]
+            self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
+                "client_authn_method"
+            ]
 
     def _access_token(self, req, **kwargs):
         _context = self.endpoint_context

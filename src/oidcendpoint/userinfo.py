@@ -1,26 +1,26 @@
 import logging
 
-from oidcservice import sanitize
 from oidcmsg.oidc import Claims
 
+from oidcendpoint import sanitize
 from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.user_info import scope2claims
 
 logger = logging.getLogger(__name__)
 
 
-def id_token_claims(session):
+def id_token_claims(session, provider_info):
     """
     Pick the IdToken claims from the request
 
     :param session: Session information
     :return: The IdToken claims
     """
-    itc = update_claims(session, "id_token", {})
+    itc = update_claims(session, "id_token", provider_info=provider_info, old_claims={})
     return itc
 
 
-def update_claims(session, about, old_claims=None):
+def update_claims(session, about, provider_info, old_claims=None):
     """
 
     :param session:
@@ -45,6 +45,11 @@ def update_claims(session, about, old_claims=None):
             pass
         else:
             if _claims:
+                # Deal only with supported claims
+                _unsup = [c for c in _claims.keys() if c not in provider_info["claims_supported"]]
+                for _c in _unsup:
+                    del _claims[_c]
+
                 # update with old claims, do not overwrite
                 for key, val in old_claims.items():
                     if key not in _claims:
@@ -102,8 +107,9 @@ def by_schema(cls, **kwa):
     return dict([(key, val) for key, val in kwa.items() if key in cls.c_param])
 
 
-def collect_user_info(endpoint_context, session, userinfo_claims=None,
-                      scope_to_claims=None):
+def collect_user_info(
+        endpoint_context, session, userinfo_claims=None, scope_to_claims=None
+):
     """
     Collect information about a user.
     This can happen in two cases, either when constructing an IdToken or
@@ -114,9 +120,14 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None,
     :return: User info
     """
     authn_req = session["authn_req"]
+    if scope_to_claims is None:
+        scope_to_claims = endpoint_context.scope2claims
+
+    supported_scopes = [s for s in authn_req["scope"] if
+                        s in endpoint_context.provider_info["scopes_supported"]]
 
     if userinfo_claims is None:
-        uic = scope2claims(authn_req["scope"], map=scope_to_claims)
+        uic = scope2claims(supported_scopes, map=scope_to_claims)
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session
@@ -124,7 +135,9 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None,
         if perm_set:
             uic = {key: uic[key] for key in uic if key in perm_set}
 
-        uic = update_claims(session, "userinfo", uic)
+        uic = update_claims(session, "userinfo",
+                            provider_info=endpoint_context.provider_info,
+                            old_claims=uic)
 
         if uic:
             userinfo_claims = Claims(**uic)
@@ -156,8 +169,7 @@ def collect_user_info(endpoint_context, session, userinfo_claims=None,
     return info
 
 
-def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None,
-                                scope_to_claims=None):
+def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
     """
     Collect user info claims that are to be placed in the id token.
 
@@ -171,7 +183,7 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None,
     else:
         itc = {}
 
-    itc.update(id_token_claims(session))
+    itc.update(id_token_claims(session, provider_info=endpoint_context.provider_info))
 
     if not itc:
         return None
@@ -179,7 +191,6 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None,
     _claims = by_schema(endpoint_context.id_token_schema, **itc)
 
     if _claims:
-        return collect_user_info(endpoint_context, session, _claims,
-                                 scope_to_claims=scope_to_claims)
+        return collect_user_info(endpoint_context, session, _claims)
     else:
         return None

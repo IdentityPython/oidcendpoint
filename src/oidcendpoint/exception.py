@@ -69,3 +69,15 @@ class OnlyForTestingWarning(Warning):
 
 class ProcessError(OidcEndpointError):
     pass
+
+
+class ServiceError(OidcEndpointError):
+    pass
+
+
+class InvalidRequest(OidcEndpointError):
+    pass
+
+
+class CapabilitiesMisMatch(OidcEndpointError):
+    pass

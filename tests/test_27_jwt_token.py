@@ -3,9 +3,7 @@ import os
 import pytest
 from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
-from cryptojwt.key_jar import build_keyjar
 from cryptojwt.key_jar import init_key_jar
-from oidcendpoint import rndstr
 from oidcendpoint import user_info
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext

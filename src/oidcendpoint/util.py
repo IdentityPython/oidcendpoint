@@ -75,9 +75,9 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
 
         if _instance.endpoint_name:
             try:
-                _instance.provider_info[_instance.endpoint_name] = _instance.full_path
+                _instance.endpoint_info[_instance.endpoint_name] = _instance.full_path
             except TypeError:
-                _instance.provider_info = {_instance.endpoint_name: _instance.full_path}
+                _instance.endpoint_info = {_instance.endpoint_name: _instance.full_path}
 
         endpoint[_instance.name] = _instance
 
@@ -128,5 +128,5 @@ def lv_unpack(txt):
     while txt:
         l, v = txt.split(":", 1)
         res.append(v[: int(l)])
-        txt = v[int(l):]
+        txt = v[int(l) :]
     return res

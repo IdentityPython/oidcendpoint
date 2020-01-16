@@ -3,7 +3,7 @@ import logging
 from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
 
-from oidcendpoint.endpoint import construct_provider_info
+from oidcendpoint.endpoint import construct_endpoint_info
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
 
@@ -31,8 +31,7 @@ def include_session_id(endpoint_context, client_id, where):
 
     # Am the OP supposed to support {dir}-channel log out and if so can
     # it pass sid in logout token and ID Token
-    for param in ["{}channel_logout_supported",
-                  "{}channel_logout_session_supported"]:
+    for param in ["{}channel_logout_supported", "{}channel_logout_session_supported"]:
         try:
             _supported = _pinfo[param.format(where)]
         except KeyError:
@@ -51,7 +50,7 @@ def include_session_id(endpoint_context, client_id, where):
 
 
 def get_sign_and_encrypt_algorithms(
-        endpoint_context, client_info, payload_type, sign=False, encrypt=False
+    endpoint_context, client_info, payload_type, sign=False, encrypt=False
 ):
     args = {"sign": sign, "encrypt": encrypt}
     if sign:
@@ -107,26 +106,28 @@ class IDToken(object):
     default_capabilities = {
         "id_token_signing_alg_values_supported": None,
         "id_token_encryption_alg_values_supported": None,
-        "id_token_encryption_enc_values_supported": None
+        "id_token_encryption_enc_values_supported": None,
     }
 
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
         self.scope_to_claims = None
-        self.provider_info = construct_provider_info(self.default_capabilities, **kwargs)
+        self.provider_info = construct_endpoint_info(
+            self.default_capabilities, **kwargs
+        )
 
     def payload(
-            self,
-            session,
-            acr="",
-            alg="RS256",
-            code=None,
-            access_token=None,
-            user_info=None,
-            auth_time=0,
-            lifetime=None,
-            extra_claims=None,
+        self,
+        session,
+        acr="",
+        alg="RS256",
+        code=None,
+        access_token=None,
+        user_info=None,
+        auth_time=0,
+        lifetime=None,
+        extra_claims=None,
     ):
         """
 
@@ -187,16 +188,16 @@ class IDToken(object):
         return {"payload": _args, "lifetime": lifetime}
 
     def sign_encrypt(
-            self,
-            session_info,
-            client_id,
-            code=None,
-            access_token=None,
-            user_info=None,
-            sign=True,
-            encrypt=False,
-            lifetime=None,
-            extra_claims=None,
+        self,
+        session_info,
+        client_id,
+        code=None,
+        access_token=None,
+        user_info=None,
+        sign=True,
+        encrypt=False,
+        lifetime=None,
+        extra_claims=None,
     ):
         """
         Signed and or encrypt a IDToken
@@ -250,7 +251,7 @@ class IDToken(object):
 
         _cinfo = _context.cdb[_client_id]
 
-        default_idtoken_claims = self.kwargs.get("default_claims", None)
+        default_idtoken_claims = dict(self.kwargs.get("default_claims", {}))
         lifetime = self.kwargs.get("lifetime")
 
         userinfo = userinfo_in_id_token_claims(
@@ -258,21 +259,22 @@ class IDToken(object):
         )
 
         if user_claims:
-            info = collect_user_info(_context, sess_info,
-                                     scope_to_claims=self.scope_to_claims)
+            info = collect_user_info(_context, sess_info)
             if userinfo is None:
                 userinfo = info
             else:
                 userinfo.update(info)
 
         # Should I add session ID
-        req_sid = include_session_id(_context, _client_id, "back") or include_session_id(_context,
-                                                                                         _client_id,
-                                                                                         "front")
+        req_sid = include_session_id(
+            _context, _client_id, "back"
+        ) or include_session_id(_context, _client_id, "front")
 
         if req_sid:
             xargs = {
-                "sid": _context.sdb.get_sid_by_sub_and_client_id(sess_info["sub"], _client_id)
+                "sid": _context.sdb.get_sid_by_sub_and_client_id(
+                    sess_info["sub"], _client_id
+                )
             }
         else:
             xargs = {}

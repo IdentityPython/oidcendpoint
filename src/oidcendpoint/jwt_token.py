@@ -12,17 +12,17 @@ from oidcendpoint.user_info import scope2claims
 
 class JWTToken(Token):
     def __init__(
-            self,
-            typ,
-            black_list=None,
-            keyjar=None,
-            issuer=None,
-            aud=None,
-            alg="ES256",
-            lifetime=300,
-            ec=None,
-            token_type="Bearer",
-            **kwargs
+        self,
+        typ,
+        black_list=None,
+        keyjar=None,
+        issuer=None,
+        aud=None,
+        alg="ES256",
+        lifetime=300,
+        ec=None,
+        token_type="Bearer",
+        **kwargs
     ):
         Token.__init__(self, typ, black_list, **kwargs)
         self.token_type = token_type
@@ -34,10 +34,7 @@ class JWTToken(Token):
 
         self.def_aud = aud or []
         self.alg = alg
-        if 'scope_claims_map' in kwargs:
-            self.scope_claims_map = kwargs['scope_claims_map']
-        else:
-            self.scope_claims_map = None
+        self.scope_claims_map = kwargs.get("scope_claims_map", ec.scope2claims)
 
     def add_claims(self, payload, uinfo, claims):
         for attr in claims:
@@ -49,13 +46,7 @@ class JWTToken(Token):
                 pass
 
     def __call__(
-            self,
-            sid: str,
-            uinfo: Dict,
-            sinfo: Dict,
-            *args,
-            aud: Optional[Any],
-            **kwargs
+        self, sid: str, uinfo: Dict, sinfo: Dict, *args, aud: Optional[Any], **kwargs
     ):
         """
         Return a token.
@@ -70,11 +61,13 @@ class JWTToken(Token):
 
         if "add_claims" in self.args:
             self.add_claims(payload, uinfo, self.args["add_claims"])
-        if "add_claims_by_scope":
+        if self.args.get("add_claims_by_scope", False):
             self.add_claims(
-                payload, uinfo,
-                scope2claims(sinfo["authn_req"]["scope"],
-                             map=self.scope_claims_map).keys()
+                payload,
+                uinfo,
+                scope2claims(
+                    sinfo["authn_req"]["scope"], map=self.scope_claims_map
+                ).keys(),
             )
 
         payload.update(kwargs)

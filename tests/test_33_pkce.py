@@ -7,17 +7,16 @@ import pytest
 import yaml
 from Cryptodome.Random import random
 from cryptojwt.utils import b64e
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.add_on.pkce import CC_METHOD
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
 
-BASECH = string.ascii_letters + string.digits + '-._~'
+BASECH = string.ascii_letters + string.digits + "-._~"
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -118,18 +117,19 @@ def _code_challenge():
     code_verifier = unreserved(64)
     _cv = code_verifier.encode()
 
-    _method = 'S256'
+    _method = "S256"
 
     # Pick hash method
     _hash_method = CC_METHOD[_method]
     # Use it on the code_verifier
     _hv = _hash_method(_cv).digest()
     # base64 encode the hash value
-    code_challenge = b64e(_hv).decode('ascii')
+    code_challenge = b64e(_hv).decode("ascii")
 
     return {
         "code_challenge": code_challenge,
-        "code_challenge_method": _method, "code_verifier": code_verifier
+        "code_challenge_method": _method,
+        "code_verifier": code_verifier,
     }
 
 
@@ -158,7 +158,7 @@ class TestEndpoint(object):
                 "authorization": {
                     "path": "{}/authorization",
                     "class": Authorization,
-                    "kwargs": {}
+                    "kwargs": {},
                 },
                 "token": {
                     "path": "{}/token",
@@ -170,7 +170,7 @@ class TestEndpoint(object):
                             "client_secret_jwt",
                             "private_key_jwt",
                         ]
-                    }
+                    },
                 },
             },
             "authentication": {
@@ -184,7 +184,7 @@ class TestEndpoint(object):
             "add_on": {
                 "pkce": {
                     "function": "oidcendpoint.oidc.add_on.pkce.add_pkce_support",
-                    "kwargs": {"essential": True}
+                    "kwargs": {"essential": True},
                 }
             },
             "cookie_dealer": {
@@ -206,8 +206,8 @@ class TestEndpoint(object):
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
-        self.authn_endpoint = endpoint_context.endpoint['authorization']
-        self.token_endpoint = endpoint_context.endpoint['token']
+        self.authn_endpoint = endpoint_context.endpoint["authorization"]
+        self.token_endpoint = endpoint_context.endpoint["token"]
 
     def test_parse(self):
         _cc_info = _code_challenge()
@@ -219,7 +219,9 @@ class TestEndpoint(object):
         _resp = self.authn_endpoint.process_request(_pr_resp)
 
         _token_request = TOKEN_REQ.copy()
-        sid = self.token_endpoint.endpoint_context.sdb.get_sid_by_kv("state", _authn_req['state'])
+        sid = self.token_endpoint.endpoint_context.sdb.get_sid_by_kv(
+            "state", _authn_req["state"]
+        )
         _token_request["code"] = self.token_endpoint.endpoint_context.sdb[sid]["code"]
         _token_request["code_verifier"] = _cc_info["code_verifier"]
         _req = self.token_endpoint.parse_request(_token_request)

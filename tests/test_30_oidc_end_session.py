@@ -6,13 +6,13 @@ from urllib.parse import urlparse
 
 import pytest
 from cryptojwt.key_jar import build_keyjar
+from oidcendpoint.common.authorization import join_query
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
-from oidcendpoint.oidc.authorization import join_query
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
@@ -418,11 +418,13 @@ class TestEndpoint(object):
         _cdb["frontchannel_logout_session_required"] = True
         _cdb["client_id"] = "client_1"
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
-        test_res = ('<iframe src="https://example.com/fc_logout?',
-                    'iss=https%3A%2F%2Fexample.com%2F',
-                    'sid=_sid_') 
+        test_res = (
+            '<iframe src="https://example.com/fc_logout?',
+            "iss=https%3A%2F%2Fexample.com%2F",
+            "sid=_sid_",
+        )
         for i in test_res:
-            assert (i in res)
+            assert i in res
 
     def test_front_channel_logout_with_query(self):
         self._code_auth("1234567")
@@ -432,11 +434,15 @@ class TestEndpoint(object):
         _cdb["frontchannel_logout_session_required"] = True
         _cdb["client_id"] = "client_1"
         res = do_front_channel_logout_iframe(_cdb, ISS, "_sid_")
-        test_res = ('<iframe', 'src="https://example.com/fc_logout?',
-                    'entity_id=foo',
-                    'iss=https%3A%2F%2Fexample.com%2F','sid=_sid_')
+        test_res = (
+            "<iframe",
+            'src="https://example.com/fc_logout?',
+            "entity_id=foo",
+            "iss=https%3A%2F%2Fexample.com%2F",
+            "sid=_sid_",
+        )
         for i in test_res:
-            assert (i in res)
+            assert i in res
 
     def test_logout_from_client_bc(self):
         self._code_auth("1234567")

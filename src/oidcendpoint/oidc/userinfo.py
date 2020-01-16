@@ -28,7 +28,7 @@ class UserInfo(Endpoint):
         "userinfo_signing_alg_values_supported": None,
         "userinfo_encryption_alg_values_supported": None,
         "userinfo_encryption_enc_values_supported": None,
-        "client_authn_method": ["bearer_header"]
+        "client_authn_method": ["bearer_header"],
     }
 
     def __init__(self, endpoint_context, **kwargs):
@@ -117,8 +117,7 @@ class UserInfo(Endpoint):
 
         if allowed:
             # Scope can translate to userinfo_claims
-            info = collect_user_info(self.endpoint_context, session,
-                                     scope_to_claims=self.scope_to_claims)
+            info = collect_user_info(self.endpoint_context, session)
         else:
             info = {
                 "error": "invalid_request",

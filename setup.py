@@ -51,7 +51,8 @@ setup(
     url='https://github.com/IdentityPython/oicsrv',
     packages=["oidcendpoint", 'oidcendpoint/oidc', 'oidcendpoint/authz',
               'oidcendpoint/user_authn', 'oidcendpoint/user_info',
-              'oidcendpoint/oauth2', 'oidcendpoint/oidc/add_on'],
+              'oidcendpoint/oauth2', 'oidcendpoint/oidc/add_on',
+              'oidcendpoint/common'],
     package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -65,12 +66,12 @@ setup(
         'quality': ['pylama', 'isort', 'eradicate', 'mypy', 'black', 'bandit'],
     },
     install_requires=[
-        "oidcmsg>=0.6.3",
-        "oidcservice>=0.6.3",
-        "cryptojwt>=0.7.0",
+        "oidcmsg>=0.6.5",
+        "cryptojwt>=0.7.12",
         "jinja2",
         "pyyaml",
-        "pycryptodomex"
+        "requests",
+        "responses"
         ],
     tests_require=[
         "pytest", "requests_mock", 'pytest-localserver'

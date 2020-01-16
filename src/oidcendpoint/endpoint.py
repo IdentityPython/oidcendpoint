@@ -35,6 +35,25 @@ do_response
             - _parse_args
             - post_construct (*)
     - update_http_args
+    
+do_response returns a dictionary that can look like this:
+{
+  'response': 
+    _response as a string or as a Message instance_ 
+  'http_headers': [
+    ('Content-type', 'application/json'), 
+    ('Pragma', 'no-cache'), 
+    ('Cache-Control', 'no-store')
+  ],
+  'cookie': _list of cookies_,
+  'response_placement': 'body'
+}
+
+"response" MUST be present
+"http_headers" MAY be present
+"cookie": MAY be present 
+"response_placement": If absent defaults the endpoints response_placement parameter value
+    or if that is also missing 'url'
 """
 
 
@@ -85,21 +104,21 @@ def assign_algorithms(typ):
         return jwe.SUPPORTED["enc"]
 
 
-def construct_provider_info(default_capabilities, **kwargs):
+def construct_endpoint_info(default_capabilities, **kwargs):
     if default_capabilities is not None:
-        provider_info = {}
+        _info = {}
         for attr, default_val in default_capabilities.items():
             try:
                 _proposal = kwargs[attr]
             except KeyError:
                 if default_val is not None:
-                    provider_info[attr] = default_val
+                    _info[attr] = default_val
                 elif "signing_alg_values_supported" in attr:
-                    provider_info[attr] = assign_algorithms("signing_alg")
+                    _info[attr] = assign_algorithms("signing_alg")
                 elif "encryption_alg_values_supported" in attr:
-                    provider_info[attr] = assign_algorithms("encryption_alg")
+                    _info[attr] = assign_algorithms("encryption_alg")
                 elif "encryption_enc_values_supported" in attr:
-                    provider_info[attr] = assign_algorithms("encryption_enc")
+                    _info[attr] = assign_algorithms("encryption_enc")
             else:
                 _permitted = None
 
@@ -112,10 +131,13 @@ def construct_provider_info(default_capabilities, **kwargs):
 
                 if _permitted and not _permitted.issuperset(set(_proposal)):
                     raise ValueError(
-                        "Proposed set of values outside set of permitted ({})".__format__(attr))
+                        "Proposed set of values outside set of permitted ({})".__format__(
+                            attr
+                        )
+                    )
 
-                provider_info[attr] = _proposal
-        return provider_info
+                _info[attr] = _proposal
+        return _info
     else:
         return None
 
@@ -142,13 +164,29 @@ class Endpoint(object):
         self.kwargs = kwargs
         self.full_path = ""
 
+        for param in [
+            "request_cls",
+            "response_cls",
+            "request_format",
+            "request_placement",
+            "response_format",
+            "response_placement",
+        ]:
+            _val = kwargs.get(param)
+            if _val:
+                setattr(self, param, _val)
+
         if "client_authn_method" in kwargs:
             self.client_authn_method = kwargs["client_authn_method"]
         elif self.default_capabilities is not None:
             if "client_authn_method" in self.default_capabilities:
-                self.client_authn_method = self.default_capabilities["client_authn_method"]
+                self.client_authn_method = self.default_capabilities[
+                    "client_authn_method"
+                ]
 
-        self.provider_info = construct_provider_info(self.default_capabilities, **kwargs)
+        self.endpoint_info = construct_endpoint_info(
+            self.default_capabilities, **kwargs
+        )
 
     def parse_request(self, request, auth=None, **kwargs):
         """
@@ -203,7 +241,7 @@ class Endpoint(object):
             else:
                 _client_id = req.get("client_id")
 
-        keyjar = getattr(self, "endpoint_context", "")
+        keyjar = self.endpoint_context.keyjar
 
         # verify that the request message is correct
         try:
@@ -300,10 +338,13 @@ class Endpoint(object):
         return self.construct(response_args, request, **kwargs)
 
     def do_response(self, response_args=None, request=None, error="", **kwargs):
+        """
+
+        """
         do_placement = True
         content_type = "text/html"
         _resp = {}
-
+        _response_placement = None
         if response_args is None:
             response_args = {}
 
@@ -316,44 +357,49 @@ class Endpoint(object):
                 pass
         elif "response_msg" in kwargs:
             resp = kwargs["response_msg"]
+            _response_placement = kwargs.get('response_placement')
             do_placement = False
-            _response = ""  # This is just for my IDE
-            if self.response_format == "json":
-                content_type = "application/json"
-            elif self.request_format in ["jws", "jwe", "jose"]:
-                content_type = "application/jose"
-            else:
-                content_type = "application/x-www-form-urlencoded"
+            _response = ""
+            content_type = kwargs.get('content_type')
+            if content_type is None:
+                if self.response_format == "json":
+                    content_type = "application/json"
+                elif self.request_format in ["jws", "jwe", "jose"]:
+                    content_type = "application/jose"
+                else:
+                    content_type = "application/x-www-form-urlencoded"
         else:
             _response = self.response_info(response_args, request, **kwargs)
 
         if do_placement:
-            if self.response_placement == "body":
-                if self.response_format == "json":
-                    content_type = "application/json"
-                    resp = _response.to_json()
-                elif self.request_format in ["jws", "jwe", "jose"]:
-                    content_type = "application/jose"
-                    resp = _response
-                else:
-                    content_type = "application/x-www-form-urlencoded"
-                    resp = _response.to_urlencoded()
-            elif self.response_placement == "url":
-                # content_type = 'application/x-www-form-urlencoded'
-                content_type = ""
-                try:
-                    fragment_enc = kwargs["fragment_enc"]
-                except KeyError:
-                    fragment_enc = fragment_encoding(kwargs["return_type"])
+            content_type = kwargs.get('content_type')
+            if content_type is None:
+                if self.response_placement == "body":
+                    if self.response_format == "json":
+                        content_type = "application/json"
+                        resp = _response.to_json()
+                    elif self.request_format in ["jws", "jwe", "jose"]:
+                        content_type = "application/jose"
+                        resp = _response
+                    else:
+                        content_type = "application/x-www-form-urlencoded"
+                        resp = _response.to_urlencoded()
+                elif self.response_placement == "url":
+                    # content_type = 'application/x-www-form-urlencoded'
+                    content_type = ""
+                    try:
+                        fragment_enc = kwargs["fragment_enc"]
+                    except KeyError:
+                        fragment_enc = fragment_encoding(kwargs["return_type"])
 
-                if fragment_enc:
-                    resp = _response.request(kwargs["return_uri"], True)
+                    if fragment_enc:
+                        resp = _response.request(kwargs["return_uri"], True)
+                    else:
+                        resp = _response.request(kwargs["return_uri"])
                 else:
-                    resp = _response.request(kwargs["return_uri"])
-            else:
-                raise ValueError(
-                    "Don't know where that is: '{}".format(self.response_placement)
-                )
+                    raise ValueError(
+                        "Don't know where that is: '{}".format(self.response_placement)
+                    )
 
         if content_type:
             try:
@@ -365,6 +411,9 @@ class Endpoint(object):
                 http_headers = kwargs["http_headers"]
             except KeyError:
                 http_headers = []
+
+        if _response_placement:
+            _resp["response_placement"] = _response_placement
 
         http_headers.extend(OAUTH2_NOCACHE_HEADERS)
 

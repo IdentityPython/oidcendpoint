@@ -19,18 +19,21 @@ def post_authn_parse(request, client_id, endpoint_context, **kwargs):
     :param kwargs:
     :return:
     """
-    if endpoint_context.args['pkce']['essential'] is True:
+    if endpoint_context.args["pkce"]["essential"] is True:
         if not "code_challenge" in request:
-            raise ValueError('Missing required code_challenge')
+            raise ValueError("Missing required code_challenge")
         if not "code_challenge_method" in request:
-            if 'plain' not in endpoint_context.args['pkce']['code_challenge_method']:
+            if "plain" not in endpoint_context.args["pkce"]["code_challenge_method"]:
                 raise ValueError("No support for code_challenge_method=plain")
 
             request["code_challenge_method"] = "plain"
     else:  # May or may not
         if "code_challenge" in request:
             if not "code_challenge_method" in request:
-                if 'plain' not in endpoint_context.args['pkce']['code_challenge_method']:
+                if (
+                    "plain"
+                    not in endpoint_context.args["pkce"]["code_challenge_method"]
+                ):
                     raise ValueError("No support for code_challenge_method=plain")
 
                 request["code_challenge_method"] = "plain"
@@ -75,24 +78,24 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
             except KeyError:
                 _method = "S256"
 
-            verify_code_challenge(request["code_verifier"],
-                                  _info["authn_req"]["code_challenge"],
-                                  _method)
+            verify_code_challenge(
+                request["code_verifier"], _info["authn_req"]["code_challenge"], _method
+            )
         else:
-            raise ProcessError('Missing code_challenge in authorization request')
+            raise ProcessError("Missing code_challenge in authorization request")
 
     return request
 
 
 def add_pkce_support(endpoint, **kwargs):
-    endpoint['authorization'].post_parse_request.append(post_authn_parse)
+    endpoint["authorization"].post_parse_request.append(post_authn_parse)
 
     # Set defaults
-    if 'essential' not in kwargs:
-        kwargs['essential'] = False
-    if 'code_challenge' not in kwargs:
-        kwargs['code_challenge'] = list(CC_METHOD.keys())
+    if "essential" not in kwargs:
+        kwargs["essential"] = False
+    if "code_challenge" not in kwargs:
+        kwargs["code_challenge"] = list(CC_METHOD.keys())
 
-    endpoint['authorization'].endpoint_context.args['pkce'] = kwargs
+    endpoint["authorization"].endpoint_context.args["pkce"] = kwargs
 
-    endpoint['token'].post_parse_request.append(post_token_parse)
+    endpoint["token"].post_parse_request.append(post_token_parse)
