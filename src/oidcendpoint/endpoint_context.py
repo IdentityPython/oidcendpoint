@@ -122,6 +122,10 @@ class EndpointContext:
         self.login_hint_lookup = None
         self.login_hint2acrs = None
         self.userinfo = None
+        self.service_documentation = ""
+        self.ui_locales_supported = []
+        self.op_tos_uri = ""
+        self.op_policy_uri = ""
         # arguments for endpoints add-ons
         self.args = {}
 
@@ -156,6 +160,10 @@ class EndpointContext:
         for param in [
             "verify_ssl",
             "issuer",
+            "service_documentation",
+            "ui_locales_supported",
+            "op_policy_uri",
+            "op_tos_uri",
             "sso_ttl",
             "symkey",
             "client_authn",
@@ -344,6 +352,10 @@ class EndpointContext:
 
         _provider_info = capabilities
         _provider_info["issuer"] = self.issuer
+        _provider_info["service_documentation"] = self.service_documentation
+        _provider_info["ui_locales_supported"] = self.ui_locales_supported
+        _provider_info["op_tos_uri"] = self.op_tos_uri
+        _provider_info["op_policy_uri"] = self.op_policy_uri
         _provider_info["version"] = "3.0"
 
         # acr_values

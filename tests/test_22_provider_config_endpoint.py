@@ -52,6 +52,10 @@ class TestEndpoint(object):
     def create_endpoint(self):
         conf = {
             "issuer": "https://example.com/",
+            "service_documentation": "https://that.url.org/service_documentation",
+            "ui_locales_supported": "[en-US, it-IT]",
+            "op_policy_uri": "https://that.url.org/op_policy_uri",
+            "op_tos_uri": "https://that.url.org/op_tos_uri",
             "password": "mycket hemligt",
             "token_expires_in": 600,
             "grant_expires_in": 300,
