@@ -224,7 +224,7 @@ class Endpoint(object):
         # Verify that the client is allowed to do this
         _client_id = ""
         try:
-            auth_info = self.client_authentication(req, auth, **kwargs)
+            auth_info = self.client_authentication(req, auth, endpoint=self.name, **kwargs)
         except UnknownOrNoAuthnMethod:
             # If there is no required client authentication method
             if not self.client_authn_method:
@@ -268,9 +268,12 @@ class Endpoint(object):
         :return: client_id or raise an exception
         """
 
+        _endpoint = kwargs.get("endpoint")
+
         try:
             authn_info = verify_client(
-                self.endpoint_context, request, auth, self.get_client_id_from_token
+                self.endpoint_context, request, auth, self.get_client_id_from_token,
+                endpoint=_endpoint
             )
         except UnknownOrNoAuthnMethod:
             if self.client_authn_method is None:

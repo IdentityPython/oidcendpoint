@@ -26,6 +26,10 @@ class ToOld(OidcEndpointError):
     pass
 
 
+class MultipleUsage(OidcEndpointError):
+    pass
+
+
 class FailedAuthentication(OidcEndpointError):
     pass
 
