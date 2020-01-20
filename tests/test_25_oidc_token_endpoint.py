@@ -8,6 +8,7 @@ from cryptojwt.key_jar import build_keyjar
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
@@ -239,15 +240,13 @@ class TestEndpoint(object):
         _assertion = _jwt.pack({"aud": [_context.endpoint["token"].full_path]})
         _token_request.update({"client_assertion": _assertion,
                                "client_assertion_type": JWT_BEARER})
+        _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
 
         _context.sdb.update(session_id, user="diana")
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
         # 2nd time used
-        _req = self.endpoint.parse_request(_token_request)
-        _resp = self.endpoint.process_request(request=_req)
-
-        assert _resp
-        assert set(_resp.keys()) == {"error", "error_description"}
+        with pytest.raises(MultipleUsage):
+            self.endpoint.parse_request(_token_request)
 

@@ -142,7 +142,7 @@ class JWSAuthnMethod(ClientAuthnMethod):
         logger.debug("authntoken: {}".format(authtoken))
 
         _endpoint = kwargs.get("endpoint")
-        if _endpoint is None:
+        if _endpoint is None or not _endpoint:
             if self.endpoint_context.issuer in ca_jwt["aud"]:
                 pass
             else:
@@ -205,7 +205,7 @@ def valid_client_info(cinfo):
 
 def verify_client(
         endpoint_context, request, authorization_info=None, get_client_id_from_token=None,
-        endpoint=""
+        endpoint=None
 ):
     """
     Initiated Guessing !
