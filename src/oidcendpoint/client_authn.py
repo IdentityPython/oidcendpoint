@@ -12,8 +12,10 @@ from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint import sanitize
+from oidcendpoint.exception import InvalidClient
 from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import NotForMe
+from oidcendpoint.exception import UnknownClient
 
 logger = logging.getLogger(__name__)
 
@@ -264,16 +266,16 @@ def verify_client(
 
     if client_id:
         if not client_id in endpoint_context.cdb:
-            raise ValueError("Unknown Client ID")
+            raise UnknownClient("Unknown Client ID")
 
         _cinfo = endpoint_context.cdb[client_id]
         if isinstance(_cinfo, str):
             if not _cinfo in endpoint_context.cdb:
-                raise ValueError("Unknown Client ID")
+                raise UnknownClient("Unknown Client ID")
 
         if not valid_client_info(_cinfo):
             logger.warning("Client registration has timed out")
-            raise ValueError("Not valid client")
+            raise InvalidClient("Not valid client")
 
         # store what authn method was used
         if auth_info.get("method"):

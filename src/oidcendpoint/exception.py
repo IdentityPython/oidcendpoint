@@ -58,6 +58,10 @@ class UnknownClient(OidcEndpointError):
     pass
 
 
+class InvalidClient(OidcEndpointError):
+    pass
+
+
 class UnAuthorizedClient(OidcEndpointError):
     pass
 
