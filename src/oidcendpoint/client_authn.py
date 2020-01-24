@@ -205,7 +205,7 @@ def valid_client_info(cinfo):
 
 def verify_client(
         endpoint_context, request, authorization_info=None, get_client_id_from_token=None,
-        endpoint=None
+        endpoint=None, also_known_as=None
 ):
     """
     Initiated Guessing !
@@ -254,7 +254,12 @@ def verify_client(
         else:
             raise UnknownOrNoAuthnMethod(authorization_info)
 
-    client_id = auth_info.get("client_id")
+    if also_known_as:
+        client_id = also_known_as[auth_info.get("client_id")]
+        auth_info["client_id"] = client_id
+    else:
+        client_id = auth_info.get("client_id")
+
     _token = auth_info.get("token")
 
     if client_id:

@@ -66,8 +66,8 @@ setup(
         'quality': ['pylama', 'isort', 'eradicate', 'mypy', 'black', 'bandit'],
     },
     install_requires=[
-        "oidcmsg>=0.6.5",
-        "cryptojwt>=0.7.12",
+        "oidcmsg>=0.6.6",
+        "cryptojwt>=0.7.13",
         "jinja2",
         "pyyaml",
         "requests",

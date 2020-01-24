@@ -371,9 +371,11 @@ class Registration(Endpoint):
         if new_id:
             # create new id och secret
             client_id = rndstr(12)
-            # cdb client_id MUT be unique!
+            # cdb client_id MUST be unique!
             while client_id in _context.cdb:
                 client_id = rndstr(12)
+            if "client_id" in request:
+                del request["client_id"]
         else:
             client_id = request.get("client_id")
             if not client_id:

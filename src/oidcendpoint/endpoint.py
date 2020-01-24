@@ -268,12 +268,9 @@ class Endpoint(object):
         :return: client_id or raise an exception
         """
 
-        _endpoint = kwargs.get("endpoint")
-
         try:
             authn_info = verify_client(
-                self.endpoint_context, request, auth, self.get_client_id_from_token,
-                endpoint=_endpoint
+                self.endpoint_context, request, auth, self.get_client_id_from_token, **kwargs
             )
         except UnknownOrNoAuthnMethod:
             if self.client_authn_method is None:
