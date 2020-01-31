@@ -8,12 +8,14 @@ from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint import sanitize
+from oidcendpoint.exception import InvalidClient
+from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import NotForMe
+from oidcendpoint.exception import UnknownClient
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +80,8 @@ class ClientSecretBasic(ClientAuthnMethod):
         client_info = basic_authn(authorization_info)
 
         if (
-            self.endpoint_context.cdb[client_info["id"]]["client_secret"]
-            == client_info["secret"]
+                self.endpoint_context.cdb[client_info["id"]]["client_secret"]
+                == client_info["secret"]
         ):
             return {"client_id": client_info["id"]}
         else:
@@ -96,8 +98,8 @@ class ClientSecretPost(ClientSecretBasic):
 
     def verify(self, request, **kwargs):
         if (
-            self.endpoint_context.cdb[request["client_id"]]["client_secret"]
-            == request["client_secret"]
+                self.endpoint_context.cdb[request["client_id"]]["client_secret"]
+                == request["client_secret"]
         ):
             return {"client_id": request["client_id"]}
         else:
@@ -141,17 +143,29 @@ class JWSAuthnMethod(ClientAuthnMethod):
             authtoken = sanitize(ca_jwt.to_dict())
         logger.debug("authntoken: {}".format(authtoken))
 
+        _endpoint = kwargs.get("endpoint")
+        if _endpoint is None or not _endpoint:
+            if self.endpoint_context.issuer in ca_jwt["aud"]:
+                pass
+            else:
+                raise NotForMe("Not for me!")
+        else:
+            if self.endpoint_context.endpoint[_endpoint].full_path in ca_jwt["aud"]:
+                pass
+            else:
+                raise NotForMe("Not for me!")
+
+        # If there is a jti use it to make sure one-time usage is true
+        _jti = ca_jwt.get('jti')
+        if _jti:
+            _key = "{}:{}".format(ca_jwt['iss'], _jti)
+            if _key in self.endpoint_context.jti_db:
+                raise MultipleUsage("Have seen this token once before")
+            else:
+                self.endpoint_context.jti_db.set(_key, utc_time_sans_frac())
+
         request[verified_claim_name("client_assertion")] = ca_jwt
         client_id = kwargs.get("client_id") or ca_jwt["iss"]
-
-        # I should be among the audience
-        # could be either my issuer id or the token endpoint
-        if self.endpoint_context.issuer in ca_jwt["aud"]:
-            pass
-        elif self.endpoint_context.endpoint["token"].full_path in ca_jwt["aud"]:
-            pass
-        else:
-            raise NotForMe("Not for me!")
 
         return {"client_id": client_id, "jwt": ca_jwt}
 
@@ -192,7 +206,8 @@ def valid_client_info(cinfo):
 
 
 def verify_client(
-    endpoint_context, request, authorization_info=None, get_client_id_from_token=None
+        endpoint_context, request, authorization_info=None, get_client_id_from_token=None,
+        endpoint=None, also_known_as=None
 ):
     """
     Initiated Guessing !
@@ -206,7 +221,8 @@ def verify_client(
     """
 
     # fixes request = {} instead of str
-    # "AttributeError: 'dict' object has no attribute 'startswith'" in oidcendpoint/endpoint.py(158)client_authentication()
+    # "AttributeError: 'dict' object has no attribute 'startswith'" in oidcendpoint/endpoint.py(
+    # 158)client_authentication()
     if isinstance(authorization_info, dict):
         strings_parade = ("{} {}".format(k, v) for k, v in authorization_info.items())
         authorization_info = " ".join(strings_parade)
@@ -216,7 +232,7 @@ def verify_client(
             auth_info = ClientSecretPost(endpoint_context).verify(request)
             auth_info["method"] = "client_secret_post"
         elif "client_assertion" in request:
-            auth_info = JWSAuthnMethod(endpoint_context).verify(request)
+            auth_info = JWSAuthnMethod(endpoint_context).verify(request, endpoint=endpoint)
             #  If symmetric key was used
             # auth_method = 'client_secret_jwt'
             #  If asymmetric key was used
@@ -240,28 +256,33 @@ def verify_client(
         else:
             raise UnknownOrNoAuthnMethod(authorization_info)
 
-    client_id = auth_info.get("client_id")
+    if also_known_as:
+        client_id = also_known_as[auth_info.get("client_id")]
+        auth_info["client_id"] = client_id
+    else:
+        client_id = auth_info.get("client_id")
+
     _token = auth_info.get("token")
 
     if client_id:
         if not client_id in endpoint_context.cdb:
-            raise ValueError("Unknown Client ID")
+            raise UnknownClient("Unknown Client ID")
 
         _cinfo = endpoint_context.cdb[client_id]
         if isinstance(_cinfo, str):
             if not _cinfo in endpoint_context.cdb:
-                raise ValueError("Unknown Client ID")
+                raise UnknownClient("Unknown Client ID")
 
         if not valid_client_info(_cinfo):
             logger.warning("Client registration has timed out")
-            raise ValueError("Not valid client")
+            raise InvalidClient("Not valid client")
 
         # store what authn method was used
         if auth_info.get("method"):
             if (
-                endpoint_context.cdb[client_id].get("auth_method")
-                and request.__class__.__name__
-                in endpoint_context.cdb[client_id]["auth_method"]
+                    endpoint_context.cdb[client_id].get("auth_method")
+                    and request.__class__.__name__
+                    in endpoint_context.cdb[client_id]["auth_method"]
             ):
                 endpoint_context.cdb[client_id]["auth_method"][
                     request.__class__.__name__

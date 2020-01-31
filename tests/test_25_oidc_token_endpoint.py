@@ -2,8 +2,13 @@ import json
 import os
 
 import pytest
+from cryptojwt import JWT
+from cryptojwt.key_jar import build_keyjar
+
+from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
@@ -21,6 +26,9 @@ KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]},
 ]
+
+CLIENT_KEYJAR = build_keyjar(KEYDEFS)
+
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"],
@@ -89,22 +97,22 @@ class TestEndpoint(object):
             "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
             "endpoint": {
                 "provider_config": {
-                    "path": "{}/.well-known/openid-configuration",
+                    "path": ".well-known/openid-configuration",
                     "class": ProviderConfiguration,
                     "kwargs": {},
                 },
                 "registration": {
-                    "path": "{}/registration",
+                    "path": "registration",
                     "class": Registration,
                     "kwargs": {},
                 },
                 "authorization": {
-                    "path": "{}/authorization",
+                    "path": "authorization",
                     "class": Authorization,
                     "kwargs": {},
                 },
                 "token": {
-                    "path": "{}/token",
+                    "path": "token",
                     "class": AccessToken,
                     "kwargs": {
                         "client_authn_method": [
@@ -116,12 +124,12 @@ class TestEndpoint(object):
                     },
                 },
                 "refresh_token": {
-                    "path": "{}/token",
+                    "path": "token",
                     "class": RefreshAccessToken,
                     "kwargs": {},
                 },
                 "userinfo": {
-                    "path": "{}/userinfo",
+                    "path": "userinfo",
                     "class": userinfo.UserInfo,
                     "kwargs": {"db_file": "users.json"},
                 },
@@ -145,6 +153,7 @@ class TestEndpoint(object):
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
         }
+        endpoint_context.keyjar.import_jwks(CLIENT_KEYJAR.export_jwks(), "client_1")
         self.endpoint = endpoint_context.endpoint["token"]
 
     def test_init(self):
@@ -213,3 +222,31 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
         msg = self.endpoint.do_response(request=_req, **_resp)
         assert isinstance(msg, dict)
+
+    def test_process_request_using_private_key_jwt(self):
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
+        _token_request = TOKEN_REQ_DICT.copy()
+        del _token_request["client_id"]
+        del _token_request["client_secret"]
+        _context = self.endpoint.endpoint_context
+
+        _jwt = JWT(CLIENT_KEYJAR, iss=AUTH_REQ["client_id"], sign_alg="RS256")
+        _jwt.with_jti = True
+        _assertion = _jwt.pack({"aud": [_context.endpoint["token"].full_path]})
+        _token_request.update({"client_assertion": _assertion,
+                               "client_assertion_type": JWT_BEARER})
+        _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
+
+        _context.sdb.update(session_id, user="diana")
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        # 2nd time used
+        with pytest.raises(MultipleUsage):
+            self.endpoint.parse_request(_token_request)
+

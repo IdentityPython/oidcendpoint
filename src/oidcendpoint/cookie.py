@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import time
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse
@@ -12,12 +13,13 @@ from cryptojwt.exception import VerificationError
 from cryptojwt.jwe.aes import AES_GCMEncrypter
 from cryptojwt.jwe.utils import split_ctx_and_tag
 from cryptojwt.jwk.hmac import SYMKey
-from cryptojwt.jwk.jwk import key_from_jwk_dict
 from cryptojwt.jws.hmac import HMACSigner
-from cryptojwt.key_bundle import init_key, import_jwk
+from cryptojwt.key_bundle import import_jwk
+from cryptojwt.key_bundle import init_key
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64e
+from oidcmsg import time_util
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.util import lv_pack
@@ -32,6 +34,21 @@ CORS_HEADERS = [
     ("Access-Control-Allow-Methods", "GET"),
     ("Access-Control-Allow-Headers", "Authorization"),
 ]
+
+
+def _expiration(timeout, time_format=None):
+    """
+    Return an expiration time
+
+    :param timeout: When
+    :param time_format: The format of the returned value
+    :return: A timeout date
+    """
+    if timeout == "now":
+        return time_util.instant(time_format)
+    else:
+        # validity time should match lifetime of assertions
+        return time_util.in_a_while(minutes=timeout, time_format=time_format)
 
 
 def sign_enc_payload(load, timestamp=0, sign_key=None, enc_key=None, sign_alg="SHA256"):
@@ -106,7 +123,7 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
         mac = base64.b64decode(b64_mac)
         verifier = HMACSigner(algorithm=sign_alg)
         if verifier.verify(
-            load.encode("utf-8") + timestamp.encode("utf-8"), mac, sign_key.key
+                load.encode("utf-8") + timestamp.encode("utf-8"), mac, sign_key.key
         ):
             return load, timestamp
         else:
@@ -125,9 +142,9 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
         if len(p) == 3:
             verifier = HMACSigner(algorithm=sign_alg)
             if verifier.verify(
-                load.encode("utf-8") + timestamp.encode("utf-8"),
-                base64.b64decode(p[2]),
-                sign_key.key,
+                    load.encode("utf-8") + timestamp.encode("utf-8"),
+                    base64.b64decode(p[2]),
+                    sign_key.key,
             ):
                 return load, timestamp
         else:
@@ -136,15 +153,19 @@ def ver_dec_content(parts, sign_key=None, enc_key=None, sign_alg="SHA256"):
 
 
 def make_cookie_content(
-    name,
-    load,
-    sign_key,
-    domain=None,
-    path=None,
-    timestamp="",
-    enc_key=None,
-    max_age=0,
-    sign_alg="SHA256",
+        name,
+        load,
+        sign_key,
+        domain=None,
+        path=None,
+        expire=0,
+        timestamp="",
+        enc_key=None,
+        max_age=0,
+        sign_alg="SHA256",
+        secure=True,
+        http_only=True,
+        same_site=""
 ):
     """
     Create and return a cookies content
@@ -167,12 +188,21 @@ def make_cookie_content(
     :type sign_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param domain: The domain of the cookie
     :param path: The path specification for the cookie
+    :param expire: Number of minutes before this cookie goes stale
+    :type expire: int
     :param timestamp: A time stamp
     :type timestamp: text
     :param enc_key: The key to use for payload encryption.
     :type enc_key: A :py:class:`cryptojwt.jwk.hmac.SYMKey` instance
     :param max_age: The time in seconds for when a cookie will be deleted
     :type max_age: int
+    :param secure: A secure cookie is only sent to the server with an encrypted request over the
+    HTTPS protocol.
+    :type secure: boolean
+    :param http_only: HttpOnly cookies are inaccessible to JavaScript's Document.cookie API
+    :type http_only: boolean
+    :param same_site: Whether SameSite (None,Strict or Lax) should be added to the cookie
+    :type same_site: byte string
     :return: A SimpleCookie instance
     """
     if not timestamp:
@@ -183,29 +213,45 @@ def make_cookie_content(
     )
 
     content = {name: {"value": _cookie_value}}
+
     if path is not None:
         content[name]["path"] = path
     if domain is not None:
         content[name]["domain"] = domain
-
-    content[name]["httponly"] = True
-
     if max_age:
         content[name]["expires"] = in_a_while(seconds=max_age)
+    if path:
+        content[name]["path"] = path
+    if domain:
+        content[name]["domain"] = domain
+    if expire:
+        content[name]["expires"] = _expiration(expire, "%a, %d-%b-%Y %H:%M:%S GMT")
+    if same_site:
+        content[name]["SameSite"] = same_site
+
+    # these are booleans so just set them.
+    content[name]["Secure"] = secure
+    content[name]["httponly"] = http_only
+
 
     return content
 
 
 def make_cookie(
-    name,
-    payload,
-    sign_key,
-    domain=None,
-    path=None,
-    timestamp="",
-    enc_key=None,
-    max_age=0,
-    sign_alg="SHA256",
+        name,
+        payload,
+        sign_key,
+        domain=None,
+        path=None,
+        expire=0,
+        timestamp="",
+        enc_key=None,
+        max_age=0,
+        sign_alg="SHA256",
+        secure=True,
+        http_only=True,
+        same_site=""
+
 ):
     content = make_cookie_content(
         name,
@@ -213,15 +259,24 @@ def make_cookie(
         sign_key,
         domain=domain,
         path=path,
+        expire=expire,
         timestamp=timestamp,
         enc_key=enc_key,
         max_age=max_age,
         sign_alg=sign_alg,
+        secure=secure,
+        http_only=http_only,
+        same_site=same_site
     )
 
     cookie = SimpleCookie()
+
     for name, args in content.items():
         cookie[name] = args["value"]
+        # Necessary if Python version < 3.8
+        if sys.version_info[:2] <= (3, 8):
+            cookie[name]._reserved[str("samesite")] = str("SameSite")
+
         for key, value in args.items():
             if key == "value":
                 continue
@@ -273,12 +328,6 @@ def parse_cookie(name, sign_key, kaka, enc_key=None, sign_alg="SHA256"):
     return ver_dec_content(parts, sign_key, enc_key, sign_alg)
 
 
-def import_jwk(filename):
-    with open(filename) as jwk_file:
-        jwk_dict = json.loads(jwk_file.read())
-        return key_from_jwk_dict(jwk_dict)
-
-
 class CookieDealer(object):
     """
     Functionality that an entity that deals with cookies need to have
@@ -286,13 +335,13 @@ class CookieDealer(object):
     """
 
     def __init__(
-        self,
-        sign_key="",
-        enc_key="",
-        sign_alg="SHA256",
-        default_values=None,
-        sign_jwk=None,
-        enc_jwk=None,
+            self,
+            sign_key="",
+            enc_key="",
+            sign_alg="SHA256",
+            default_values=None,
+            sign_jwk=None,
+            enc_jwk=None,
     ):
 
         if sign_key:
@@ -418,15 +467,15 @@ class CookieDealer(object):
         return None
 
     def append_cookie(
-        self,
-        cookie,
-        name,
-        payload,
-        typ,
-        domain=None,
-        path=None,
-        timestamp="",
-        max_age=0,
+            self,
+            cookie,
+            name,
+            payload,
+            typ,
+            domain=None,
+            path=None,
+            timestamp="",
+            max_age=0,
     ):
         """
         Adds a cookie to a SimpleCookie instance

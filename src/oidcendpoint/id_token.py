@@ -251,7 +251,7 @@ class IDToken(object):
 
         _cinfo = _context.cdb[_client_id]
 
-        default_idtoken_claims = self.kwargs.get("default_claims", None)
+        default_idtoken_claims = dict(self.kwargs.get("default_claims", {}))
         lifetime = self.kwargs.get("lifetime")
 
         userinfo = userinfo_in_id_token_claims(

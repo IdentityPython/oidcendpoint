@@ -12,6 +12,7 @@ from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.id_token import IDToken
+from oidcendpoint.in_memory_db import InMemoryDataBase
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
@@ -95,6 +96,7 @@ class EndpointContext:
         httpc=None,
         cookie_name=None,
         jwks_uri_path=None,
+        jti_db=None,
     ):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
@@ -141,6 +143,11 @@ class EndpointContext:
             self.set_session_db(sso_db, db=session_db)
         else:
             self.set_session_db(sso_db)
+
+        if jti_db:
+            self.set_jti_db(db=jti_db)
+        else:
+            self.set_jti_db()
 
         if cookie_name:
             self.cookie_name = cookie_name
@@ -233,6 +240,9 @@ class EndpointContext:
         self.do_userinfo()
         logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
+    def set_jti_db(self, db=None):
+        self.jti_db = db or InMemoryDataBase()
+
     def do_add_on(self):
         if self.conf.get("add_on"):
             for spec in self.conf["add_on"].values():
@@ -264,9 +274,7 @@ class EndpointContext:
                 self.userinfo = init_user_info(_conf, self.cwd)
                 self.sdb.userinfo = self.userinfo
             else:
-                logger.warning(
-                    ("Cannot init_user_info if any " "session_db was provided.")
-                )
+                logger.warning("Cannot init_user_info if no session_db was provided.")
 
     def do_id_token(self):
         _conf = self.conf.get("id_token")

@@ -26,6 +26,10 @@ class ToOld(OidcEndpointError):
     pass
 
 
+class MultipleUsage(OidcEndpointError):
+    pass
+
+
 class FailedAuthentication(OidcEndpointError):
     pass
 
@@ -51,6 +55,10 @@ class RedirectURIError(OidcEndpointError):
 
 
 class UnknownClient(OidcEndpointError):
+    pass
+
+
+class InvalidClient(OidcEndpointError):
     pass
 
 

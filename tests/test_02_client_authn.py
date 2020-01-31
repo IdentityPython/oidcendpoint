@@ -18,7 +18,9 @@ from oidcendpoint.client_authn import PrivateKeyJWT
 from oidcendpoint.client_authn import basic_authn
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import NotForMe
+from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
 
 KEYDEFS = [
@@ -35,7 +37,10 @@ conf = {
     "grant_expires_in": 300,
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
-    "endpoint": {"token": {"path": "token", "class": AccessToken, "kwargs": {}}},
+    "endpoint": {
+        "token": {"path": "token", "class": AccessToken, "kwargs": {}},
+        "authorization": {"path": "auth", "class": Authorization, "kwargs": {}}
+    },
     "template_dir": "template",
     "jwks": {
         "private_path": "own/jwks.json",
@@ -85,6 +90,7 @@ def test_client_secret_jwt():
     client_keyjar.add_symmetric("", client_secret, ["sig"])
 
     _jwt = JWT(client_keyjar, iss=client_id, sign_alg="HS256")
+    _jwt.with_jti = True
     _assertion = _jwt.pack({"aud": [conf["issuer"]]})
 
     request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
@@ -105,11 +111,60 @@ def test_private_key_jwt():
     endpoint_context.keyjar.import_jwks(_jwks, client_id)
 
     _jwt = JWT(client_keyjar, iss=client_id, sign_alg="RS256")
+    _jwt.with_jti = True
     _assertion = _jwt.pack({"aud": [conf["issuer"]]})
 
     request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
     authn_info = PrivateKeyJWT(endpoint_context).verify(request)
+
+    assert authn_info["client_id"] == client_id
+    assert "jwt" in authn_info
+
+
+def test_private_key_jwt_reusage_other_endpoint():
+    # Own dynamic keys
+    client_keyjar = build_keyjar(KEYDEFS)
+    # The servers keys
+    client_keyjar[conf["issuer"]] = KEYJAR.issuer_keys[""]
+
+    _jwks = client_keyjar.export_jwks()
+    endpoint_context.keyjar.import_jwks(_jwks, client_id)
+
+    _jwt = JWT(client_keyjar, iss=client_id, sign_alg="RS256")
+    _jwt.with_jti = True
+    _assertion = _jwt.pack({"aud": [endpoint_context.endpoint["token"].full_path]})
+
+    request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
+
+    # This should be OK
+    authn_info = PrivateKeyJWT(endpoint_context).verify(request, endpoint="token")
+
+    # This should NOT be OK
+    with pytest.raises(NotForMe):
+        PrivateKeyJWT(endpoint_context).verify(request, endpoint="authorization")
+
+    # This should NOT be OK
+    with pytest.raises(MultipleUsage):
+        PrivateKeyJWT(endpoint_context).verify(request, endpoint="token")
+
+
+def test_private_key_jwt_auth_endpoint():
+    # Own dynamic keys
+    client_keyjar = build_keyjar(KEYDEFS)
+    # The servers keys
+    client_keyjar[conf["issuer"]] = KEYJAR.issuer_keys[""]
+
+    _jwks = client_keyjar.export_jwks()
+    endpoint_context.keyjar.import_jwks(_jwks, client_id)
+
+    _jwt = JWT(client_keyjar, iss=client_id, sign_alg="RS256")
+    _jwt.with_jti = True
+    _assertion = _jwt.pack({"aud": [endpoint_context.endpoint["authorization"].full_path]})
+
+    request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
+
+    authn_info = PrivateKeyJWT(endpoint_context).verify(request, endpoint="authorization")
 
     assert authn_info["client_id"] == client_id
     assert "jwt" in authn_info
@@ -208,7 +263,7 @@ def test_jws_authn_method_aud_token_endpoint():
 
     request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
-    assert JWSAuthnMethod(endpoint_context).verify(request)
+    assert JWSAuthnMethod(endpoint_context).verify(request, endpoint="token")
 
 
 def test_jws_authn_method_aud_not_me():
