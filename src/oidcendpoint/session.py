@@ -7,6 +7,7 @@ from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_REQUIRED_STRING
+from oidcmsg.message import SINGLE_OPTIONAL_JSON
 from oidcmsg.message import msg_ser
 from oidcmsg.oidc import AuthorizationRequest
 
@@ -89,7 +90,26 @@ class SessionInfo(Message):
         "client_id": SINGLE_REQUIRED_STRING,
         "authn_event": SINGLE_REQUIRED_AUTHN_EVENT,
         "si_redirects": OPTIONAL_LIST_OF_STRINGS,
+        "black_list": SINGLE_OPTIONAL_JSON,
     }
+
+    def __init__(self, *args, **kwargs):
+        super(SessionInfo, self).__init__(*args, **kwargs)
+        self["black_list"] = {}
+
+    def is_black_listed(self, typ, token):
+        # If session is revoked
+        if "revoked" in self:
+            return True
+
+        return typ in self["black_list"] and token in self["black_list"][typ]
+
+    def black_list(self, typ):
+        if typ in self:
+            if typ in self["black_list"]:
+                self["black_list"][typ].append(self[typ])
+            else:
+                self["black_list"][typ] = [self[typ]]
 
 
 def pairwise_id(uid, sector_identifier, salt, **kwargs):
@@ -268,9 +288,9 @@ class SessionDB(object):
 
         return sub
 
-    def is_valid(self, item):
+    def is_valid(self, typ, item):
         try:
-            return not self.handler.is_black_listed(item)
+            return not self[item].is_black_listed(typ, item)
         except KeyError:
             return False
 
@@ -295,9 +315,8 @@ class SessionDB(object):
 
         if token_type in self.handler:
             refresh_token = self.handler[token_type](sid, sinfo=sinfo)
-            # blacklist the old is there is one
-            if sinfo.get(token_type):
-                self.handler[token_type].black_list(sinfo[token_type])
+            # blacklist the old
+            sinfo.black_list(token_type)
 
             sinfo[token_type] = refresh_token
         return sinfo
@@ -336,22 +355,20 @@ class SessionDB(object):
             _tinfo = self.handler["code"].info(grant)
 
             session_info = self[_tinfo["sid"]]
+            key = _tinfo["sid"]
 
-            if self.handler["code"].is_black_listed(grant):
+            if session_info.is_black_listed("code", grant):
                 # invalidate the released access token and refresh token
                 for item in ["access_token", "refresh_token"]:
-                    try:
-                        self.handler[item].black_list(session_info[item])
-                    except KeyError:
-                        pass
+                    session_info.black_list(item)
+                    self[key] = session_info
                 raise AccessCodeUsed(grant)
 
             # mint a new access token
             _at = self._make_at(_tinfo["sid"], session_info)
 
             # make sure the code can't be used again
-            self.handler["code"].black_list(grant)
-            key = _tinfo["sid"]
+            session_info.black_list("code")
         else:
             session_info = self[key]
             _at = self._make_at(key, session_info)
@@ -392,11 +409,11 @@ class SessionDB(object):
         except KeyError:
             return False
 
-        if is_expired(int(_tinfo["exp"])) or _tinfo["black_listed"]:
-            raise ExpiredToken()
-
         _sid = _tinfo["sid"]
         session_info = self[_sid]
+        if is_expired(int(_tinfo["exp"])) or \
+           session_info.is_black_listed("refresh_token", token):
+            raise ExpiredToken()
 
         session_info = self.replace_token(_sid, session_info, "access_token")
 
@@ -420,11 +437,11 @@ class SessionDB(object):
         except KeyError:
             return False
 
-        if is_expired(int(_tinfo["exp"])) or _tinfo["black_listed"]:
-            return False
-
         # Dependent on what state the session is in.
         session_info = self[_tinfo["sid"]]
+        if is_expired(int(_tinfo["exp"])) or \
+           session_info.is_black_listed("access_token", token):
+            return False
 
         if session_info["oauth_state"] == "authz":
             if _tinfo["handler"] != self.handler["code"]:
@@ -435,22 +452,24 @@ class SessionDB(object):
 
         return True
 
-    def revoke_token(self, token, token_type=""):
+    def revoke_token(self, sid, token_type):
         """
-        Revokes access token
+        Revokes token
 
-        :param token: access token
+        :param sid: session id
+        :param token_type: token type, one of "code", "access_token" or
+            "refresh_token"
         """
-        if token_type:
-            self.handler[token_type].black_list(token)
-        else:
-            self.handler.black_list(token)
+        _sinfo = self[sid]
+        _sinfo.black_list(token_type)
+        self[sid] = _sinfo
 
     def revoke_all_tokens(self, token):
-        _sinfo = self[token]
+        sid = self.handler.sid(token)
+        _sinfo = self[sid]
         for typ in self.handler.keys():
-            if _sinfo.get(typ):
-                self.revoke_token(_sinfo[typ], typ)
+            _sinfo.black_list(typ)
+        self[sid] = _sinfo
 
     def revoke_session(self, sid="", token=""):
         """
@@ -465,11 +484,9 @@ class SessionDB(object):
             else:
                 raise ValueError('Need one of "sid" or "token"')
 
-        for typ in ["access_token", "refresh_token", "code"]:
-            try:
-                self.revoke_token(self[sid][typ], typ)
-            except KeyError:  # If no such token has been issued
-                pass
+        _sinfo = self[sid]
+        for typ in self.handler.keys():
+            _sinfo.black_list(typ)
 
         self.update(sid, revoked=True)
 

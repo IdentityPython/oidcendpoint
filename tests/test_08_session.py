@@ -92,6 +92,7 @@ class TestSessionDB(object):
             "sub",
             "oauth_state",
             "code",
+            "black_list",
         }
 
     def test_create_authz_session_without_nonce(self):
@@ -164,6 +165,7 @@ class TestSessionDB(object):
             "client_id",
             "oauth_state",
             "expires_in",
+            "black_list"
         }
 
         # can't update again
@@ -191,6 +193,7 @@ class TestSessionDB(object):
             "oauth_state",
             "refresh_token",
             "expires_in",
+            "black_list",
         }
 
         # can't get another access token using the same code
@@ -224,6 +227,7 @@ class TestSessionDB(object):
             "client_id",
             "oauth_state",
             "expires_in",
+            "black_list",
         }
 
         assert _dict["id_token"] == "id_token"
@@ -265,21 +269,21 @@ class TestSessionDB(object):
         self.sdb[sid]["sub"] = "sub"
         grant = self.sdb[sid]["code"]
 
-        assert self.sdb.is_valid(grant)
+        assert self.sdb.is_valid("code", grant)
 
         sinfo = self.sdb.upgrade_to_token(grant, issue_refresh=True)
-        assert not self.sdb.is_valid(grant)
+        assert not self.sdb.is_valid("code", grant)
         access_token = sinfo["access_token"]
-        assert self.sdb.is_valid(access_token)
+        assert self.sdb.is_valid("access_token", access_token)
 
         refresh_token = sinfo["refresh_token"]
         sinfo = self.sdb.refresh_token(refresh_token, AREQ["client_id"])
         access_token2 = sinfo["access_token"]
-        assert self.sdb.is_valid(access_token2)
+        assert self.sdb.is_valid("access_token", access_token2)
 
         # The old access code should be invalid
         try:
-            self.sdb.is_valid(access_token)
+            self.sdb.is_valid("access_token", access_token)
         except KeyError:
             pass
 
@@ -288,7 +292,7 @@ class TestSessionDB(object):
         sid = self.sdb.create_authz_session(ae, AREQ, client_id="client_id")
         grant = self.sdb[sid]["code"]
 
-        assert self.sdb.is_valid(grant)
+        assert self.sdb.is_valid("code", grant)
 
     def test_revoke_token(self):
         ae1 = create_authn_event("uid", "salt")
@@ -300,31 +304,31 @@ class TestSessionDB(object):
         access_token = tokens["access_token"]
         refresh_token = tokens["refresh_token"]
 
-        assert self.sdb.is_valid(access_token)
+        assert self.sdb.is_valid("access_token", access_token)
 
-        self.sdb.revoke_token(access_token)
-        assert not self.sdb.is_valid(access_token)
+        self.sdb.revoke_token(sid, "access_token")
+        assert not self.sdb.is_valid("access_token", access_token)
 
         sinfo = self.sdb.refresh_token(refresh_token, AREQ["client_id"])
         access_token = sinfo["access_token"]
-        assert self.sdb.is_valid(access_token)
+        assert self.sdb.is_valid("access_token", access_token)
 
-        self.sdb.revoke_token(refresh_token)
-        assert not self.sdb.is_valid(refresh_token)
+        self.sdb.revoke_token(sid, "refresh_token")
+        assert not self.sdb.is_valid("refresh_token", refresh_token)
 
         try:
             self.sdb.refresh_token(refresh_token, AREQ["client_id"])
         except ExpiredToken:
             pass
 
-        assert self.sdb.is_valid(access_token)
+        assert self.sdb.is_valid("access_token", access_token)
 
         ae2 = create_authn_event("sub", "salt")
         sid = self.sdb.create_authz_session(ae2, AREQ, client_id="client_2")
 
         grant = self.sdb[sid]["code"]
-        self.sdb.revoke_token(grant)
-        assert not self.sdb.is_valid(grant)
+        self.sdb.revoke_token(sid, "code")
+        assert not self.sdb.is_valid("code", grant)
 
     def test_sub_to_authn_event(self):
         ae = create_authn_event("sub", "salt", time_stamp=time.time())
@@ -390,7 +394,7 @@ class TestSessionDB(object):
         self.sdb.sso_db.map_sid2uid(sid, "uid")
 
         grant = self.sdb.get_token(sid)
-        assert self.sdb.is_valid(grant)
+        assert self.sdb.is_valid("code", grant)
         assert self.sdb.handler.type(grant) == "A"
 
 
