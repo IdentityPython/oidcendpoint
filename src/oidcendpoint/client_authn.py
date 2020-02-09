@@ -150,7 +150,8 @@ class JWSAuthnMethod(ClientAuthnMethod):
             else:
                 raise NotForMe("Not for me!")
         else:
-            if self.endpoint_context.endpoint[_endpoint].full_path in ca_jwt["aud"]:
+            if set(ca_jwt["aud"]).intersection(
+                    self.endpoint_context.endpoint[_endpoint].allowed_target_uris()):
                 pass
             else:
                 raise NotForMe("Not for me!")

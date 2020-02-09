@@ -52,8 +52,8 @@ do_response returns a dictionary that can look like this:
 "response" MUST be present
 "http_headers" MAY be present
 "cookie": MAY be present 
-"response_placement": If absent defaults the endpoints response_placement parameter value
-    or if that is also missing 'url'
+"response_placement": If absent defaults to the endpoints response_placement 
+    parameter value or if that is also missing 'url'
 """
 
 
@@ -187,6 +187,9 @@ class Endpoint(object):
         self.endpoint_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
         )
+        # This is for matching against aud in JWTs
+        # By default the endpoint's endpoint URL is an allowed target
+        self.allowed_targets = [self.name]
 
     def parse_request(self, request, auth=None, **kwargs):
         """
@@ -209,7 +212,7 @@ class Endpoint(object):
                         request,
                         "jwt",
                         keyjar=self.endpoint_context.keyjar,
-                        verify=self.endpoint_context.verify_ssl,
+                        verify=self.endpoint_context.httpc_params["verify"],
                         **kwargs
                     )
                 elif self.request_format == "url":
@@ -425,3 +428,12 @@ class Endpoint(object):
             pass
 
         return _resp
+
+    def allowed_target_uris(self):
+        res = []
+        for t in self.allowed_targets:
+            if t == "":
+                res.append(self.endpoint_context.issuer)
+            else:
+                res.append(self.endpoint_context.endpoint[t].full_path)
+        return set(res)
