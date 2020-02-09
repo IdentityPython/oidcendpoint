@@ -111,7 +111,6 @@ class EndpointContext:
         self.endpoint = {}
         self.issuer = ""
         self.httpc = httpc or requests
-        self.verify_ssl = True
         self.jwks_uri = None
         self.sso_ttl = 14400  # 4h
         self.symkey = rndstr(24)
@@ -161,7 +160,6 @@ class EndpointContext:
             }
 
         for param in [
-            "verify_ssl",
             "issuer",
             "sso_ttl",
             "symkey",
@@ -232,6 +230,17 @@ class EndpointContext:
 
         # client registration access tokens
         self.registration_access_token = {}
+
+        # The HTTP clients request arguments
+        _verify = conf.get('verify_ssl', True)
+        self.httpc_params= {'verify': _verify}
+
+        _cli_cert = conf.get("client_cert")
+        _cli_key = conf.get("client_key")
+        if _cli_cert and _cli_key:
+            self.httpc_params["cert"] = (_cli_cert, _cli_key)
+        elif _cli_cert:  # The file contains both the certificate and the key
+            self.httpc_params["cert"] = _cli_cert
 
     def set_session_db(self, sso_db=None, db=None):
         sso_db = sso_db or SSODb()

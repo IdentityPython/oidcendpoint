@@ -188,7 +188,8 @@ class Authorization(Endpoint):
                 if _p[0] not in _registered:
                     raise ValueError("A request_uri outside the registered")
             # Fetch the request
-            _resp = endpoint_context.httpc.get(_request_uri)
+            _resp = endpoint_context.httpc.get(_request_uri,
+                                               **endpoint_context.httpc_params)
             if _resp.status_code == 200:
                 args = {"keyjar": endpoint_context.keyjar}
                 request = AuthorizationRequest().from_jwt(_resp.text, **args)

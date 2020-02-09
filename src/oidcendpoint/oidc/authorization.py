@@ -136,10 +136,13 @@ def proposed_user(request):
 
 
 def acr_claims(request):
-    if request["claims"].get("id_token"):
-        acrdef = request["claims"]["id_token"].get("acr")
-    else:
-        acrdef = None
+    acrdef = None
+
+    _claims = request.get('claims')
+    if _claims:
+        _id_token_claim = _claims.get("id_token")
+        if _id_token_claim:
+            acrdef = _id_token_claim.get("acr")
 
     if isinstance(acrdef, dict):
         if acrdef.get("value"):
@@ -251,7 +254,8 @@ class Authorization(Endpoint):
                 if _p[0] not in _registered:
                     raise ValueError("A request_uri outside the registered")
             # Fetch the request
-            _resp = endpoint_context.httpc.get(_request_uri)
+            _resp = endpoint_context.httpc.get(_request_uri,
+                                               **endpoint_context.httpc_params)
             if _resp.status_code == 200:
                 args = {"keyjar": endpoint_context.keyjar}
                 request = AuthorizationRequest().from_jwt(_resp.text, **args)

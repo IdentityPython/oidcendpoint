@@ -391,7 +391,7 @@ class Session(Endpoint):
                 res = self.endpoint_context.httpc.post(
                     _url,
                     data="logout_token={}".format(sjwt),
-                    verify=self.endpoint_context.verify_ssl,
+                    **self.endpoint_context.httpc_params
                 )
 
                 if res.status_code < 300:
