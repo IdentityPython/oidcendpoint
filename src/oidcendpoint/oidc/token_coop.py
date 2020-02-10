@@ -14,6 +14,7 @@ from oidcmsg.oidc import TokenErrorResponse
 from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import ProcessError
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
@@ -40,6 +41,7 @@ class TokenCoop(Endpoint):
             self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
                 "client_authn_method"
             ]
+        self.allow_refresh = kwargs.get("allow_refresh", True)
 
     def _refresh_access_token(self, req, **kwargs):
         _sdb = self.endpoint_context.sdb
@@ -198,7 +200,10 @@ class TokenCoop(Endpoint):
         if request["grant_type"] == "authorization_code":
             return self._access_token_post_parse_request(request, client_id, **kwargs)
         else:  # request["grant_type"] == "refresh_token":
-            return self._refresh_token_post_parse_request(request, client_id, **kwargs)
+            if self.allow_refresh:
+                return self._refresh_token_post_parse_request(request, client_id, **kwargs)
+            else:
+                raise ProcessError("Refresh Token not allowed")
 
     def process_request(self, request=None, **kwargs):
         """

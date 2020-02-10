@@ -12,6 +12,7 @@ from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import MultipleUsage
+from oidcendpoint.exception import ProcessError
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
@@ -306,3 +307,23 @@ class TestEndpoint(object):
         }
         msg = self.endpoint.do_response(request=_req, **_resp)
         assert isinstance(msg, dict)
+
+    def test_do_refresh_access_token_not_allowed(self):
+        areq = AUTH_REQ.copy()
+        areq["scope"] = ["openid", "offline_access"]
+        _cntx = self.endpoint.endpoint_context
+        session_id = setup_session(
+            _cntx, areq, uid="user", acr=INTERNETPROTOCOLPASSWORD
+        )
+        _cntx.sdb.update(session_id, user="diana")
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _cntx.sdb[session_id]["code"]
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        self.endpoint.allow_refresh = False
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = _resp["response_args"]["refresh_token"]
+        with pytest.raises(ProcessError):
+            self.endpoint.parse_request(_request.to_json())
