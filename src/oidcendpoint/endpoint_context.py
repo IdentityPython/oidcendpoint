@@ -19,6 +19,7 @@ from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
 from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.util import build_endpoints
+from oidcendpoint.util import get_http_params
 from oidcendpoint.util import importer
 
 logger = logging.getLogger(__name__)
@@ -232,15 +233,11 @@ class EndpointContext:
         self.registration_access_token = {}
 
         # The HTTP clients request arguments
-        _verify = conf.get('verify_ssl', True)
-        self.httpc_params= {'verify': _verify}
-
-        _cli_cert = conf.get("client_cert")
-        _cli_key = conf.get("client_key")
-        if _cli_cert and _cli_key:
-            self.httpc_params["cert"] = (_cli_cert, _cli_key)
-        elif _cli_cert:  # The file contains both the certificate and the key
-            self.httpc_params["cert"] = _cli_cert
+        _cnf = conf.get("http_params")
+        if _cnf:
+            self.httpc_params= get_http_params(_cnf)
+        else: # Backward compatibility
+            self.httpc_params = {"verify": conf.get("verify_ssl")}
 
     def set_session_db(self, sso_db=None, db=None):
         sso_db = sso_db or SSODb()

@@ -130,3 +130,17 @@ def lv_unpack(txt):
         res.append(v[: int(l)])
         txt = v[int(l) :]
     return res
+
+
+def get_http_params(config):
+    params = {"verify": config.get('verify_ssl')}
+    _cert = config.get('client_cert')
+    _key = config.get('client_key')
+    if _cert:
+        if _key:
+            params['cert'] = (_cert, _key)
+        else:
+            params['cert'] = _cert
+
+    return params
+
