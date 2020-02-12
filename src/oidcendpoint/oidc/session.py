@@ -22,6 +22,7 @@ from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.endpoint_context import add_path
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,12 @@ class Session(Endpoint):
         "backchannel_logout_session_supported": True,
         "check_session_iframe": None,
     }
+
+    def __init__(self, endpoint_context, **kwargs):
+        Endpoint.__init__(self, endpoint_context, **kwargs)
+        _csi = self.kwargs.get('check_session_iframe')
+        if _csi:
+            self.kwargs.setdefault(add_path(endpoint_context.issuer, _csi))
 
     def do_back_channel_logout(self, cinfo, sub, sid):
         """
@@ -366,10 +373,10 @@ class Session(Endpoint):
                 pass
             else:
                 if (
-                    _ith.jws_header["alg"]
-                    not in self.endpoint_context.provider_info[
-                        "id_token_signing_alg_values_supported"
-                    ]
+                        _ith.jws_header["alg"]
+                        not in self.endpoint_context.provider_info[
+                    "id_token_signing_alg_values_supported"
+                ]
                 ):
                     raise JWSException("Unsupported signing algorithm")
 
