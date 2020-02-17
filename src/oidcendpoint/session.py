@@ -90,26 +90,7 @@ class SessionInfo(Message):
         "client_id": SINGLE_REQUIRED_STRING,
         "authn_event": SINGLE_REQUIRED_AUTHN_EVENT,
         "si_redirects": OPTIONAL_LIST_OF_STRINGS,
-        "black_list": SINGLE_OPTIONAL_JSON,
     }
-
-    def __init__(self, *args, **kwargs):
-        super(SessionInfo, self).__init__(*args, **kwargs)
-        self["black_list"] = {}
-
-    def is_black_listed(self, typ, token):
-        # If session is revoked
-        if "revoked" in self:
-            return True
-
-        return typ in self["black_list"] and token in self["black_list"][typ]
-
-    def black_list(self, typ):
-        if typ in self:
-            if typ in self["black_list"]:
-                self["black_list"][typ].append(self[typ])
-            else:
-                self["black_list"][typ] = [self[typ]]
 
 
 def pairwise_id(uid, sector_identifier, salt, **kwargs):
@@ -164,12 +145,16 @@ class SessionDB(object):
         if _info is None:
             sid = self.handler.sid(item)
             _info = self._db.get(sid)
-
-        if _info:
-            _si = SessionInfo().from_json(_info)
-            return _si
+            if _info:
+                _si = SessionInfo().from_json(_info)
+                if any(item == val for val in _si.values()):
+                    _si['sid'] = sid
+                    return _si
         else:
-            return None
+            _si = SessionInfo().from_json(_info)
+            _si['sid'] = item
+            return _si
+        raise KeyError
 
     def __setitem__(self, sid, instance):
         try:
@@ -290,7 +275,7 @@ class SessionDB(object):
 
     def is_valid(self, typ, item):
         try:
-            return not self[item].is_black_listed(typ, item)
+            return typ in self[item]
         except KeyError:
             return False
 
@@ -316,7 +301,7 @@ class SessionDB(object):
         if token_type in self.handler:
             refresh_token = self.handler[token_type](sid, sinfo=sinfo)
             # blacklist the old
-            sinfo.black_list(token_type)
+            self.revoke_token(sid, token_type, sinfo)
 
             sinfo[token_type] = refresh_token
         return sinfo
@@ -352,23 +337,17 @@ class SessionDB(object):
         :return: The session information as a SessionInfo instance
         """
         if grant:
+            # The caller is responsible for checking if the access code exists.
             _tinfo = self.handler["code"].info(grant)
 
-            session_info = self[_tinfo["sid"]]
             key = _tinfo["sid"]
-
-            if session_info.is_black_listed("code", grant):
-                # invalidate the released access token and refresh token
-                for item in ["access_token", "refresh_token"]:
-                    session_info.black_list(item)
-                    self[key] = session_info
-                raise AccessCodeUsed(grant)
+            session_info = self[key]
 
             # mint a new access token
             _at = self._make_at(_tinfo["sid"], session_info)
 
             # make sure the code can't be used again
-            session_info.black_list("code")
+            self.revoke_token(key, "code", session_info)
         else:
             session_info = self[key]
             _at = self._make_at(key, session_info)
@@ -403,7 +382,6 @@ class SessionDB(object):
         :raises: ExpiredToken for invalid refresh token
                  WrongTokenType for wrong token type
         """
-
         try:
             _tinfo = self.handler["refresh_token"].info(token)
         except KeyError:
@@ -411,8 +389,7 @@ class SessionDB(object):
 
         _sid = _tinfo["sid"]
         session_info = self[_sid]
-        if is_expired(int(_tinfo["exp"])) or \
-           session_info.is_black_listed("refresh_token", token):
+        if is_expired(int(_tinfo["exp"])):
             raise ExpiredToken()
 
         session_info = self.replace_token(_sid, session_info, "access_token")
@@ -439,8 +416,7 @@ class SessionDB(object):
 
         # Dependent on what state the session is in.
         session_info = self[_tinfo["sid"]]
-        if is_expired(int(_tinfo["exp"])) or \
-           session_info.is_black_listed("access_token", token):
+        if is_expired(int(_tinfo["exp"])):
             return False
 
         if session_info["oauth_state"] == "authz":
@@ -452,7 +428,7 @@ class SessionDB(object):
 
         return True
 
-    def revoke_token(self, sid, token_type):
+    def revoke_token(self, sid, token_type, session_info=None):
         """
         Revokes token
 
@@ -460,15 +436,16 @@ class SessionDB(object):
         :param token_type: token type, one of "code", "access_token" or
             "refresh_token"
         """
-        _sinfo = self[sid]
-        _sinfo.black_list(token_type)
-        self[sid] = _sinfo
+        if not session_info:
+            session_info = self[sid]
+        session_info.pop(token_type, None)
+        self[sid] = session_info
 
     def revoke_all_tokens(self, token):
         sid = self.handler.sid(token)
         _sinfo = self[sid]
-        for typ in self.handler.keys():
-            _sinfo.black_list(typ)
+        for token_type in self.handler.keys():
+            _sinfo.pop(token_type, None)
         self[sid] = _sinfo
 
     def revoke_session(self, sid="", token=""):
@@ -485,8 +462,8 @@ class SessionDB(object):
                 raise ValueError('Need one of "sid" or "token"')
 
         _sinfo = self[sid]
-        for typ in self.handler.keys():
-            _sinfo.black_list(typ)
+        for token_type in self.handler.keys():
+            _sinfo.pop(token_type, None)
 
         self.update(sid, revoked=True)
 
