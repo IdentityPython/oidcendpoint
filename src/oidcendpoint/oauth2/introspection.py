@@ -17,7 +17,7 @@ class Introspection(Endpoint):
     response_cls = oauth2.TokenIntrospectionResponse
     request_format = "urlencoded"
     response_format = "json"
-    endpoint_name = "introspection"
+    endpoint_name = "introspection_endpoint"
     name = "introspection"
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
