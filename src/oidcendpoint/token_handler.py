@@ -69,11 +69,10 @@ class Crypt(object):
 
 
 class Token(object):
-    def __init__(self, typ, black_list=None, lifetime=300, **kwargs):
+    def __init__(self, typ, lifetime=300, **kwargs):
         self.type = typ
         self.lifetime = lifetime
         self.args = kwargs
-        self.blist = [] if black_list is None else black_list
 
     def __call__(self, sid, *args, **kwargs):
         """
@@ -113,19 +112,12 @@ class Token(object):
     def gather_args(self, *args, **kwargs):
         return {}
 
-    def black_list(self, token):
-        if token:
-            self.blist.append(token)
-
-    def is_black_listed(self, token):
-        return token in self.blist
-
 
 class DefaultToken(Token):
     def __init__(
-        self, password, typ="", black_list=None, token_type="Bearer", **kwargs
+        self, password, typ="", token_type="Bearer", **kwargs
     ):
-        Token.__init__(self, typ, black_list, **kwargs)
+        Token.__init__(self, typ, **kwargs)
         self.crypt = Crypt(password)
         self.token_type = token_type
 
@@ -189,7 +181,6 @@ class DefaultToken(Token):
             raise WrongTokenType(_res["type"])
         else:
             _res["handler"] = self
-            _res["black_listed"] = self.is_black_listed(token)
             return _res
 
     def is_expired(self, token, when=0):
@@ -239,10 +230,6 @@ class TokenHandler(object):
     def type(self, token, order=None):
         return self.info(token, order)["type"]
 
-    def is_black_listed(self, token, order=None):
-        _handler = self.get_handler(token, order)
-        return _handler.is_black_listed(token)
-
     def get_handler(self, token, order=None):
         if order is None:
             order = self.handler_order
@@ -256,10 +243,6 @@ class TokenHandler(object):
                 return self.handler[typ]
 
         return None
-
-    def black_list(self, token, order=None):
-        _handler = self.get_handler(token, order)
-        _handler.black_list(token)
 
     def keys(self):
         return self.handler.keys()

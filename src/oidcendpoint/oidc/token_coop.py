@@ -126,7 +126,7 @@ class TokenCoop(Endpoint):
                 return resp
 
             _sdb.update_by_token(_access_code, id_token=_idtoken)
-            _info = _sdb[_access_code]
+            _info = _sdb[_info['sid']]
 
         return by_schema(AccessTokenResponse, **_info)
 
@@ -212,6 +212,8 @@ class TokenCoop(Endpoint):
         :param kwargs:
         :return: Dictionary with response information
         """
+        if isinstance(request, self.error_cls):
+            return request
         try:
             if request["grant_type"] == "authorization_code":
                 logger.debug("Access Token Request")
@@ -234,8 +236,9 @@ class TokenCoop(Endpoint):
         else:
             _token = request["refresh_token"].replace(" ", "+")
 
+        _access_token = response_args["access_token"]
         _cookie = new_cookie(
-            self.endpoint_context, sub=self.endpoint_context.sdb[_token]["sub"]
+            self.endpoint_context, sub=self.endpoint_context.sdb[_access_token]["sub"]
         )
 
         _headers = [("Content-type", "application/json")]

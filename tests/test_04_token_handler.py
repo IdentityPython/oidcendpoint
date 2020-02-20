@@ -83,10 +83,8 @@ class TestDefaultToken(object):
             "sid",
             "exp",
             "handler",
-            "black_listed",
         }
         assert _info["handler"] == self.th
-        assert _info["black_listed"] is False
 
     def test_is_expired(self):
         _token = self.th("another_id")
@@ -94,14 +92,6 @@ class TestDefaultToken(object):
 
         when = time.time() + 900
         assert self.th.is_expired(_token, when)
-
-    def test_blacklist(self):
-        _token = self.th("another_id")
-        self.th.black_list(_token)
-        assert self.th.is_black_listed(_token)
-
-        _info = self.th.info(_token)
-        assert _info["black_listed"] is True
 
 
 class TestTokenHandler(object):
@@ -159,12 +149,6 @@ class TestTokenHandler(object):
         _token = self.handler["code"]("another_id")
         th = self.handler.get_handler(_token)
         assert th.type == "A"
-
-    def test_blacklist(self):
-        _token = self.handler["code"]("another_id")
-        self.handler.black_list(_token)
-        _info = self.handler.info(_token)
-        assert _info["black_listed"]
 
     def test_keys(self):
         assert set(self.handler.keys()) == {"access_token", "code", "refresh_token"}
