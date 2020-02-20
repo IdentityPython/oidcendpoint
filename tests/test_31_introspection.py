@@ -6,6 +6,10 @@ import pytest
 from cryptojwt import JWT
 from cryptojwt import as_unicode
 from cryptojwt.utils import as_bytes
+from oidcmsg.oidc import AccessTokenRequest
+
+from oidcendpoint.oidc.token_coop import TokenCoop
+
 from oidcendpoint.client_authn import ClientSecretPost
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.client_authn import WrongAuthnMethod
@@ -65,6 +69,16 @@ AUTH_REQ = AuthorizationRequest(
     response_type="code id_token",
 )
 
+TOKEN_REQ = AccessTokenRequest(
+    client_id="client_1",
+    redirect_uri="https://example.com/cb",
+    state="STATE",
+    grant_type="authorization_code",
+    client_secret="hemligt",
+)
+
+TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
+
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -98,6 +112,18 @@ class TestEndpoint(object):
                         "client_authn_method": {"client_secret_post": ClientSecretPost},
                     },
                 },
+                "token": {
+                    "path": "token",
+                    "class": TokenCoop,
+                    "kwargs": {
+                        "client_authn_method": [
+                            "client_secret_basic",
+                            "client_secret_post",
+                            "client_secret_jwt",
+                            "private_key_jwt",
+                        ]
+                    },
+                },
             },
             "authentication": {
                 "anon": {
@@ -127,6 +153,7 @@ class TestEndpoint(object):
             endpoint_context.issuer,
         )
         self.introspection_endpoint = endpoint_context.endpoint["introspection"]
+        self.token_endpoint = endpoint_context.endpoint["token"]
 
     def _create_jwt(self, uid, lifetime=0, with_jti=False):
         _jwt = JWT(
@@ -238,3 +265,32 @@ class TestEndpoint(object):
         )
         _resp = self.introspection_endpoint.process_request(_req)
         assert "error" in _resp
+
+    def test_access_token(self):
+        _context = self.introspection_endpoint.endpoint_context
+
+        session_id = setup_session(
+            _context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _context.sdb[session_id]["code"]
+        _context.sdb.update(session_id, user="diana")
+
+        _req = self.token_endpoint.parse_request(_token_request)
+        _resp = self.token_endpoint.process_request(request=_req)
+
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": _resp["response_args"]["access_token"],
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        _resp_args = _resp["response_args"]
+        assert "sub" in _resp_args
+        assert _resp_args["active"]
+        assert _resp_args["scope"] == "openid"
