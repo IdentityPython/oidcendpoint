@@ -14,7 +14,6 @@ class JWTToken(Token):
     def __init__(
         self,
         typ,
-        black_list=None,
         keyjar=None,
         issuer=None,
         aud=None,
@@ -24,7 +23,7 @@ class JWTToken(Token):
         token_type="Bearer",
         **kwargs
     ):
-        Token.__init__(self, typ, black_list, **kwargs)
+        Token.__init__(self, typ, **kwargs)
         self.token_type = token_type
         self.lifetime = lifetime
         self.args = kwargs
@@ -105,7 +104,6 @@ class JWTToken(Token):
             "type": _payload["ttype"],
             "exp": _payload["exp"],
             "handler": self,
-            "black_listed": self.is_black_listed(token),
         }
         return _res
 

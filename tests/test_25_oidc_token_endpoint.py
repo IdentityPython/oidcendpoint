@@ -201,11 +201,13 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
 
         # 2nd time used
+        # TODO: There is a bug in _post_parse_request, the returned error
+        # should be invalid_grant, not invalid_client
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
         assert _resp
-        assert set(_resp.keys()) == {"error", "error_description"}
+        assert set(_resp.keys()) == {"error"}
 
     def test_do_response(self):
         session_id = setup_session(

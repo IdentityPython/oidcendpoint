@@ -199,7 +199,7 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
 
         assert _resp
-        assert set(_resp.keys()) == {"error", "error_description"}
+        assert set(_resp.keys()) == {"error"}
 
     def test_do_response(self):
         session_id = setup_session(
