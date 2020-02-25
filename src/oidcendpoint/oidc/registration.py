@@ -84,12 +84,14 @@ def verify_url(url, urlset):
     return False
 
 
-def client_secret_expiration_time(delta=86400):
+def calculate_expiration_time(delta=86400):
     """
     Returns client_secret expiration time.
 
     Split for easy customization.
     """
+    if delta <= 0:
+        return 0
     return utc_time_sans_frac() + delta
 
 
@@ -339,13 +341,21 @@ class Registration(Endpoint):
         context.registration_access_token[_rat] = client_id
 
     def add_client_secret(self, cinfo, client_id, context):
-        delta_int = int(self.kwargs.get("client_secret_expiration_time", 0))
-        args = {"delta": delta_int} if delta_int else {}
+        """
+        Adds client secret info to the cinfo dict.
+
+        Generates a client secret and calculates the expiration time.
+        By default, secrets won't expire.
+        """
+        client_secret_expires_at = 0
+        if "client_secret_expiration_time" in self.kwargs:
+            delta_int = int(self.kwargs["client_secret_expiration_time"])
+            client_secret_expires_at = calculate_expiration_time(delta_int)
         client_secret = secret(context.seed, client_id)
         cinfo.update(
             {
                 "client_secret": client_secret,
-                "client_secret_expires_at": client_secret_expiration_time(**args),
+                "client_secret_expires_at": client_secret_expires_at,
             }
         )
 
