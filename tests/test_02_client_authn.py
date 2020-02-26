@@ -1,6 +1,7 @@
 import base64
 
 import pytest
+from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
 from cryptojwt.key_jar import build_keyjar
@@ -231,7 +232,7 @@ def test_jws_authn_method_wrong_key():
 
     request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
-    with pytest.raises(AuthnFailure):
+    with pytest.raises(NoSuitableSigningKeys):
         JWSAuthnMethod(endpoint_context).verify(request)
 
 
