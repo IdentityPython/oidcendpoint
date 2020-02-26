@@ -218,6 +218,12 @@ class TestEndpoint(object):
         with pytest.raises(ValueError):
             self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
 
+    def test_no_client_expiration_time(self):
+        self.endpoint.kwargs["client_secret_expires"] = False
+        _req = self.endpoint.parse_request(CLI_REQ.to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert _resp
+
 
 def test_match_sp_sep():
     assert match_sp_sep("foo bar", "bar foo")
