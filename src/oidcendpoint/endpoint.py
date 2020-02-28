@@ -285,8 +285,9 @@ class Endpoint(object):
                     raise
 
         if authn_info["method"] not in self.client_authn_method:
-            LOGGER.warning("Wrong client authentication method was used")
-            raise WrongAuthnMethod("Wrong authn method")
+            LOGGER.error("Wrong client authentication method was used: %s",
+                         authn_info["method"])
+            raise WrongAuthnMethod("Wrong authn method: {}".format(authn_info["method"]))
 
         return authn_info
 
@@ -351,6 +352,8 @@ class Endpoint(object):
         if response_args is None:
             response_args = {}
 
+        LOGGER.debug("do_response kwargs: %s", kwargs)
+
         resp = None
         if error:
             _response = ResponseMessage(error=error)
@@ -393,7 +396,11 @@ class Endpoint(object):
                     try:
                         fragment_enc = kwargs["fragment_enc"]
                     except KeyError:
-                        fragment_enc = fragment_encoding(kwargs["return_type"])
+                        _ret_type = kwargs.get("return_type")
+                        if _ret_type:
+                            fragment_enc = fragment_encoding(_ret_type)
+                        else:
+                            fragment_enc = False
 
                     if fragment_enc:
                         resp = _response.request(kwargs["return_uri"], True)

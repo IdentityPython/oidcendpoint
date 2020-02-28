@@ -14,6 +14,7 @@ from oidcmsg.exception import ParameterError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import Claims
 from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import rndstr
@@ -139,6 +140,9 @@ def acr_claims(request):
     acrdef = None
 
     _claims = request.get('claims')
+    if isinstance(_claims, str):
+        _claims = Claims().from_json(_claims)
+
     if _claims:
         _id_token_claim = _claims.get("id_token")
         if _id_token_claim:
