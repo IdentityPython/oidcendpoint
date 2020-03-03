@@ -390,7 +390,8 @@ class CookieDealer(object):
 
         return self.create_cookie("", "", cookie_name=cookie_name, kill=True)
 
-    def create_cookie(self, value, typ, cookie_name=None, ttl=-1, kill=False):
+    def create_cookie(self, value, typ, cookie_name=None, ttl=-1, kill=False,
+                      same_site="", http_only=True):
         """
 
         :param value: Part of the cookie payload
@@ -398,6 +399,8 @@ class CookieDealer(object):
         :param cookie_name:
         :param ttl: Number of minutes before this cookie goes stale
         :param kill: Whether the the cookie should expire on arrival
+        :param same_site:
+        :param http_only:
         :return: A tuple to be added to headers
         """
         if kill:
@@ -435,6 +438,8 @@ class CookieDealer(object):
             enc_key=self.enc_key,
             max_age=ttl,
             sign_alg=self.sign_alg,
+            same_site=same_site,
+            http_only=http_only,
             **c_args
         )
 
@@ -476,6 +481,8 @@ class CookieDealer(object):
             path=None,
             timestamp="",
             max_age=0,
+            same_site="None",
+            http_only=True
     ):
         """
         Adds a cookie to a SimpleCookie instance
@@ -490,7 +497,8 @@ class CookieDealer(object):
         :param max_age:
         :return:
         """
-        timestamp = str(int(time.time()))
+        if not timestamp:
+            timestamp = str(int(time.time()))
 
         # create cookie payload
         try:
@@ -508,6 +516,8 @@ class CookieDealer(object):
             enc_key=self.enc_key,
             max_age=max_age,
             sign_alg=self.sign_alg,
+            same_site=same_site,
+            http_only=http_only
         )
 
         for name, args in content.items():

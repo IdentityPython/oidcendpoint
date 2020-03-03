@@ -3,6 +3,7 @@ from http.cookies import SimpleCookie
 import pytest
 from cryptojwt.jwk.hmac import SYMKey
 from cryptojwt.key_jar import init_key_jar
+
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.cookie import compute_session_state
@@ -174,6 +175,20 @@ class TestCookieDealerEnc(object):
         assert _value[0] == "value"
         assert _value[2] == "sso"
 
+    def test_mult_cookie_same_site(self):
+        _cookie1 = self.cookie_dealer.create_cookie("value", "sso", same_site="None",
+                                                    http_only=False)
+        _cookie = self.cookie_dealer.append_cookie(
+            _cookie1, "session", "session_state", "session",
+        )
+        assert len(_cookie) == 2
+        _value = self.cookie_dealer.get_cookie_value(_cookie, "session")
+        assert _value[0] == "session_state"
+        assert _value[2] == "session"
+        _value = self.cookie_dealer.get_cookie_value(_cookie, "oidc_op")
+        assert _value[0] == "value"
+        assert _value[2] == "sso"
+
 
 def test_compute_session_state():
     hv = compute_session_state(
@@ -285,4 +300,3 @@ def test_cookie_same_site_none():
     assert kaka['test']["secure"] is True
     assert kaka["test"]["httponly"] is True
     assert kaka["test"]["samesite"] is "None"
-

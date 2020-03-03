@@ -610,6 +610,7 @@ class Authorization(Endpoint):
                     as_unicode(_state),
                     typ="session",
                     cookie_name=ec.cookie_name["session_management"],
+                    same_site="None", http_only=False
                 )
 
                 opbs = session_cookie[ec.cookie_name["session_management"]]
