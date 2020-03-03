@@ -408,7 +408,7 @@ class Session(Endpoint):
                 elif res.status_code >= 400:
                     logger.info("failed to logout from {}".format(_cid))
 
-        return _res["flu"].values() if _res.get("fluu") else []
+        return _res["flu"].values() if _res.get("flu") else []
 
     def kill_cookies(self):
         _ec = self.endpoint_context
