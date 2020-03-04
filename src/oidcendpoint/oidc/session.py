@@ -81,10 +81,10 @@ class Session(Endpoint):
     }
 
     def __init__(self, endpoint_context, **kwargs):
+        _csi = kwargs.get('check_session_iframe')
+        if _csi and not _csi.startswith("http"):
+            kwargs['check_session_iframe'] = add_path(endpoint_context.issuer, _csi)
         Endpoint.__init__(self, endpoint_context, **kwargs)
-        _csi = self.kwargs.get('check_session_iframe')
-        if _csi:
-            self.kwargs.setdefault(add_path(endpoint_context.issuer, _csi))
 
     def do_back_channel_logout(self, cinfo, sub, sid):
         """
