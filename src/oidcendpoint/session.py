@@ -7,15 +7,15 @@ from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_REQUIRED_STRING
-from oidcmsg.message import SINGLE_OPTIONAL_JSON
 from oidcmsg.message import msg_ser
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint import token_handler
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.in_memory_db import InMemoryDataBase
-from oidcendpoint.sso_db import SSODb, KEY_FORMAT
-from oidcendpoint.token_handler import AccessCodeUsed
+from oidcendpoint.sso_db import KEY_FORMAT
+from oidcendpoint.sso_db import SSODb
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.token_handler import WrongTokenType
@@ -48,7 +48,7 @@ def authn_event_deser(val, sformat="urlencoded"):
 
 
 def setup_session(
-    endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
+        endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
 ):
     """
     Setting up a user session
@@ -250,7 +250,7 @@ class SessionDB(object):
             return _sess_info["access_token"]
 
     def do_sub(
-        self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
+            self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
     ):
         """
         Create and store a subject identifier
@@ -319,13 +319,13 @@ class SessionDB(object):
         )
 
     def upgrade_to_token(
-        self,
-        grant=None,
-        issue_refresh=False,
-        id_token="",
-        oidreq=None,
-        key=None,
-        scope=None,
+            self,
+            grant=None,
+            issue_refresh=False,
+            id_token="",
+            oidreq=None,
+            key=None,
+            scope=None,
     ):
         """
 
@@ -365,6 +365,8 @@ class SessionDB(object):
 
         if self.handler["access_token"].lifetime:
             session_info["expires_in"] = self.handler["access_token"].lifetime
+            session_info["expires_at"] = self.handler[
+                                             "access_token"].lifetime + utc_time_sans_frac()
 
         if issue_refresh:
             session_info = self.replace_token(key, session_info, "refresh_token")
