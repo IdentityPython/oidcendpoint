@@ -165,6 +165,7 @@ class TestSessionDB(object):
             "client_id",
             "oauth_state",
             "expires_in",
+            "expires_at"
         }
 
         # can't update again
@@ -191,6 +192,7 @@ class TestSessionDB(object):
             "oauth_state",
             "refresh_token",
             "expires_in",
+            "expires_at"
         }
 
         # You can't refresh a token using the token itself
@@ -216,6 +218,7 @@ class TestSessionDB(object):
             "client_id",
             "oauth_state",
             "expires_in",
+            "expires_at"
         }
 
         assert _dict["id_token"] == "id_token"
