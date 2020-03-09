@@ -11,6 +11,18 @@ from oidcendpoint.endpoint import Endpoint
 LOGGER = logging.getLogger(__name__)
 
 
+def before(t1, t2, range):
+    if t1 < (t2 - range):
+        return True
+    return False
+
+
+def after(t1, t2, range):
+    if t1 > (t2 + range):
+        return True
+    return False
+
+
 class Introspection(Endpoint):
     """Implements RFC 7662"""
 
@@ -20,6 +32,10 @@ class Introspection(Endpoint):
     response_format = "json"
     endpoint_name = "introspection_endpoint"
     name = "introspection"
+
+    def __init__(self, **kwargs):
+        Endpoint.__init__(self, **kwargs)
+        self.offset = kwargs.get("offset", 0)
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         """
@@ -33,18 +49,30 @@ class Introspection(Endpoint):
         sinfo = endpoint_context.sdb[token]
         return sinfo["authn_req"]["client_id"]
 
-    def do_jws(self, token, default_response):
+    def do_jws(self, token):
         _jwt = JWT(key_jar=self.endpoint_context.keyjar)
 
         try:
             _jwt_info = _jwt.unpack(token)
-        except Exception:
-            return {"response_args": default_response}
+        except Exception as err:
+            return None
 
         return _jwt_info
 
     def do_access_token(self, token):
-        _info = self.endpoint_context.sdb[token]
+        try:
+            _info = self.endpoint_context.sdb[token]
+        except KeyError:
+            return None
+
+        _revoked = _info.get("revoked", False)
+        if _revoked:
+            return None
+
+        _eat = _info.get("expires_at")
+        if _eat < utc_time_sans_frac():
+            return None
+
         if _info:  # Now what can be returned ?
             _ret = {
                 "sub": _info["sub"],
@@ -80,15 +108,26 @@ class Introspection(Endpoint):
         _resp = self.response_cls(active=False)
 
         if factory(_token):
-            _info = self.do_jws(_token, _resp)
-            # expired ?
+            _info = self.do_jws(_token)
+            if _info is None:
+                return {"response_args": _resp}
+            _now = utc_time_sans_frac()
+
+            # Time checks
             if "exp" in _info:
-                now = utc_time_sans_frac()
-                if _info["exp"] < now:
+                if after(_now, _info["exp"], self.offset):
+                    return {"response_args": _resp}
+            if 'iat' in _info:
+                if after(_info["iat"], _now, self.offset):
+                    return {"response_args": _resp}
+            if 'nbf' in _info:
+                if before(_now, _info["nbf"], self.offset):
                     return {"response_args": _resp}
         else:
             # A non-jws access token
             _info = self.do_access_token(_token)
+            if _info is None:
+                return {"response_args": _resp}
 
         if not _info:
             return {"response_args": _resp}

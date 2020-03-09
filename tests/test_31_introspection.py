@@ -5,23 +5,24 @@ import os
 import pytest
 from cryptojwt import JWT
 from cryptojwt import as_unicode
+from cryptojwt.key_jar import build_keyjar
 from cryptojwt.utils import as_bytes
+from oidcmsg.oauth2 import TokenIntrospectionRequest
 from oidcmsg.oidc import AccessTokenRequest
-
-from oidcendpoint.oidc.token_coop import TokenCoop
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.client_authn import ClientSecretPost
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.client_authn import WrongAuthnMethod
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.oauth2.introspection import Introspection
 from oidcendpoint.oauth2.authorization import Authorization
+from oidcendpoint.oauth2.introspection import Introspection
+from oidcendpoint.oidc.token_coop import TokenCoop
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oauth2 import TokenIntrospectionRequest
-from oidcmsg.oidc import AuthorizationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -252,7 +253,7 @@ class TestEndpoint(object):
             "iss",
             "jti",
         }
-        assert _payload["active"] == True
+        assert _payload["active"] is True
 
     def test_do_response_no_token(self):
         _context = self.introspection_endpoint.endpoint_context
@@ -294,3 +295,89 @@ class TestEndpoint(object):
         assert "sub" in _resp_args
         assert _resp_args["active"]
         assert _resp_args["scope"] == "openid"
+
+    def test_jwt_unknown_key(self):
+        _keyjar = build_keyjar(KEYDEFS)
+
+        _jwt = JWT(
+            _keyjar,
+            iss=self.introspection_endpoint.endpoint_context.issuer,
+            lifetime=3600
+        )
+
+        _jwt.with_jti = True
+
+        _payload = {"sub": "subject_id"}
+        _token = _jwt.pack(_payload, aud="client_1")
+        _context = self.introspection_endpoint.endpoint_context
+
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": _token,
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+
+        _req = self.introspection_endpoint.parse_request(_req)
+        _resp = self.introspection_endpoint.process_request(_req)
+        assert _resp["response_args"]["active"] is False
+
+    def test_expired_access_token(self):
+        _context = self.introspection_endpoint.endpoint_context
+
+        session_id = setup_session(
+            _context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _context.sdb[session_id]["code"]
+        _context.sdb.update(session_id, user="diana")
+
+        _req = self.token_endpoint.parse_request(_token_request)
+        _resp = self.token_endpoint.process_request(request=_req)
+
+        _info = self.token_endpoint.endpoint_context.sdb[_resp["response_args"]["access_token"]]
+        _info['expires_at'] = utc_time_sans_frac() - 1000
+        self.token_endpoint.endpoint_context.sdb[_resp["response_args"]["access_token"]] = _info
+
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": _resp["response_args"]["access_token"],
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        assert _resp["response_args"]["active"] is False
+
+    def test_revoked_access_token(self):
+        _context = self.introspection_endpoint.endpoint_context
+
+        session_id = setup_session(
+            _context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _context.sdb[session_id]["code"]
+        _context.sdb.update(session_id, user="diana")
+
+        _req = self.token_endpoint.parse_request(_token_request)
+        _resp = self.token_endpoint.process_request(request=_req)
+
+        self.token_endpoint.endpoint_context.sdb.revoke_session(
+            token=_resp["response_args"]["access_token"])
+
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": _resp["response_args"]["access_token"],
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        assert _resp["response_args"]["active"] is False
