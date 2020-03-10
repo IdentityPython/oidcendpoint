@@ -288,22 +288,16 @@ class SessionDB(object):
                 return sid
         return None
 
-    def replace_token(self, sid, sinfo, token_type):
+    def replace_refresh_token(self, sid, sinfo):
         """
         Replace an old refresh_token with a new one
 
         :param sid: session ID
         :param sinfo: session info
-        :param token_type: What type of tokens should be replaced
         :return: Updated session info
         """
-
-        if token_type in self.handler:
-            refresh_token = self.handler[token_type](sid, sinfo=sinfo)
-            # blacklist the old
-            self.revoke_token(sid, token_type, sinfo)
-
-            sinfo[token_type] = refresh_token
+        refresh_token = self.handler["refresh_token"](sid, sinfo=sinfo)
+        sinfo["refresh_token"] = refresh_token
         return sinfo
 
     def _make_at(self, sid, session_info, aud=None, client_id_aud=True):
@@ -368,8 +362,8 @@ class SessionDB(object):
             session_info["expires_at"] = self.handler[
                                              "access_token"].lifetime + utc_time_sans_frac()
 
-        if issue_refresh:
-            session_info = self.replace_token(key, session_info, "refresh_token")
+        if issue_refresh and "refresh_token" in self.handler:
+            session_info = self.replace_refresh_token(key, session_info)
 
         self[key] = session_info
         return session_info
@@ -391,15 +385,16 @@ class SessionDB(object):
 
         _sid = _tinfo["sid"]
         session_info = self[_sid]
+        if token != session_info.get("refresh_token"):
+            raise UnknownToken()
         if is_expired(int(_tinfo["exp"])):
             raise ExpiredToken()
 
-        session_info = self.replace_token(_sid, session_info, "access_token")
-
+        session_info["access_token"] = self._make_at(_sid, session_info)
         session_info["token_type"] = self.handler["access_token"].token_type
 
         if new_refresh:
-            session_info = self.replace_token(_sid, session_info, "refresh_token")
+            session_info = self.replace_refresh_token(_sid, session_info)
 
         self[_sid] = session_info
         return session_info
