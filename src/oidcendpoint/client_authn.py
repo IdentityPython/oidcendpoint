@@ -1,5 +1,6 @@
 import base64
 import logging
+from urllib.parse import unquote_plus
 
 from cryptojwt.exception import BadSignature
 from cryptojwt.exception import Invalid
@@ -62,7 +63,7 @@ def basic_authn(authn):
     _tok = as_bytes(authn[6:])
     # Will raise ValueError type exception if not base64 encoded
     _tok = base64.b64decode(_tok)
-    part = as_unicode(_tok).split(":")
+    part = [unquote_plus(p) for p in as_unicode(_tok).split(":")]
     if len(part) == 2:
         return dict(zip(["id", "secret"], part))
     else:
@@ -280,19 +281,14 @@ def verify_client(
 
         # store what authn method was used
         if auth_info.get("method"):
-            if (
-                    endpoint_context.cdb[client_id].get("auth_method")
-                    and request.__class__.__name__
-                    in endpoint_context.cdb[client_id]["auth_method"]
-            ):
-                endpoint_context.cdb[client_id]["auth_method"][
-                    request.__class__.__name__
-                ] = auth_info["method"]
+            _request_type = request.__class__.__name__
+            _used_authn_method = endpoint_context.cdb[client_id].get("auth_method")
+            if _used_authn_method:
+                endpoint_context.cdb[client_id]["auth_method"][_request_type] = auth_info["method"]
             else:
                 endpoint_context.cdb[client_id]["auth_method"] = {
-                    request.__class__.__name__: auth_info["method"]
+                    _request_type: auth_info["method"]
                 }
-
     elif not client_id and get_client_id_from_token:
         if not _token:
             logger.warning("No token")
