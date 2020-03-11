@@ -103,6 +103,10 @@ class EndpointContext:
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
 
+        if self.keyjar is None or self.keyjar.owners() == []:
+            args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
+            self.keyjar = init_key_jar(**args)
+
         try:
             self.seed = bytes(conf["seed"], "utf-8")
         except KeyError:
@@ -198,10 +202,6 @@ class EndpointContext:
                 self.jwks_uri = "{}/{}".format(self.issuer, jwks_uri_path)
         except KeyError:
             self.jwks_uri = ""
-
-        if self.keyjar is None or self.keyjar.owners() == []:
-            args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
-            self.keyjar = init_key_jar(**args)
 
         for item in [
             "cookie_dealer",
