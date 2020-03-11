@@ -1,26 +1,12 @@
 """Implements RFC7662"""
 import logging
 
-from cryptojwt import JWT
-from cryptojwt.jws.jws import factory
 from oidcmsg import oauth2
 from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.endpoint import Endpoint
 
 LOGGER = logging.getLogger(__name__)
-
-
-def before(t1, t2, range):
-    if t1 < (t2 - range):
-        return True
-    return False
-
-
-def after(t1, t2, range):
-    if t1 > (t2 + range):
-        return True
-    return False
 
 
 class Introspection(Endpoint):
@@ -49,49 +35,30 @@ class Introspection(Endpoint):
         sinfo = endpoint_context.sdb[token]
         return sinfo["authn_req"]["client_id"]
 
-    def do_jws(self, token):
-        _jwt = JWT(key_jar=self.endpoint_context.keyjar)
-
+    def _introspect(self, token):
         try:
-            _jwt_info = _jwt.unpack(token)
-        except Exception as err:
-            return None
-
-        return _jwt_info
-
-    def do_access_token(self, token):
-        try:
-            _info = self.endpoint_context.sdb[token]
+            info = self.endpoint_context.sdb[token]
         except KeyError:
             return None
 
-        _revoked = _info.get("revoked", False)
-        if _revoked:
+        # Make sure that the token is an access_token or a refresh_token
+        if token not in info.get("access_token") and token != info.get(
+            "refresh_token"
+        ):
             return None
 
-        _eat = _info.get("expires_at")
-        if _eat < utc_time_sans_frac():
+        eat = info.get("expires_at")
+        if eat and eat < utc_time_sans_frac():
             return None
 
-        if _info:  # Now what can be returned ?
-            _ret = {
-                "sub": _info["sub"],
-                "client_id": _info["client_id"],
-                "token_type": "bearer",
-                "iss": self.endpoint_context.issuer
-            }
-            _authn = _info.get("authn_event")
-            if _authn:
-                _ret["authn_info"] = _authn["authn_info"]
-                _ret["authn_time"] = _authn["authn_time"]
+        if info:  # Now what can be returned ?
+            ret = info.to_dict()
+            ret["iss"] = self.endpoint_context.issuer
 
-            _scope = _info.get("scope")
-            if not _scope:
-                _ret["scope"] = " ".join(_info["authn_req"]["scope"])
+            if "scope" not in ret:
+                ret["scope"] = " ".join(info["authn_req"]["scope"])
 
-            return _ret
-        else:
-            return _info
+            return ret
 
     def process_request(self, request=None, **kwargs):
         """
@@ -107,29 +74,8 @@ class Introspection(Endpoint):
         _token = _introspect_request["token"]
         _resp = self.response_cls(active=False)
 
-        if factory(_token):
-            _info = self.do_jws(_token)
-            if _info is None:
-                return {"response_args": _resp}
-            _now = utc_time_sans_frac()
-
-            # Time checks
-            if "exp" in _info:
-                if after(_now, _info["exp"], self.offset):
-                    return {"response_args": _resp}
-            if 'iat' in _info:
-                if after(_info["iat"], _now, self.offset):
-                    return {"response_args": _resp}
-            if 'nbf' in _info:
-                if before(_now, _info["nbf"], self.offset):
-                    return {"response_args": _resp}
-        else:
-            # A non-jws access token
-            _info = self.do_access_token(_token)
-            if _info is None:
-                return {"response_args": _resp}
-
-        if not _info:
+        _info = self._introspect(_token)
+        if _info is None:
             return {"response_args": _resp}
 
         if "release" in self.kwargs:

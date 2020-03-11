@@ -7,6 +7,7 @@ from cryptography.fernet import InvalidToken
 from cryptojwt.key_jar import init_key_jar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
+from cryptojwt.exception import BadSyntax
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint import rndstr
@@ -218,7 +219,8 @@ class TokenHandler(object):
         for typ in order:
             try:
                 return self.handler[typ].info(item)
-            except (KeyError, WrongTokenType, InvalidToken, UnknownToken):
+            except (KeyError, WrongTokenType, InvalidToken, UnknownToken,
+                    BadSyntax):
                 pass
 
         logger.info("Unknown token format")

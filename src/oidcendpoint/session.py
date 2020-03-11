@@ -461,8 +461,8 @@ class SessionDB(object):
         _sinfo = self[sid]
         for token_type in self.handler.keys():
             _sinfo.pop(token_type, None)
-
-        self.update(sid, revoked=True)
+        _sinfo["revoked"] = True
+        self[sid] = _sinfo
 
     def get_client_id_for_session(self, sid):
         return self[sid]["client_id"]
