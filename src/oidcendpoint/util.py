@@ -133,7 +133,15 @@ def lv_unpack(txt):
 
 
 def get_http_params(config):
-    params = {"verify": config.get('verify_ssl')}
+    _verify_ssl = config.get('verify')
+    if _verify_ssl is None:
+        _verify_ssl = config.get('verify_ssl')
+
+    if _verify_ssl in [True, False]:
+        params = {"verify": _verify_ssl}
+    else:
+        params = {}
+
     _cert = config.get('client_cert')
     _key = config.get('client_key')
     if _cert:
