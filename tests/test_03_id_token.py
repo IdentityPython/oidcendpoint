@@ -30,7 +30,8 @@ def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
 
 
-USERINFO = UserInfo(json.loads(open(full_path("users.json")).read()))
+USERS = json.loads(open(full_path("users.json")).read())
+USERINFO = UserInfo(USERS)
 
 AREQN = AuthorizationRequest(
     response_type="code",
@@ -69,6 +70,10 @@ conf = {
             "class": "oidcendpoint.user_authn.user.NoAuthn",
             "kwargs": {"user": "diana"},
         }
+    },
+    "userinfo": {
+        "class": "oidcendpoint.user_info.UserInfo",
+        "kwargs": {"db": USERS},
     },
     "client_authn": verify_client,
     "template_dir": "template",
@@ -252,3 +257,97 @@ class TestEndpoint(object):
         )
         # default signing alg
         assert algs == {"sign": True, "encrypt": False, "sign_alg": "RS512"}
+
+    def test_default_claims(self):
+        session_info = {
+            "authn_req": AREQN,
+            "sub": "sub",
+            "authn_event": {
+                "authn_info": "loa2",
+                "authn_time": time.time(),
+                "uid": "diana"
+            },
+        }
+        self.endpoint_context.idtoken.kwargs['default_claims'] = {
+            "nickname": {"essential": True}
+        }
+        req = {"client_id": "client_1"}
+        _token = self.endpoint_context.idtoken.make(req, session_info)
+        assert _token
+        client_keyjar = KeyJar()
+        _jwks = self.endpoint_context.keyjar.export_jwks()
+        client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
+        _jwt = JWT(key_jar=client_keyjar, iss="client_1")
+        res = _jwt.unpack(_token)
+        assert "nickname" in res
+
+    def test_no_default_claims(self):
+        session_info = {
+            "authn_req": AREQN,
+            "sub": "sub",
+            "authn_event": {
+                "authn_info": "loa2",
+                "authn_time": time.time(),
+                "uid": "diana"
+            },
+        }
+        req = {"client_id": "client_1"}
+        _token = self.endpoint_context.idtoken.make(req, session_info)
+        assert _token
+        client_keyjar = KeyJar()
+        _jwks = self.endpoint_context.keyjar.export_jwks()
+        client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
+        _jwt = JWT(key_jar=client_keyjar, iss="client_1")
+        res = _jwt.unpack(_token)
+        assert "nickname" not in res
+
+    def test_client_claims(self):
+        session_info = {
+            "authn_req": AREQN,
+            "sub": "sub",
+            "authn_event": {
+                "authn_info": "loa2",
+                "authn_time": time.time(),
+                "uid": "diana"
+            },
+        }
+        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
+            "address": None
+        }
+        req = {"client_id": "client_1"}
+        _token = self.endpoint_context.idtoken.make(req, session_info)
+        assert _token
+        client_keyjar = KeyJar()
+        _jwks = self.endpoint_context.keyjar.export_jwks()
+        client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
+        _jwt = JWT(key_jar=client_keyjar, iss="client_1")
+        res = _jwt.unpack(_token)
+        assert "address" in res
+        assert "nickname" not in res
+
+    def test_client_claims_with_default(self):
+        session_info = {
+            "authn_req": AREQN,
+            "sub": "sub",
+            "authn_event": {
+                "authn_info": "loa2",
+                "authn_time": time.time(),
+                "uid": "diana"
+            },
+        }
+        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
+            "address": None
+        }
+        self.endpoint_context.idtoken.kwargs['default_claims'] = {
+            "nickname": {"essential": True}
+        }
+        req = {"client_id": "client_1"}
+        _token = self.endpoint_context.idtoken.make(req, session_info)
+        assert _token
+        client_keyjar = KeyJar()
+        _jwks = self.endpoint_context.keyjar.export_jwks()
+        client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
+        _jwt = JWT(key_jar=client_keyjar, iss="client_1")
+        res = _jwt.unpack(_token)
+        assert "address" in res
+        assert "nickname" in res
