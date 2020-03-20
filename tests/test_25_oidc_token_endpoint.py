@@ -9,6 +9,7 @@ from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import MultipleUsage
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
@@ -249,6 +250,6 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
 
         # 2nd time used
-        with pytest.raises(MultipleUsage):
+        with pytest.raises(UnAuthorizedClient):
             self.endpoint.parse_request(_token_request)
 
