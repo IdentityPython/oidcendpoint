@@ -132,6 +132,7 @@ class EndpointContext:
         # arguments for endpoints add-ons
         self.args = {}
         self.par_db = {}
+        self.dev_auth_db = {}
 
         self.th_args = get_token_handlers(conf)
 
