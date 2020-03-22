@@ -28,7 +28,7 @@ def importer(name):
     return getattr(module, c2)
 
 
-def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
+def build_endpoints(conf, endpoint_context, issuer):
     """
     conf typically contains::
 
@@ -40,7 +40,6 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
 
     :param conf:
     :param endpoint_context:
-    :param client_authn_method:
     :param issuer:
     :return:
     """

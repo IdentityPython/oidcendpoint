@@ -178,8 +178,11 @@ class Endpoint(object):
                 setattr(self, param, _val)
 
         _methods = kwargs.get("client_authn_method")
+        self.client_authn_method = []
         if _methods:
             self.client_authn_method = client_auth_setup(_methods, endpoint_context)
+        elif _methods is not None:  # [] or '' or something not None but regarded as nothing.
+            pass  # Ignore default value
         elif self.default_capabilities:
             _methods = self.default_capabilities.get("client_authn_method")
             if _methods:

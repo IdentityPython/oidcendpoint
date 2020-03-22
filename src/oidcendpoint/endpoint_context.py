@@ -332,7 +332,6 @@ class EndpointContext:
         self.endpoint = build_endpoints(
             self.conf["endpoint"],
             endpoint_context=self,
-            client_authn_method=CLIENT_AUTHN_METHOD,
             issuer=self.conf["issuer"],
         )
 
