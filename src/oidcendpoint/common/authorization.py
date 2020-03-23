@@ -77,8 +77,8 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
         raise URIError("Contains fragment")
 
     (_base, _query) = split_uri(_redirect_uri)
-    if _query:
-        _query = parse_qs(_query)
+    # if _query:
+    #     _query = parse_qs(_query)
 
     match = False
     # Get the clients registered redirect uris
