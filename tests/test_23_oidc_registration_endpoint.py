@@ -213,9 +213,9 @@ class TestEndpoint(object):
                      body=json.dumps(["https://example.com", "https://example.org"]),
                      adding_headers={"Content-Type": "application/json"}, status=200)
 
-        _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
-        _resp = self.endpoint.process_request(request=_req)
-        assert "error" in _resp
+            _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
+            _resp = self.endpoint.process_request(request=_req)
+            assert "error" in _resp
 
     def test_incorrect_request(self):
         _msg = msg.copy()
