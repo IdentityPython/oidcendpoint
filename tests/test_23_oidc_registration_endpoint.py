@@ -2,6 +2,8 @@
 import json
 
 import pytest
+import responses
+
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization
@@ -198,16 +200,19 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
         assert "response_args" in _resp
 
-    def test_sector_uri_missing_redirect_uri(self, httpserver):
+    def test_sector_uri_missing_redirect_uri(self):
+        _url = "https://github.com/sector"
+
         _msg = msg.copy()
         _msg["redirect_uris"] = ["custom://cb.example.com"]
         _msg["application_type"] = "native"
-        _msg["sector_identifier_uri"] = httpserver.url
+        _msg["sector_identifier_uri"] = _url
 
-        httpserver.serve_content(
-            json.dumps(["https://example.com", "https://example.org"]),
-            headers={"Content-Type": "application/json"},
-        )
+        with responses.RequestsMock() as rsps:
+            rsps.add("GET", _url,
+                     body=json.dumps(["https://example.com", "https://example.org"]),
+                     adding_headers={"Content-Type": "application/json"}, status=200)
+
         _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
         _resp = self.endpoint.process_request(request=_req)
         assert "error" in _resp
