@@ -1,6 +1,9 @@
 import importlib
 import json
 import logging
+from urllib.parse import parse_qs
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 logger = logging.getLogger(__name__)
 
@@ -150,4 +153,20 @@ def get_http_params(config):
             params['cert'] = _cert
 
     return params
+
+
+def split_uri(uri):
+    p = urlsplit(uri)
+
+    if p.fragment:
+        p = p._replace(fragment='')
+
+    if p.query:
+        o = p._replace(query='')
+        base = urlunsplit(o)
+        return base, parse_qs(p.query)
+    else:
+        base = urlunsplit(p)
+        return base, ''
+
 

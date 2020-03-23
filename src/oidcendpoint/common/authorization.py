@@ -1,6 +1,5 @@
 import logging
 from urllib.parse import parse_qs
-from urllib.parse import splitquery
 from urllib.parse import unquote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
@@ -15,6 +14,7 @@ from oidcendpoint import sanitize
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.user_info import SCOPE2CLAIMS
+from oidcendpoint.util import split_uri
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
     if part.fragment:
         raise URIError("Contains fragment")
 
-    (_base, _query) = splitquery(_redirect_uri)
+    (_base, _query) = split_uri(_redirect_uri)
     if _query:
         _query = parse_qs(_query)
 

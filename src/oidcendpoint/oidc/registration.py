@@ -7,8 +7,6 @@ from random import random
 from urllib.parse import parse_qs
 from urllib.parse import urlencode
 from urllib.parse import urlparse
-from urllib.parse import urlsplit
-from urllib.parse import urlunsplit
 
 from cryptojwt.jws.utils import alg2keytype
 from oidcmsg.exception import MessageException
@@ -25,6 +23,7 @@ from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import CapabilitiesMisMatch
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
+from oidcendpoint.util import split_uri
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",
@@ -89,21 +88,6 @@ def secret(seed, sid):
     msg = "{}{:.6f}{}".format(time.time(), random(), sid).encode("utf-8")
     csum = hmac.new(seed, msg, hashlib.sha224)
     return csum.hexdigest()
-
-
-def split_uri(uri):
-    p = urlsplit(uri)
-
-    if p.fragment:
-        p = p._replace(fragment='')
-
-    if p.query:
-        o = p._replace(query='')
-        base = urlunsplit(o)
-        return base, parse_qs(p.query)
-    else:
-        base = urlunsplit(p)
-        return base, ''
 
 
 def comb_uri(args):
