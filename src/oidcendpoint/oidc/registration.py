@@ -5,9 +5,10 @@ import logging
 import time
 from random import random
 from urllib.parse import parse_qs
-from urllib.parse import splitquery
 from urllib.parse import urlencode
 from urllib.parse import urlparse
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 from cryptojwt.jws.utils import alg2keytype
 from oidcmsg.exception import MessageException
@@ -90,6 +91,21 @@ def secret(seed, sid):
     return csum.hexdigest()
 
 
+def split_uri(uri):
+    p = urlsplit(uri)
+
+    if p.fragment:
+        p = p._replace(fragment='')
+
+    if p.query:
+        o = p._replace(query='')
+        base = urlunsplit(o)
+        return base, parse_qs(p.query)
+    else:
+        base = urlunsplit(p)
+        return base, ''
+
+
 def comb_uri(args):
     for param in ["redirect_uris", "post_logout_redirect_uris"]:
         if param not in args:
@@ -160,11 +176,7 @@ class Registration(Endpoint):
                                           "fragment",
                     )
                     return err
-                base, query = splitquery(uri)
-                if query:
-                    plruri.append((base, parse_qs(query)))
-                else:
-                    plruri.append((base, query))
+                plruri.append(split_uri(uri))
             _cinfo["post_logout_redirect_uris"] = plruri
 
         if "redirect_uris" in request:
@@ -275,7 +287,7 @@ class Registration(Endpoint):
             if _custom:  # Can not verify a custom scheme
                 verified_redirect_uris.append((uri, {}))
             else:
-                base, query = splitquery(uri)
+                base, query = split_uri(uri)
                 if query:
                     verified_redirect_uris.append((base, parse_qs(query)))
                 else:
