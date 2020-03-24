@@ -202,7 +202,7 @@ class TestEndpoint:
 
     def test_parse_no_authn(self):
         _token = self._create_at("diana")
-        with pytest.raises(UnknownOrNoAuthnMethod):
+        with pytest.raises(UnAuthorizedClient):
             self.introspection_endpoint.parse_request({"token": _token})
 
     def test_parse_with_client_auth_in_req(self):
