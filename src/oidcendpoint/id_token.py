@@ -112,6 +112,9 @@ class IDToken(object):
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
+        self.enable_claims_per_client = kwargs.get(
+            'enable_claims_per_client', False
+        )
         self.scope_to_claims = None
         self.provider_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
@@ -242,7 +245,6 @@ class IDToken(object):
 
     def make(self, req, sess_info, authn_req=None, user_claims=False, **kwargs):
         _context = self.endpoint_context
-        _sdb = _context.sdb
 
         if authn_req:
             _client_id = authn_req["client_id"]
@@ -251,11 +253,13 @@ class IDToken(object):
 
         _cinfo = _context.cdb[_client_id]
 
-        default_idtoken_claims = dict(self.kwargs.get("default_claims", {}))
+        idtoken_claims = dict(self.kwargs.get("default_claims", {}))
+        if self.enable_claims_per_client:
+            idtoken_claims.update(_cinfo.get("id_token_claims", {}))
         lifetime = self.kwargs.get("lifetime")
 
         userinfo = userinfo_in_id_token_claims(
-            _context, sess_info, default_idtoken_claims
+            _context, sess_info, idtoken_claims
         )
 
         if user_claims:
