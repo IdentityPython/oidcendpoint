@@ -3,10 +3,12 @@ from typing import Dict
 from typing import Optional
 
 from cryptojwt import JWT
+from cryptojwt.jws.exception import JWSException
 
 from oidcendpoint.exception import ToOld
 from oidcendpoint.token_handler import Token
 from oidcendpoint.token_handler import is_expired
+from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_info import scope2claims
 
 
@@ -94,7 +96,10 @@ class JWTToken(Token):
         :return: tuple of token type and session id
         """
         verifier = JWT(key_jar=self.key_jar, allowed_sign_algs=[self.alg])
-        _payload = verifier.unpack(token)
+        try:
+            _payload = verifier.unpack(token)
+        except JWSException:
+            raise UnknownToken()
 
         if is_expired(_payload["exp"]):
             raise ToOld("Token has expired")
