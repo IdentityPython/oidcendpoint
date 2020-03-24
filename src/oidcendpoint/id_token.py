@@ -112,6 +112,7 @@ class IDToken(object):
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
+        self.enable_claims_per_client = kwargs.get('enable_claims_per_client')
         self.scope_to_claims = None
         self.provider_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
@@ -250,10 +251,9 @@ class IDToken(object):
 
         _cinfo = _context.cdb[_client_id]
 
-        idtoken_claims = dict(
-            self.kwargs.get("default_claims", {}),
-            **_cinfo.get("id_token_claims", {})
-        )
+        idtoken_claims = dict(self.kwargs.get("default_claims", {}))
+        if self.enable_claims_per_client:
+            idtoken_claims.update(_cinfo.get("id_token_claims", {}))
         lifetime = self.kwargs.get("lifetime")
 
         userinfo = userinfo_in_id_token_claims(

@@ -311,6 +311,7 @@ class TestEndpoint(object):
                 "uid": "diana"
             },
         }
+        self.endpoint_context.idtoken.enable_claims_per_client = True
         self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
             "address": None
         }
@@ -341,6 +342,7 @@ class TestEndpoint(object):
         self.endpoint_context.idtoken.kwargs['default_claims'] = {
             "nickname": {"essential": True}
         }
+        self.endpoint_context.idtoken.enable_claims_per_client = True
         req = {"client_id": "client_1"}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
@@ -351,3 +353,27 @@ class TestEndpoint(object):
         res = _jwt.unpack(_token)
         assert "address" in res
         assert "nickname" in res
+
+    def test_client_claims_disabled(self):
+        session_info = {
+            "authn_req": AREQN,
+            "sub": "sub",
+            "authn_event": {
+                "authn_info": "loa2",
+                "authn_time": time.time(),
+                "uid": "diana"
+            },
+        }
+        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
+            "address": None
+        }
+        req = {"client_id": "client_1"}
+        _token = self.endpoint_context.idtoken.make(req, session_info)
+        assert _token
+        client_keyjar = KeyJar()
+        _jwks = self.endpoint_context.keyjar.export_jwks()
+        client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
+        _jwt = JWT(key_jar=client_keyjar, iss="client_1")
+        res = _jwt.unpack(_token)
+        assert "address" not in res
+        assert "nickname" not in res
