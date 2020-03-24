@@ -5,7 +5,6 @@ import logging
 import time
 from random import random
 from urllib.parse import parse_qs
-from urllib.parse import splitquery
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
@@ -24,6 +23,7 @@ from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import CapabilitiesMisMatch
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
+from oidcendpoint.util import split_uri
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",
@@ -160,11 +160,7 @@ class Registration(Endpoint):
                                           "fragment",
                     )
                     return err
-                base, query = splitquery(uri)
-                if query:
-                    plruri.append((base, parse_qs(query)))
-                else:
-                    plruri.append((base, query))
+                plruri.append(split_uri(uri))
             _cinfo["post_logout_redirect_uris"] = plruri
 
         if "redirect_uris" in request:
@@ -275,7 +271,7 @@ class Registration(Endpoint):
             if _custom:  # Can not verify a custom scheme
                 verified_redirect_uris.append((uri, {}))
             else:
-                base, query = splitquery(uri)
+                base, query = split_uri(uri)
                 if query:
                     verified_redirect_uris.append((base, parse_qs(query)))
                 else:

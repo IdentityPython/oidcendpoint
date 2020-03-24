@@ -1,6 +1,9 @@
 import importlib
 import json
 import logging
+from urllib.parse import parse_qs
+from urllib.parse import urlsplit
+from urllib.parse import urlunsplit
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,7 @@ def importer(name):
     return getattr(module, c2)
 
 
-def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
+def build_endpoints(conf, endpoint_context, issuer):
     """
     conf typically contains::
 
@@ -40,7 +43,6 @@ def build_endpoints(conf, endpoint_context, client_authn_method, issuer):
 
     :param conf:
     :param endpoint_context:
-    :param client_authn_method:
     :param issuer:
     :return:
     """
@@ -133,7 +135,15 @@ def lv_unpack(txt):
 
 
 def get_http_params(config):
-    params = {"verify": config.get('verify_ssl')}
+    _verify_ssl = config.get('verify')
+    if _verify_ssl is None:
+        _verify_ssl = config.get('verify_ssl')
+
+    if _verify_ssl in [True, False]:
+        params = {"verify": _verify_ssl}
+    else:
+        params = {}
+
     _cert = config.get('client_cert')
     _key = config.get('client_key')
     if _cert:
@@ -143,4 +153,20 @@ def get_http_params(config):
             params['cert'] = _cert
 
     return params
+
+
+def split_uri(uri):
+    p = urlsplit(uri)
+
+    if p.fragment:
+        p = p._replace(fragment='')
+
+    if p.query:
+        o = p._replace(query='')
+        base = urlunsplit(o)
+        return base, parse_qs(p.query)
+    else:
+        base = urlunsplit(p)
+        return base, ''
+
 

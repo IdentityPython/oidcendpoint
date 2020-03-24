@@ -6,7 +6,7 @@ try:
 except ImportError:
     import random as rnd
 
-__version__ = "0.12.3"
+__version__ = "0.13.1"
 
 
 DEF_SIGN_ALG = {

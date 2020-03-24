@@ -18,6 +18,7 @@ from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.client_authn import WrongAuthnMethod
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.oauth2.introspection import Introspection
 from oidcendpoint.oidc.token_coop import TokenCoop
@@ -132,7 +133,7 @@ class TestEndpoint:
                     "class": Introspection,
                     "kwargs": {
                         "release": ["username"],
-                        "client_authn_method": {"client_secret_post": ClientSecretPost},
+                        "client_authn_method": ["client_secret_post"],
                     },
                 },
                 "token": {
@@ -227,7 +228,7 @@ class TestEndpoint:
         _basic_token = as_unicode(base64.b64encode(as_bytes(_basic_token)))
         _basic_authz = "Basic {}".format(_basic_token)
 
-        with pytest.raises(WrongAuthnMethod):
+        with pytest.raises(UnAuthorizedClient):
             self.introspection_endpoint.parse_request({"token": _token}, _basic_authz)
 
     def test_process_request(self):

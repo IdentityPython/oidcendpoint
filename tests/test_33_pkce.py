@@ -3,9 +3,13 @@ import json
 import os
 import string
 
+try:
+    import random.SystemRandom as rnd
+except ImportError:
+    import random as rnd
+
 import pytest
 import yaml
-from Cryptodome.Random import random
 from cryptojwt.utils import b64e
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
@@ -106,7 +110,7 @@ oidc_clients:
 
 
 def unreserved(size=64):
-    return "".join([random.choice(BASECH) for _ in range(size)])
+    return "".join(rnd.choice(BASECH) for _ in range(size))
 
 
 def _code_challenge():

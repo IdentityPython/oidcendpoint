@@ -11,8 +11,9 @@ from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
-from oidcendpoint.client_authn import WrongAuthnMethod
+from oidcendpoint.client_authn import client_auth_setup
 from oidcendpoint.client_authn import verify_client
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = "Roland Hedberg"
@@ -176,13 +177,16 @@ class Endpoint(object):
             if _val:
                 setattr(self, param, _val)
 
-        if "client_authn_method" in kwargs:
-            self.client_authn_method = kwargs["client_authn_method"]
-        elif self.default_capabilities is not None:
-            if "client_authn_method" in self.default_capabilities:
-                self.client_authn_method = self.default_capabilities[
-                    "client_authn_method"
-                ]
+        _methods = kwargs.get("client_authn_method")
+        self.client_authn_method = []
+        if _methods:
+            self.client_authn_method = client_auth_setup(_methods, endpoint_context)
+        elif _methods is not None:  # [] or '' or something not None but regarded as nothing.
+            pass  # Ignore default value
+        elif self.default_capabilities:
+            _methods = self.default_capabilities.get("client_authn_method")
+            if _methods:
+                self.client_authn_method = client_auth_setup(_methods, endpoint_context)
 
         self.endpoint_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
@@ -284,10 +288,8 @@ class Endpoint(object):
                 else:
                     raise
 
-        if authn_info["method"] not in self.client_authn_method:
-            LOGGER.error("Wrong client authentication method was used: %s",
-                         authn_info["method"])
-            raise WrongAuthnMethod("Wrong authn method: {}".format(authn_info["method"]))
+        if authn_info == {} and self.client_authn_method and len(self.client_authn_method):
+            raise UnAuthorizedClient("Authorization failed")
 
         return authn_info
 
