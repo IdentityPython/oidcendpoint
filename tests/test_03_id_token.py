@@ -355,6 +355,7 @@ class TestEndpoint(object):
         assert "nickname" in res
 
     def test_client_claims_disabled(self):
+        # enable_claims_per_client defaults to False
         session_info = {
             "authn_req": AREQN,
             "sub": "sub",

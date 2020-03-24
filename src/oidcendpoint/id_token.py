@@ -112,7 +112,9 @@ class IDToken(object):
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
-        self.enable_claims_per_client = kwargs.get('enable_claims_per_client')
+        self.enable_claims_per_client = kwargs.get(
+            'enable_claims_per_client', False
+        )
         self.scope_to_claims = None
         self.provider_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
