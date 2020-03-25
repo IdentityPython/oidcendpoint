@@ -241,9 +241,21 @@ class EndpointContext:
             self.httpc_params = {"verify": conf.get("verify_ssl")}
 
     def set_session_db(self, sso_db=None, db=None):
-        sso_db = sso_db or SSODb()
+        if sso_db is None and self.conf.get("sso_db"):
+            _spec = self.conf.get("sso_db")
+            _kwargs = _spec.get("kwargs", {})
+            _db = importer(_spec["class"])(**_kwargs)
+            sso_db = SSODb(_db)
+        else:
+            sso_db = sso_db or SSODb()
+
+        if db is None and self.conf.get("session_db"):
+            _spec = self.conf.get("session_db")
+            _kwargs = _spec.get("kwargs", {})
+            db = importer(_spec["class"])(**_kwargs)
+
         self.do_session_db(sso_db, db)
-        # append useinfo db to the session db
+        # append userinfo db to the session db
         self.do_userinfo()
         logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
