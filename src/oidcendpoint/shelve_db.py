@@ -28,3 +28,9 @@ class ShelveDataBase(object):
 
     def keys(self):
         return self.db.keys()
+
+    def clear(self):
+        self.db.clear()
+
+    def close(self):
+        self.db.close()

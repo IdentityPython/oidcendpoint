@@ -490,8 +490,9 @@ def test_sub_minting_class():
 class TestSessionShelveDB(object):
     @pytest.fixture(autouse=True)
     def create_sdb(self):
-        # Create fresh database each time
-        _db = ShelveDataBase(filename='shelf', flag='n', writeback=True)
+        # Create database once
+        _db = ShelveDataBase(filename='shelf', flag='c', writeback=True)
+        _db.clear()
         _sso_db = SSODb(_db)
         passwd = rndstr(24)
         _th_args = {
