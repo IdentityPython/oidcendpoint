@@ -981,7 +981,7 @@ class TestEndpoint_shelve(object):
                 "class": 'oidcendpoint.shelve_db.ShelveDataBase',
                 "kwargs": {
                     "filename": 'sso',
-                    'flag': 'n',
+                    'flag': 'c',
                     "writeback": True
                 }
             },
@@ -989,7 +989,7 @@ class TestEndpoint_shelve(object):
                 "class": 'oidcendpoint.shelve_db.ShelveDataBase',
                 "kwargs": {
                     "filename": 'session',
-                    'flag': 'n',
+                    'flag': 'c',
                     "writeback": True
                 }
             }

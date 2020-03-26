@@ -503,7 +503,7 @@ class TestSessionShelveDB(object):
 
         _token_handler = token_handler.factory(None, **_th_args)
         userinfo = UserInfo(db_file=full_path("users.json"))
-        self.sdb = SessionDB(ShelveDataBase(filename='sdb', flag='n', writeback=True),
+        self.sdb = SessionDB(ShelveDataBase(filename='sdb', flag='c', writeback=True),
                              _token_handler, _sso_db, userinfo)
 
     def _reset(self):
