@@ -173,3 +173,9 @@ class SSODb(object):
         for _sid in self.get("sub2sid", sub):
             self.remove("sid2sub", _sid, sub)
         self.delete("sub2sid", sub)
+
+    def close(self):
+        self._db.close()
+
+    def clear(self):
+        self._db.clear()
