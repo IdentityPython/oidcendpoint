@@ -1009,13 +1009,15 @@ class TestEndpoint_shelve(object):
         )
 
     def _reset(self):
-        self.endpoint.endpoint_context.sdb.sso_db.clear()
-        self.endpoint.endpoint_context.sdb.sso_db.close()
-        self.endpoint.endpoint_context.sdb._db.clear()
-        self.endpoint.endpoint_context.sdb._db.close()
+        _sdb = self.endpoint.endpoint_context.sdb
+        _sdb.sso_db.clear()
+        _sdb.sso_db.close()
+        _sdb._db.clear()
+        _sdb._db.close()
 
     def test_init(self):
         assert self.endpoint
+        self._reset()
 
     def test_parse(self):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)
