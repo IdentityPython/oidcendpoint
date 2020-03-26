@@ -13,6 +13,16 @@ from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
+from oidcmsg.exception import ParameterError
+from oidcmsg.exception import URIError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import verified_claim_name
+from oidcmsg.oidc import verify_id_token
+from oidcmsg.time_util import in_a_while
+
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.common.authorization import verify_uri
@@ -41,15 +51,6 @@ from oidcendpoint.user_authn.authn_context import init_method
 from oidcendpoint.user_authn.user import NoAuthn
 from oidcendpoint.user_authn.user import UserAuthnMethod
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.exception import ParameterError
-from oidcmsg.exception import URIError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import AuthorizationResponse
-from oidcmsg.oidc import verified_claim_name
-from oidcmsg.oidc import verify_id_token
-from oidcmsg.time_util import in_a_while
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -1584,8 +1585,8 @@ class TestEndpoint_shelve(object):
         assert res["method"].user == "knoll"
         self._reset()
 
-    def test_post_logout_uri(self):
-        pass
+    # def test_post_logout_uri(self):
+    #     pass
 
     def test_parse_request(self):
         _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg="HS256")
