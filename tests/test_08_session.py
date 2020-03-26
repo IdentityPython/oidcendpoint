@@ -506,6 +506,12 @@ class TestSessionShelveDB(object):
         self.sdb = SessionDB(ShelveDataBase(filename='sdb', flag='n', writeback=True),
                              _token_handler, _sso_db, userinfo)
 
+    def _reset(self):
+        self.sdb.sso_db.clear()
+        self.sdb.sso_db.close()
+        self.sdb._db.clear()
+        self.sdb._db.close()
+
     def test_create_authz_session(self):
         ae = create_authn_event("uid", "salt")
         sid = self.sdb.create_authz_session(ae, AREQ, client_id="client_id")
@@ -522,12 +528,14 @@ class TestSessionShelveDB(object):
             "oauth_state",
             "code",
         }
+        self._reset()
 
     def test_create_authz_session_without_nonce(self):
         ae = create_authn_event("sub", "salt")
         sid = self.sdb.create_authz_session(ae, AREQ, client_id="client_id")
         info = self.sdb[sid]
         assert info["oauth_state"] == "authz"
+        self._reset()
 
     def test_create_authz_session_with_nonce(self):
         ae = create_authn_event("sub", "salt")
@@ -535,6 +543,7 @@ class TestSessionShelveDB(object):
         info = self.sdb[sid]
         authz_request = info["authn_req"]
         assert authz_request["nonce"] == "something"
+        self._reset()
 
     def test_create_authz_session_with_id_token(self):
         ae = create_authn_event("sub", "salt")
@@ -544,6 +553,7 @@ class TestSessionShelveDB(object):
 
         info = self.sdb[sid]
         assert info["id_token"] == "id_token"
+        self._reset()
 
     def test_create_authz_session_with_oidreq(self):
         ae = create_authn_event("sub", "salt")
@@ -553,6 +563,7 @@ class TestSessionShelveDB(object):
         info = self.sdb[sid]
         assert "id_token" not in info
         assert "oidreq" in info
+        self._reset()
 
     def test_create_authz_session_with_sector_id(self):
         ae = create_authn_event("sub", "salt")
@@ -575,6 +586,7 @@ class TestSessionShelveDB(object):
         info_2 = self.sdb[sid]
         assert info_2["sub"] != "sub"
         assert info_2["sub"] != info_1["sub"]
+        self._reset()
 
     def test_upgrade_to_token(self):
         ae1 = create_authn_event("uid", "salt")
@@ -599,6 +611,7 @@ class TestSessionShelveDB(object):
         # can't update again
         # with pytest.raises(AccessCodeUsed):
         print(self.sdb.upgrade_to_token(grant))
+        self._reset()
 
     def test_upgrade_to_token_refresh(self):
         ae1 = create_authn_event("sub", "salt")
@@ -626,6 +639,7 @@ class TestSessionShelveDB(object):
         # You can't refresh a token using the token itself
         with pytest.raises(WrongTokenType):
             self.sdb.refresh_token(_dict["access_token"])
+        self._reset()
 
     def test_upgrade_to_token_with_id_token_and_oidreq(self):
         ae2 = create_authn_event("another_user_id", "salt")
@@ -651,6 +665,7 @@ class TestSessionShelveDB(object):
 
         assert _dict["id_token"] == "id_token"
         assert isinstance(_dict["oidreq"], OpenIDRequest)
+        self._reset()
 
     def test_refresh_token(self):
         ae = create_authn_event("uid", "salt")
@@ -666,6 +681,7 @@ class TestSessionShelveDB(object):
 
         with pytest.raises(WrongTokenType):
             self.sdb.refresh_token(dict2["access_token"], AREQ["client_id"])
+        self._reset()
 
     def test_refresh_token_cleared_session(self):
         ae = create_authn_event("uid", "salt")
@@ -676,11 +692,12 @@ class TestSessionShelveDB(object):
         ac1 = dict1["access_token"]
 
         # Purge the SessionDB
-        self.sdb._db = {}
+        self.sdb._db.clear()
 
         rtoken = dict1["refresh_token"]
         with pytest.raises(KeyError):
             self.sdb.refresh_token(rtoken, AREQ["client_id"])
+        self._reset()
 
     def test_is_valid(self):
         ae1 = create_authn_event("uid", "salt")
@@ -705,6 +722,7 @@ class TestSessionShelveDB(object):
             self.sdb.is_valid("access_token", access_token)
         except KeyError:
             pass
+        self._reset()
 
     def test_valid_grant(self):
         ae = create_authn_event("another:user", "salt")
@@ -712,6 +730,7 @@ class TestSessionShelveDB(object):
         grant = self.sdb[sid]["code"]
 
         assert self.sdb.is_valid("code", grant)
+        self._reset()
 
     def test_revoke_token(self):
         ae1 = create_authn_event("uid", "salt")
@@ -741,6 +760,7 @@ class TestSessionShelveDB(object):
         grant = self.sdb[sid]["code"]
         self.sdb.revoke_token(sid, "code")
         assert not self.sdb.is_valid("code", grant)
+        self._reset()
 
     def test_sub_to_authn_event(self):
         ae = create_authn_event("sub", "salt", time_stamp=time.time())
@@ -751,6 +771,7 @@ class TestSessionShelveDB(object):
         sids = self.sdb.get_sids_by_sub(sub)
         ae = self.sdb[sids[0]]["authn_event"]
         assert ae.valid()
+        self._reset()
 
     def test_do_sub_deterministic(self):
         ae = create_authn_event("tester", "random_value")
@@ -789,6 +810,7 @@ class TestSessionShelveDB(object):
             info2["sub"]
             == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
         )
+        self._reset()
 
     def test_match_session(self):
         ae1 = create_authn_event("uid", "salt")
@@ -798,6 +820,7 @@ class TestSessionShelveDB(object):
 
         res = self.sdb.match_session("uid", client_id="client_id")
         assert res == sid
+        self._reset()
 
     def test_get_token(self):
         ae1 = create_authn_event("uid", "salt")
@@ -808,3 +831,4 @@ class TestSessionShelveDB(object):
         grant = self.sdb.get_token(sid)
         assert self.sdb.is_valid("code", grant)
         assert self.sdb.handler.type(grant) == "A"
+        self._reset()

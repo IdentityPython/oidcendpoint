@@ -1008,6 +1008,12 @@ class TestEndpoint_shelve(object):
             "client_1", "hemligtkodord1234567890"
         )
 
+    def _reset(self):
+        self.endpoint.endpoint_context.sdb.sso_db.clear()
+        self.endpoint.endpoint_context.sdb.sso_db.close()
+        self.endpoint.endpoint_context.sdb._db.clear()
+        self.endpoint.endpoint_context.sdb._db.close()
+
     def test_init(self):
         assert self.endpoint
 
@@ -1016,6 +1022,7 @@ class TestEndpoint_shelve(object):
 
         assert isinstance(_req, AuthorizationRequest)
         assert set(_req.keys()) == set(AUTH_REQ.keys())
+        self._reset()
 
     def test_process_request(self):
         _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
@@ -1026,6 +1033,7 @@ class TestEndpoint_shelve(object):
             "return_uri",
             "cookie",
         }
+        self._reset()
 
     def test_do_response_code(self):
         _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
@@ -1040,6 +1048,7 @@ class TestEndpoint_shelve(object):
         _query = parse_qs(part.query)
         assert _query
         assert "code" in _query
+        self._reset()
 
     def test_do_response_id_token_no_nonce(self):
         _orig_req = AUTH_REQ_DICT.copy()
@@ -1047,6 +1056,7 @@ class TestEndpoint_shelve(object):
         _pr_resp = self.endpoint.parse_request(_orig_req)
         # Missing nonce
         assert isinstance(_pr_resp, ResponseMessage)
+        self._reset()
 
     def test_do_response_id_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
@@ -1064,6 +1074,7 @@ class TestEndpoint_shelve(object):
         assert "id_token" in _frag_msg
         assert "code" not in _frag_msg
         assert "token" not in _frag_msg
+        self._reset()
 
     def test_do_response_id_token_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
@@ -1074,6 +1085,7 @@ class TestEndpoint_shelve(object):
         msg = self.endpoint.do_response(response_msg=_resp)
         assert isinstance(msg, dict)
         assert msg["response"]["error"] == "invalid_request"
+        self._reset()
 
     def test_do_response_code_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
@@ -1083,6 +1095,7 @@ class TestEndpoint_shelve(object):
         msg = self.endpoint.do_response(response_msg=_resp)
         assert isinstance(msg, dict)
         assert msg["response"]["error"] == "invalid_request"
+        self._reset()
 
     def test_do_response_code_id_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
@@ -1100,6 +1113,7 @@ class TestEndpoint_shelve(object):
         assert "id_token" in _frag_msg
         assert "code" in _frag_msg
         assert "access_token" not in _frag_msg
+        self._reset()
 
     def test_do_response_code_id_token_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
@@ -1117,6 +1131,7 @@ class TestEndpoint_shelve(object):
         assert "id_token" in _frag_msg
         assert "code" in _frag_msg
         assert "access_token" in _frag_msg
+        self._reset()
 
     def test_id_token_claims(self):
         _req = AUTH_REQ_DICT.copy()
@@ -1133,11 +1148,13 @@ class TestEndpoint_shelve(object):
         assert "given_name" in _resp["response_args"]["__verified_id_token"]
         # from config
         assert "email" in _resp["response_args"]["__verified_id_token"]
+        self._reset()
 
     def test_re_authenticate(self):
         request = {"prompt": "login"}
         authn = UserAuthnMethod(self.endpoint.endpoint_context)
         assert re_authenticate(request, authn)
+        self._reset()
 
     def test_id_token_acr(self):
         _req = AUTH_REQ_DICT.copy()
@@ -1154,11 +1171,13 @@ class TestEndpoint_shelve(object):
         assert res
         res = _resp["response_args"][verified_claim_name("id_token")]
         assert res["acr"] == "http://www.swamid.se/policy/assurance/al1"
+        self._reset()
 
     def test_verify_uri_unknown_client(self):
         request = {"redirect_uri": "https://rp.example.com/cb"}
         with pytest.raises(UnknownClient):
             verify_uri(self.endpoint.endpoint_context, request, "redirect_uri")
+        self._reset()
 
     def test_verify_uri_fragment(self):
         _ec = self.endpoint.endpoint_context
@@ -1166,6 +1185,7 @@ class TestEndpoint_shelve(object):
         request = {"redirect_uri": "https://rp.example.com/cb#foobar"}
         with pytest.raises(URIError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_verify_uri_noregistered(self):
         _ec = self.endpoint.endpoint_context
@@ -1173,6 +1193,7 @@ class TestEndpoint_shelve(object):
 
         with pytest.raises(ValueError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_verify_uri_unregistered(self):
         _ec = self.endpoint.endpoint_context
@@ -1184,6 +1205,7 @@ class TestEndpoint_shelve(object):
 
         with pytest.raises(RedirectURIError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_verify_uri_qp_match(self):
         _ec = self.endpoint.endpoint_context
@@ -1194,6 +1216,7 @@ class TestEndpoint_shelve(object):
         request = {"redirect_uri": "https://rp.example.com/cb?foo=bar"}
 
         verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_verify_uri_qp_mismatch(self):
         _ec = self.endpoint.endpoint_context
@@ -1216,6 +1239,7 @@ class TestEndpoint_shelve(object):
         request = {"redirect_uri": "https://rp.example.com/cb?foo=bar&level=low"}
         with pytest.raises(ValueError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_verify_uri_qp_missing(self):
         _ec = self.endpoint.endpoint_context
@@ -1228,6 +1252,7 @@ class TestEndpoint_shelve(object):
         request = {"redirect_uri": "https://rp.example.com/cb?foo=bar"}
         with pytest.raises(ValueError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_verify_uri_qp_missing_val(self):
         _ec = self.endpoint.endpoint_context
@@ -1238,6 +1263,7 @@ class TestEndpoint_shelve(object):
         request = {"redirect_uri": "https://rp.example.com/cb?foo=bar"}
         with pytest.raises(ValueError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_verify_uri_no_registered_qp(self):
         _ec = self.endpoint.endpoint_context
@@ -1246,6 +1272,7 @@ class TestEndpoint_shelve(object):
         request = {"redirect_uri": "https://rp.example.com/cb?foo=bob"}
         with pytest.raises(ValueError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
+        self._reset()
 
     def test_get_uri(self):
         _ec = self.endpoint.endpoint_context
@@ -1257,6 +1284,7 @@ class TestEndpoint_shelve(object):
         }
 
         assert get_uri(_ec, request, "redirect_uri") == "https://rp.example.com/cb"
+        self._reset()
 
     def test_get_uri_no_redirect_uri(self):
         _ec = self.endpoint.endpoint_context
@@ -1265,6 +1293,7 @@ class TestEndpoint_shelve(object):
         request = {"client_id": "client_id"}
 
         assert get_uri(_ec, request, "redirect_uri") == "https://rp.example.com/cb"
+        self._reset()
 
     def test_get_uri_no_registered(self):
         _ec = self.endpoint.endpoint_context
@@ -1274,6 +1303,7 @@ class TestEndpoint_shelve(object):
 
         with pytest.raises(ParameterError):
             get_uri(_ec, request, "post_logout_redirect_uri")
+        self._reset()
 
     def test_get_uri_more_then_one_registered(self):
         _ec = self.endpoint.endpoint_context
@@ -1288,6 +1318,7 @@ class TestEndpoint_shelve(object):
 
         with pytest.raises(ParameterError):
             get_uri(_ec, request, "redirect_uri")
+        self._reset()
 
     def test_create_authn_response(self):
         request = AuthorizationRequest(
@@ -1318,6 +1349,7 @@ class TestEndpoint_shelve(object):
 
         resp = create_authn_response(self.endpoint, request, "session_id")
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
+        self._reset()
 
     def test_setup_auth(self):
         request = AuthorizationRequest(
@@ -1341,6 +1373,7 @@ class TestEndpoint_shelve(object):
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, kaka)
         assert set(res.keys()) == {"authn_event", "identity", "user"}
+        self._reset()
 
     def test_setup_auth_error(self):
         request = AuthorizationRequest(
@@ -1370,6 +1403,7 @@ class TestEndpoint_shelve(object):
         assert set(res.keys()) == {"function", "args"}
 
         item["method"].file = ""
+        self._reset()
 
     def test_setup_auth_user(self):
         request = AuthorizationRequest(
@@ -1406,6 +1440,7 @@ class TestEndpoint_shelve(object):
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
         assert set(res.keys()) == {"authn_event", "identity", "user"}
         assert res["identity"]["uid"] == "krall"
+        self._reset()
 
     def test_setup_auth_session_revoked(self):
         request = AuthorizationRequest(
@@ -1442,6 +1477,7 @@ class TestEndpoint_shelve(object):
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
         assert set(res.keys()) == {"args", "function"}
+        self._reset()
 
     def test_response_mode_form_post(self):
         request = {"response_mode": "form_post"}
@@ -1456,6 +1492,7 @@ class TestEndpoint_shelve(object):
             action="https://example.com/cb",
             inputs='<input type="hidden" name="foo" value="bar"/>',
         )
+        self._reset()
 
     def test_do_response_code_form_post(self):
         _req = AUTH_REQ_DICT.copy()
@@ -1465,6 +1502,7 @@ class TestEndpoint_shelve(object):
         msg = self.endpoint.do_response(**_resp)
         assert ('Content-type', 'text/html') in msg["http_headers"]
         assert "response_placement" in msg
+        self._reset()
 
     def test_response_mode_fragment(self):
         request = {"response_mode": "fragment"}
@@ -1475,6 +1513,7 @@ class TestEndpoint_shelve(object):
 
         info = self.endpoint.response_mode(request)
         assert set(info.keys()) == {"fragment_enc"}
+        self._reset()
 
     def test_check_session_iframe(self):
         self.endpoint.endpoint_context.provider_info[
@@ -1483,6 +1522,7 @@ class TestEndpoint_shelve(object):
         _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
         _resp = self.endpoint.process_request(_pr_resp)
         assert "session_state" in _resp["response_args"]
+        self._reset()
 
     def test_setup_auth_login_hint(self):
         request = AuthorizationRequest(
@@ -1507,6 +1547,7 @@ class TestEndpoint_shelve(object):
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
         assert set(res.keys()) == {"function", "args"}
         assert "login_hint" in res["args"]
+        self._reset()
 
     def test_setup_auth_login_hint2acrs(self):
         request = AuthorizationRequest(
@@ -1539,6 +1580,7 @@ class TestEndpoint_shelve(object):
         assert res["acr"] == INTERNETPROTOCOLPASSWORD
         assert isinstance(res["method"], NoAuthn)
         assert res["method"].user == "knoll"
+        self._reset()
 
     def test_post_logout_uri(self):
         pass
@@ -1559,6 +1601,7 @@ class TestEndpoint_shelve(object):
             }
         )
         assert "__verified_request" in _req
+        self._reset()
 
     def test_parse_request_uri(self):
         _jwt = JWT(key_jar=self.rp_keyjar, iss="client_1", sign_alg="HS256")
@@ -1581,3 +1624,4 @@ class TestEndpoint_shelve(object):
             )
 
         assert "__verified_request" in _req
+        self._reset()
