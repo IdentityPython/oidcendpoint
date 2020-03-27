@@ -189,6 +189,24 @@ class TestEndpoint(object):
         assert _info["type"] == "T"
         assert _info["sid"] == session_id
 
+    @pytest.mark.parametrize("enable_claims_per_client", [True, False])
+    def test_client_claims(self, enable_claims_per_client):
+        ec = self.endpoint.endpoint_context
+        handler = ec.sdb.handler.handler["access_token"]
+        session_id = setup_session(
+            ec, AUTH_REQ, uid="diana"
+        )
+        ec.cdb["client_1"]['access_token_claims'] = {
+            "address": None
+        }
+        handler.enable_claims_per_client = enable_claims_per_client
+        _dic = ec.sdb.upgrade_to_token(key=session_id)
+
+        token = _dic["access_token"]
+        _jwt = JWT(key_jar=KEYJAR, iss="client_1")
+        res = _jwt.unpack(token)
+        assert enable_claims_per_client is ("address" in res)
+
     def test_is_expired(self):
         session_id = setup_session(
             self.endpoint.endpoint_context, AUTH_REQ, uid="diana"
