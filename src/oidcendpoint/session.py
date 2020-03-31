@@ -9,12 +9,13 @@ from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_REQUIRED_STRING
 from oidcmsg.message import msg_ser
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint import token_handler
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.in_memory_db import InMemoryDataBase
-from oidcendpoint.sso_db import SSODb, KEY_FORMAT
-from oidcendpoint.token_handler import AccessCodeUsed
+from oidcendpoint.sso_db import KEY_FORMAT
+from oidcendpoint.sso_db import SSODb
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.token_handler import WrongTokenType
@@ -47,7 +48,7 @@ def authn_event_deser(val, sformat="urlencoded"):
 
 
 def setup_session(
-    endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
+        endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
 ):
     """
     Setting up a user session
@@ -144,12 +145,16 @@ class SessionDB(object):
         if _info is None:
             sid = self.handler.sid(item)
             _info = self._db.get(sid)
-
-        if _info:
-            _si = SessionInfo().from_json(_info)
-            return _si
+            if _info:
+                _si = SessionInfo().from_json(_info)
+                if any(item == val for val in _si.values()):
+                    _si['sid'] = sid
+                    return _si
         else:
-            return None
+            _si = SessionInfo().from_json(_info)
+            _si['sid'] = item
+            return _si
+        raise KeyError
 
     def __setitem__(self, sid, instance):
         try:
@@ -245,7 +250,7 @@ class SessionDB(object):
             return _sess_info["access_token"]
 
     def do_sub(
-        self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
+            self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
     ):
         """
         Create and store a subject identifier
@@ -268,9 +273,9 @@ class SessionDB(object):
 
         return sub
 
-    def is_valid(self, item):
+    def is_valid(self, typ, item):
         try:
-            return not self.handler.is_black_listed(item)
+            return typ in self[item]
         except KeyError:
             return False
 
@@ -283,45 +288,39 @@ class SessionDB(object):
                 return sid
         return None
 
-    def replace_token(self, sid, sinfo, token_type):
+    def replace_refresh_token(self, sid, sinfo):
         """
         Replace an old refresh_token with a new one
 
         :param sid: session ID
         :param sinfo: session info
-        :param token_type: What type of tokens should be replaced
         :return: Updated session info
         """
-
-        if token_type in self.handler:
-            refresh_token = self.handler[token_type](sid, sinfo=sinfo)
-            # blacklist the old is there is one
-            if sinfo.get(token_type):
-                self.handler[token_type].black_list(sinfo[token_type])
-
-            sinfo[token_type] = refresh_token
+        refresh_token = self.handler["refresh_token"](sid, sinfo=sinfo)
+        sinfo["refresh_token"] = refresh_token
         return sinfo
 
     def _make_at(self, sid, session_info, aud=None, client_id_aud=True):
         uid = self.sso_db.get_uid_by_sid(sid)
-
-        uinfo = self.userinfo(uid, session_info["client_id"]) or {}
+        client_id = session_info["client_id"]
+        uinfo = self.userinfo(uid, client_id) or {}
         at_aud = aud or []
 
         if client_id_aud:
-            at_aud.append(session_info["client_id"])
+            at_aud.append(client_id)
         return self.handler["access_token"](
-            sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud
+            sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud,
+            client_id=client_id
         )
 
     def upgrade_to_token(
-        self,
-        grant=None,
-        issue_refresh=False,
-        id_token="",
-        oidreq=None,
-        key=None,
-        scope=None,
+            self,
+            grant=None,
+            issue_refresh=False,
+            id_token="",
+            oidreq=None,
+            key=None,
+            scope=None,
     ):
         """
 
@@ -333,25 +332,17 @@ class SessionDB(object):
         :return: The session information as a SessionInfo instance
         """
         if grant:
+            # The caller is responsible for checking if the access code exists.
             _tinfo = self.handler["code"].info(grant)
 
-            session_info = self[_tinfo["sid"]]
-
-            if self.handler["code"].is_black_listed(grant):
-                # invalidate the released access token and refresh token
-                for item in ["access_token", "refresh_token"]:
-                    try:
-                        self.handler[item].black_list(session_info[item])
-                    except KeyError:
-                        pass
-                raise AccessCodeUsed(grant)
+            key = _tinfo["sid"]
+            session_info = self[key]
 
             # mint a new access token
             _at = self._make_at(_tinfo["sid"], session_info)
 
             # make sure the code can't be used again
-            self.handler["code"].black_list(grant)
-            key = _tinfo["sid"]
+            self.revoke_token(key, "code", session_info)
         else:
             session_info = self[key]
             _at = self._make_at(key, session_info)
@@ -369,9 +360,11 @@ class SessionDB(object):
 
         if self.handler["access_token"].lifetime:
             session_info["expires_in"] = self.handler["access_token"].lifetime
+            session_info["expires_at"] = self.handler[
+                                             "access_token"].lifetime + utc_time_sans_frac()
 
-        if issue_refresh:
-            session_info = self.replace_token(key, session_info, "refresh_token")
+        if issue_refresh and "refresh_token" in self.handler:
+            session_info = self.replace_refresh_token(key, session_info)
 
         self[key] = session_info
         return session_info
@@ -386,24 +379,23 @@ class SessionDB(object):
         :raises: ExpiredToken for invalid refresh token
                  WrongTokenType for wrong token type
         """
-
         try:
             _tinfo = self.handler["refresh_token"].info(token)
         except KeyError:
             return False
 
-        if is_expired(int(_tinfo["exp"])) or _tinfo["black_listed"]:
-            raise ExpiredToken()
-
         _sid = _tinfo["sid"]
         session_info = self[_sid]
+        if token != session_info.get("refresh_token"):
+            raise UnknownToken()
+        if is_expired(int(_tinfo["exp"])):
+            raise ExpiredToken()
 
-        session_info = self.replace_token(_sid, session_info, "access_token")
-
+        session_info["access_token"] = self._make_at(_sid, session_info)
         session_info["token_type"] = self.handler["access_token"].token_type
 
         if new_refresh:
-            session_info = self.replace_token(_sid, session_info, "refresh_token")
+            session_info = self.replace_refresh_token(_sid, session_info)
 
         self[_sid] = session_info
         return session_info
@@ -420,11 +412,10 @@ class SessionDB(object):
         except KeyError:
             return False
 
-        if is_expired(int(_tinfo["exp"])) or _tinfo["black_listed"]:
-            return False
-
         # Dependent on what state the session is in.
         session_info = self[_tinfo["sid"]]
+        if is_expired(int(_tinfo["exp"])):
+            return False
 
         if session_info["oauth_state"] == "authz":
             if _tinfo["handler"] != self.handler["code"]:
@@ -435,22 +426,25 @@ class SessionDB(object):
 
         return True
 
-    def revoke_token(self, token, token_type=""):
+    def revoke_token(self, sid, token_type, session_info=None):
         """
-        Revokes access token
+        Revokes token
 
-        :param token: access token
+        :param sid: session id
+        :param token_type: token type, one of "code", "access_token" or
+            "refresh_token"
         """
-        if token_type:
-            self.handler[token_type].black_list(token)
-        else:
-            self.handler.black_list(token)
+        if not session_info:
+            session_info = self[sid]
+        session_info.pop(token_type, None)
+        self[sid] = session_info
 
     def revoke_all_tokens(self, token):
-        _sinfo = self[token]
-        for typ in self.handler.keys():
-            if _sinfo.get(typ):
-                self.revoke_token(_sinfo[typ], typ)
+        sid = self.handler.sid(token)
+        _sinfo = self[sid]
+        for token_type in self.handler.keys():
+            _sinfo.pop(token_type, None)
+        self[sid] = _sinfo
 
     def revoke_session(self, sid="", token=""):
         """
@@ -465,13 +459,11 @@ class SessionDB(object):
             else:
                 raise ValueError('Need one of "sid" or "token"')
 
-        for typ in ["access_token", "refresh_token", "code"]:
-            try:
-                self.revoke_token(self[sid][typ], typ)
-            except KeyError:  # If no such token has been issued
-                pass
-
-        self.update(sid, revoked=True)
+        _sinfo = self[sid]
+        for token_type in self.handler.keys():
+            _sinfo.pop(token_type, None)
+        _sinfo["revoked"] = True
+        self[sid] = _sinfo
 
     def get_client_id_for_session(self, sid):
         return self[sid]["client_id"]

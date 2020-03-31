@@ -3,10 +3,12 @@ from typing import Dict
 from typing import Optional
 
 from cryptojwt import JWT
+from cryptojwt.jws.exception import JWSException
 
 from oidcendpoint.exception import ToOld
 from oidcendpoint.token_handler import Token
 from oidcendpoint.token_handler import is_expired
+from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_info import scope2claims
 
 
@@ -14,7 +16,6 @@ class JWTToken(Token):
     def __init__(
         self,
         typ,
-        black_list=None,
         keyjar=None,
         issuer=None,
         aud=None,
@@ -24,17 +25,21 @@ class JWTToken(Token):
         token_type="Bearer",
         **kwargs
     ):
-        Token.__init__(self, typ, black_list, **kwargs)
+        Token.__init__(self, typ, **kwargs)
         self.token_type = token_type
         self.lifetime = lifetime
         self.args = kwargs
 
         self.key_jar = keyjar or ec.keyjar
         self.issuer = issuer or ec.issuer
+        self.cdb = ec.cdb
 
         self.def_aud = aud or []
         self.alg = alg
         self.scope_claims_map = kwargs.get("scope_claims_map", ec.scope2claims)
+        self.enable_claims_per_client = kwargs.get(
+            "enable_claims_per_client", False
+        )
 
     def add_claims(self, payload, uinfo, claims):
         for attr in claims:
@@ -46,7 +51,8 @@ class JWTToken(Token):
                 pass
 
     def __call__(
-        self, sid: str, uinfo: Dict, sinfo: Dict, *args, aud: Optional[Any], **kwargs
+        self, sid: str, uinfo: Dict, sinfo: Dict, *args, aud: Optional[Any],
+        client_id: Optional[str], **kwargs
     ):
         """
         Return a token.
@@ -69,6 +75,12 @@ class JWTToken(Token):
                     sinfo["authn_req"]["scope"], map=self.scope_claims_map
                 ).keys(),
             )
+        # Add claims if is access token
+        if self.type == 'T' and self.enable_claims_per_client:
+            client = self.cdb.get(client_id, {})
+            client_claims = client.get("access_token_claims")
+            if client_claims:
+                self.add_claims(payload, uinfo, client_claims)
 
         payload.update(kwargs)
         signer = JWT(
@@ -95,7 +107,10 @@ class JWTToken(Token):
         :return: tuple of token type and session id
         """
         verifier = JWT(key_jar=self.key_jar, allowed_sign_algs=[self.alg])
-        _payload = verifier.unpack(token)
+        try:
+            _payload = verifier.unpack(token)
+        except JWSException:
+            raise UnknownToken()
 
         if is_expired(_payload["exp"]):
             raise ToOld("Token has expired")
@@ -105,7 +120,6 @@ class JWTToken(Token):
             "type": _payload["ttype"],
             "exp": _payload["exp"],
             "handler": self,
-            "black_listed": self.is_black_listed(token),
         }
         return _res
 

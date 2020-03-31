@@ -22,6 +22,7 @@ from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.endpoint_context import add_path
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,12 @@ class Session(Endpoint):
         "backchannel_logout_session_supported": True,
         "check_session_iframe": None,
     }
+
+    def __init__(self, endpoint_context, **kwargs):
+        _csi = kwargs.get('check_session_iframe')
+        if _csi and not _csi.startswith("http"):
+            kwargs['check_session_iframe'] = add_path(endpoint_context.issuer, _csi)
+        Endpoint.__init__(self, endpoint_context, **kwargs)
 
     def do_back_channel_logout(self, cinfo, sub, sid):
         """
@@ -366,10 +373,10 @@ class Session(Endpoint):
                 pass
             else:
                 if (
-                    _ith.jws_header["alg"]
-                    not in self.endpoint_context.provider_info[
-                        "id_token_signing_alg_values_supported"
-                    ]
+                        _ith.jws_header["alg"]
+                        not in self.endpoint_context.provider_info[
+                    "id_token_signing_alg_values_supported"
+                ]
                 ):
                     raise JWSException("Unsupported signing algorithm")
 
@@ -391,7 +398,7 @@ class Session(Endpoint):
                 res = self.endpoint_context.httpc.post(
                     _url,
                     data="logout_token={}".format(sjwt),
-                    verify=self.endpoint_context.verify_ssl,
+                    **self.endpoint_context.httpc_params
                 )
 
                 if res.status_code < 300:
@@ -401,7 +408,7 @@ class Session(Endpoint):
                 elif res.status_code >= 400:
                     logger.info("failed to logout from {}".format(_cid))
 
-        return _res["flu"].values() if _res.get("fluu") else []
+        return _res["flu"].values() if _res.get("flu") else []
 
     def kill_cookies(self):
         _ec = self.endpoint_context

@@ -4,24 +4,24 @@ import os
 import pytest
 from cryptojwt import JWT
 from cryptojwt.key_jar import build_keyjar
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RefreshAccessTokenRequest
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import MultipleUsage
+from oidcendpoint.exception import ProcessError
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
-from oidcendpoint.oidc.refresh_token import RefreshAccessToken
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token_coop import TokenCoop
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import RefreshAccessTokenRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -29,7 +29,6 @@ KEYDEFS = [
 ]
 
 CLIENT_KEYJAR = build_keyjar(KEYDEFS)
-
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"],
@@ -114,7 +113,7 @@ class TestEndpoint(object):
                 },
                 "token": {
                     "path": "token",
-                    "class": AccessToken,
+                    "class": TokenCoop,
                     "kwargs": {
                         "client_authn_method": [
                             "client_secret_basic",
@@ -123,11 +122,6 @@ class TestEndpoint(object):
                             "private_key_jwt",
                         ]
                     },
-                },
-                "refresh_token": {
-                    "path": "token",
-                    "class": RefreshAccessToken,
-                    "kwargs": {},
                 },
                 "userinfo": {
                     "path": "userinfo",
@@ -151,7 +145,7 @@ class TestEndpoint(object):
             "client_secret": "hemligt",
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
-            "token_endpoint_auth_method": "client_secret_post",
+            "endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
         }
         endpoint_context.keyjar.import_jwks(CLIENT_KEYJAR.export_jwks(), "client_1")
@@ -202,8 +196,6 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
 
         # 2nd time used
-        # TODO: There is a bug in _post_parse_request, the returned error
-        # should be invalid_grant, not invalid_client
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
@@ -241,8 +233,10 @@ class TestEndpoint(object):
         _jwt = JWT(CLIENT_KEYJAR, iss=AUTH_REQ["client_id"], sign_alg="RS256")
         _jwt.with_jti = True
         _assertion = _jwt.pack({"aud": [_context.endpoint["token"].full_path]})
-        _token_request.update({"client_assertion": _assertion,
-                               "client_assertion_type": JWT_BEARER})
+        _token_request.update({
+                                  "client_assertion": _assertion,
+                                  "client_assertion_type": JWT_BEARER
+                              })
         _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
 
         _context.sdb.update(session_id, user="diana")
@@ -253,3 +247,84 @@ class TestEndpoint(object):
         with pytest.raises(UnAuthorizedClient):
             self.endpoint.parse_request(_token_request)
 
+    def test_do_refresh_access_token(self):
+        areq = AUTH_REQ.copy()
+        areq["scope"] = ["openid", "offline_access"]
+        _cntx = self.endpoint.endpoint_context
+        session_id = setup_session(
+            _cntx, areq, uid="user", acr=INTERNETPROTOCOLPASSWORD
+        )
+        _cntx.sdb.update(session_id, user="diana")
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _cntx.sdb[session_id]["code"]
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = _resp["response_args"]["refresh_token"]
+        _req = self.endpoint.parse_request(_request.to_json())
+        _resp = self.endpoint.process_request(request=_req)
+        assert set(_resp.keys()) == {"response_args", "http_headers"}
+        assert set(_resp["response_args"].keys()) == {
+            "access_token",
+            "token_type",
+            "expires_in",
+            "refresh_token",
+            "id_token",
+        }
+        msg = self.endpoint.do_response(request=_req, **_resp)
+        assert isinstance(msg, dict)
+
+    def test_do_2nd_refresh_access_token(self):
+        areq = AUTH_REQ.copy()
+        areq["scope"] = ["openid", "offline_access"]
+        _cntx = self.endpoint.endpoint_context
+        session_id = setup_session(
+            _cntx, areq, uid="user", acr=INTERNETPROTOCOLPASSWORD
+        )
+        _cntx.sdb.update(session_id, user="diana")
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _cntx.sdb[session_id]["code"]
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = _resp["response_args"]["refresh_token"]
+        _req = self.endpoint.parse_request(_request.to_json())
+        _resp = self.endpoint.process_request(request=_req)
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = _resp["response_args"]["refresh_token"]
+        _req = self.endpoint.parse_request(_request.to_json())
+        _resp = self.endpoint.process_request(request=_req)
+
+        assert set(_resp.keys()) == {"response_args", "http_headers"}
+        assert set(_resp["response_args"].keys()) == {
+            "access_token",
+            "token_type",
+            "expires_in",
+            "refresh_token",
+            "id_token",
+        }
+        msg = self.endpoint.do_response(request=_req, **_resp)
+        assert isinstance(msg, dict)
+
+    def test_do_refresh_access_token_not_allowed(self):
+        areq = AUTH_REQ.copy()
+        areq["scope"] = ["openid", "offline_access"]
+        _cntx = self.endpoint.endpoint_context
+        session_id = setup_session(
+            _cntx, areq, uid="user", acr=INTERNETPROTOCOLPASSWORD
+        )
+        _cntx.sdb.update(session_id, user="diana")
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _cntx.sdb[session_id]["code"]
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        self.endpoint.allow_refresh = False
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = _resp["response_args"]["refresh_token"]
+        with pytest.raises(ProcessError):
+            self.endpoint.parse_request(_request.to_json())

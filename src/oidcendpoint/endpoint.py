@@ -11,8 +11,9 @@ from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
-from oidcendpoint.client_authn import WrongAuthnMethod
+from oidcendpoint.client_authn import client_auth_setup
 from oidcendpoint.client_authn import verify_client
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = "Roland Hedberg"
@@ -35,14 +36,14 @@ do_response
             - _parse_args
             - post_construct (*)
     - update_http_args
-    
+
 do_response returns a dictionary that can look like this:
 {
-  'response': 
-    _response as a string or as a Message instance_ 
+  'response':
+    _response as a string or as a Message instance_
   'http_headers': [
-    ('Content-type', 'application/json'), 
-    ('Pragma', 'no-cache'), 
+    ('Content-type', 'application/json'),
+    ('Pragma', 'no-cache'),
     ('Cache-Control', 'no-store')
   ],
   'cookie': _list of cookies_,
@@ -51,9 +52,9 @@ do_response returns a dictionary that can look like this:
 
 "response" MUST be present
 "http_headers" MAY be present
-"cookie": MAY be present 
-"response_placement": If absent defaults the endpoints response_placement parameter value
-    or if that is also missing 'url'
+"cookie": MAY be present
+"response_placement": If absent defaults to the endpoints response_placement
+    parameter value or if that is also missing 'url'
 """
 
 
@@ -176,17 +177,23 @@ class Endpoint(object):
             if _val:
                 setattr(self, param, _val)
 
-        if "client_authn_method" in kwargs:
-            self.client_authn_method = kwargs["client_authn_method"]
-        elif self.default_capabilities is not None:
-            if "client_authn_method" in self.default_capabilities:
-                self.client_authn_method = self.default_capabilities[
-                    "client_authn_method"
-                ]
+        _methods = kwargs.get("client_authn_method")
+        self.client_authn_method = []
+        if _methods:
+            self.client_authn_method = client_auth_setup(_methods, endpoint_context)
+        elif _methods is not None:  # [] or '' or something not None but regarded as nothing.
+            pass  # Ignore default value
+        elif self.default_capabilities:
+            _methods = self.default_capabilities.get("client_authn_method")
+            if _methods:
+                self.client_authn_method = client_auth_setup(_methods, endpoint_context)
 
         self.endpoint_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
         )
+        # This is for matching against aud in JWTs
+        # By default the endpoint's endpoint URL is an allowed target
+        self.allowed_targets = [self.name]
 
     def parse_request(self, request, auth=None, **kwargs):
         """
@@ -209,7 +216,7 @@ class Endpoint(object):
                         request,
                         "jwt",
                         keyjar=self.endpoint_context.keyjar,
-                        verify=self.endpoint_context.verify_ssl,
+                        verify=self.endpoint_context.httpc_params["verify"],
                         **kwargs
                     )
                 elif self.request_format == "url":
@@ -281,9 +288,8 @@ class Endpoint(object):
                 else:
                     raise
 
-        if authn_info["method"] not in self.client_authn_method:
-            LOGGER.warning("Wrong client authentication method was used")
-            raise WrongAuthnMethod("Wrong authn method")
+        if authn_info == {} and self.client_authn_method and len(self.client_authn_method):
+            raise UnAuthorizedClient("Authorization failed")
 
         return authn_info
 
@@ -348,6 +354,8 @@ class Endpoint(object):
         if response_args is None:
             response_args = {}
 
+        LOGGER.debug("do_response kwargs: %s", kwargs)
+
         resp = None
         if error:
             _response = ResponseMessage(error=error)
@@ -390,7 +398,11 @@ class Endpoint(object):
                     try:
                         fragment_enc = kwargs["fragment_enc"]
                     except KeyError:
-                        fragment_enc = fragment_encoding(kwargs["return_type"])
+                        _ret_type = kwargs.get("return_type")
+                        if _ret_type:
+                            fragment_enc = fragment_encoding(_ret_type)
+                        else:
+                            fragment_enc = False
 
                     if fragment_enc:
                         resp = _response.request(kwargs["return_uri"], True)
@@ -425,3 +437,12 @@ class Endpoint(object):
             pass
 
         return _resp
+
+    def allowed_target_uris(self):
+        res = []
+        for t in self.allowed_targets:
+            if t == "":
+                res.append(self.endpoint_context.issuer)
+            else:
+                res.append(self.endpoint_context.endpoint[t].full_path)
+        return set(res)

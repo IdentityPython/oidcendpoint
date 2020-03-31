@@ -14,6 +14,7 @@ from oidcmsg.exception import ParameterError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import Claims
 from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint import rndstr
@@ -136,10 +137,16 @@ def proposed_user(request):
 
 
 def acr_claims(request):
-    if request["claims"].get("id_token"):
-        acrdef = request["claims"]["id_token"].get("acr")
-    else:
-        acrdef = None
+    acrdef = None
+
+    _claims = request.get('claims')
+    if isinstance(_claims, str):
+        _claims = Claims().from_json(_claims)
+
+    if _claims:
+        _id_token_claim = _claims.get("id_token")
+        if _id_token_claim:
+            acrdef = _id_token_claim.get("acr")
 
     if isinstance(acrdef, dict):
         if acrdef.get("value"):
@@ -251,7 +258,8 @@ class Authorization(Endpoint):
                 if _p[0] not in _registered:
                     raise ValueError("A request_uri outside the registered")
             # Fetch the request
-            _resp = endpoint_context.httpc.get(_request_uri)
+            _resp = endpoint_context.httpc.get(_request_uri,
+                                               **endpoint_context.httpc_params)
             if _resp.status_code == 200:
                 args = {"keyjar": endpoint_context.keyjar}
                 request = AuthorizationRequest().from_jwt(_resp.text, **args)
@@ -602,6 +610,7 @@ class Authorization(Endpoint):
                     as_unicode(_state),
                     typ="session",
                     cookie_name=ec.cookie_name["session_management"],
+                    same_site="None", http_only=False
                 )
 
                 opbs = session_cookie[ec.cookie_name["session_management"]]

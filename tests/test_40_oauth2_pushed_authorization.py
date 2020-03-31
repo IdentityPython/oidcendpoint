@@ -119,7 +119,7 @@ class TestEndpoint(object):
                     "kwargs": {},
                 },
                 "authorization": {
-                    "path": "{}/pushed_authorization",
+                    "path": "{}/authorization",
                     "class": Authorization,
                     "kwargs": {
                         "response_types_supported": [
@@ -132,7 +132,7 @@ class TestEndpoint(object):
                     },
                 },
                 "pushed_authorization": {
-                    "path": "{}/pushed_authorization",
+                    "path": "pushed_authorization",
                     "class": PushedAuthorization,
                     "kwargs": {
                         "client_authn_method": [

@@ -5,6 +5,7 @@ from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
 import pytest
+import responses
 from cryptojwt.key_jar import build_keyjar
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.cookie import CookieDealer
@@ -515,14 +516,17 @@ class TestEndpoint(object):
         with pytest.raises(KeyError):
             _ = self.session_endpoint.endpoint_context.sdb[_sid]
 
-    def test_do_verified_logout(self, requests_mock):
-        requests_mock.post("https://example.com/bc_logout", text="OK")
-        self._code_auth("1234567")
-        _cdb = self.session_endpoint.endpoint_context.cdb
-        _cdb["client_1"]["backchannel_logout_uri"] = "https://example.com/bc_logout"
-        _cdb["client_1"]["client_id"] = "client_1"
+    def test_do_verified_logout(self):
+        with responses.RequestsMock() as rsps:
+            rsps.add("POST", "https://example.com/bc_logout",
+                     body="OK", status=200)
 
-        _sid = self._get_sid()
+            self._code_auth("1234567")
+            _cdb = self.session_endpoint.endpoint_context.cdb
+            _cdb["client_1"]["backchannel_logout_uri"] = "https://example.com/bc_logout"
+            _cdb["client_1"]["client_id"] = "client_1"
 
-        res = self.session_endpoint.do_verified_logout(_sid, "client_1")
-        assert res == []
+            _sid = self._get_sid()
+
+            res = self.session_endpoint.do_verified_logout(_sid, "client_1")
+            assert res == []

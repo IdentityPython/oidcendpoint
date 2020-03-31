@@ -34,8 +34,8 @@ class UserInfo(Endpoint):
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
         self.scope_to_claims = None
-        if "client_authn_method" not in kwargs:
-            self.client_authn_method = self.default_capabilities["client_authn_method"]
+        # Add the issuer ID as an allowed JWT target
+        self.allowed_targets.append("")
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         sinfo = self.endpoint_context.sdb[token]
@@ -139,7 +139,7 @@ class UserInfo(Endpoint):
             request = {}
 
         # Verify that the client is allowed to do this
-        auth_info = self.client_authentication(request, auth, **kwargs)
+        auth_info = self.client_authentication(request, auth, endpoint="userinfo", **kwargs)
         if isinstance(auth_info, ResponseMessage):
             return auth_info
         else:

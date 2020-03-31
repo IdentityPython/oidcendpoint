@@ -18,3 +18,9 @@ class InMemoryDataBase(object):
 
     def keys(self):
         return self.db.keys()
+
+    def close(self):
+        pass
+
+    def clear(self):
+        self.db = {}

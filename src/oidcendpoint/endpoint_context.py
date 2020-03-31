@@ -19,6 +19,7 @@ from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
 from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.util import build_endpoints
+from oidcendpoint.util import get_http_params
 from oidcendpoint.util import importer
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,10 @@ class EndpointContext:
         self.keyjar = keyjar or KeyJar()
         self.cwd = cwd
 
+        if self.keyjar is None or self.keyjar.owners() == []:
+            args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
+            self.keyjar = init_key_jar(**args)
+
         try:
             self.seed = bytes(conf["seed"], "utf-8")
         except KeyError:
@@ -111,7 +116,6 @@ class EndpointContext:
         self.endpoint = {}
         self.issuer = ""
         self.httpc = httpc or requests
-        self.verify_ssl = True
         self.jwks_uri = None
         self.sso_ttl = 14400  # 4h
         self.symkey = rndstr(24)
@@ -128,6 +132,7 @@ class EndpointContext:
         # arguments for endpoints add-ons
         self.args = {}
         self.par_db = {}
+        self.dev_auth_db = {}
 
         self.th_args = get_token_handlers(conf)
 
@@ -161,7 +166,6 @@ class EndpointContext:
             }
 
         for param in [
-            "verify_ssl",
             "issuer",
             "sso_ttl",
             "symkey",
@@ -200,10 +204,6 @@ class EndpointContext:
         except KeyError:
             self.jwks_uri = ""
 
-        if self.keyjar is None or self.keyjar.owners() == []:
-            args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
-            self.keyjar = init_key_jar(**args)
-
         for item in [
             "cookie_dealer",
             "authz",
@@ -233,10 +233,29 @@ class EndpointContext:
         # client registration access tokens
         self.registration_access_token = {}
 
+        # The HTTP clients request arguments
+        _cnf = conf.get("http_params")
+        if _cnf:
+            self.httpc_params= get_http_params(_cnf)
+        else: # Backward compatibility
+            self.httpc_params = {"verify": conf.get("verify_ssl")}
+
     def set_session_db(self, sso_db=None, db=None):
-        sso_db = sso_db or SSODb()
+        if sso_db is None and self.conf.get("sso_db"):
+            _spec = self.conf.get("sso_db")
+            _kwargs = _spec.get("kwargs", {})
+            _db = importer(_spec["class"])(**_kwargs)
+            sso_db = SSODb(_db)
+        else:
+            sso_db = sso_db or SSODb()
+
+        if db is None and self.conf.get("session_db"):
+            _spec = self.conf.get("session_db")
+            _kwargs = _spec.get("kwargs", {})
+            db = importer(_spec["class"])(**_kwargs)
+
         self.do_session_db(sso_db, db)
-        # append useinfo db to the session db
+        # append userinfo db to the session db
         self.do_userinfo()
         logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
@@ -325,7 +344,6 @@ class EndpointContext:
         self.endpoint = build_endpoints(
             self.conf["endpoint"],
             endpoint_context=self,
-            client_authn_method=CLIENT_AUTHN_METHOD,
             issuer=self.conf["issuer"],
         )
 

@@ -5,7 +5,6 @@ import logging
 import time
 from random import random
 from urllib.parse import parse_qs
-from urllib.parse import splitquery
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
@@ -24,6 +23,7 @@ from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import CapabilitiesMisMatch
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
+from oidcendpoint.util import split_uri
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",
@@ -84,15 +84,6 @@ def verify_url(url, urlset):
     return False
 
 
-def client_secret_expiration_time(delta=86400):
-    """
-    Returns client_secret expiration time.
-
-    Split for easy customization.
-    """
-    return utc_time_sans_frac() + delta
-
-
 def secret(seed, sid):
     msg = "{}{:.6f}{}".format(time.time(), random(), sid).encode("utf-8")
     csum = hmac.new(seed, msg, hashlib.sha224)
@@ -128,7 +119,7 @@ class Registration(Endpoint):
     name = "registration"
 
     # default
-    # response_placement = 'body'dcfr
+    # response_placement = 'body'
 
     def match_client_request(self, request):
         _context = self.endpoint_context
@@ -143,7 +134,7 @@ class Registration(Endpoint):
                             raise CapabilitiesMisMatch(_pref)
                     else:
                         if not set(request[_pref]).issubset(
-                            set(_context.provider_info[_prov])
+                                set(_context.provider_info[_prov])
                         ):
                             raise CapabilitiesMisMatch(_pref)
 
@@ -165,15 +156,11 @@ class Registration(Endpoint):
                     err = ClientRegistrationErrorResponse(
                         error="invalid_configuration_parameter",
                         error_description="post_logout_redirect_uris "
-                        "contains "
-                        "fragment",
+                                          "contains "
+                                          "fragment",
                     )
                     return err
-                base, query = splitquery(uri)
-                if query:
-                    plruri.append((base, parse_qs(query)))
-                else:
-                    plruri.append((base, query))
+                plruri.append(split_uri(uri))
             _cinfo["post_logout_redirect_uris"] = plruri
 
         if "redirect_uris" in request:
@@ -284,7 +271,7 @@ class Registration(Endpoint):
             if _custom:  # Can not verify a custom scheme
                 verified_redirect_uris.append((uri, {}))
             else:
-                base, query = splitquery(uri)
+                base, query = split_uri(uri)
                 if query:
                     verified_redirect_uris.append((base, parse_qs(query)))
                 else:
@@ -303,7 +290,8 @@ class Registration(Endpoint):
         """
         si_url = request["sector_identifier_uri"]
         try:
-            res = self.endpoint_context.httpc.get(si_url)
+            res = self.endpoint_context.httpc.get(si_url,
+                                                  **self.endpoint_context.httpc_params)
             logger.debug("sector_identifier_uri => %s", sanitize(res.text))
         except Exception as err:
             logger.error(err)
@@ -337,16 +325,22 @@ class Registration(Endpoint):
 
         context.registration_access_token[_rat] = client_id
 
+    def client_secret_expiration_time(self):
+        """
+        Returns client_secret expiration time.
+        """
+        if not self.kwargs.get("client_secret_expires", True):
+            return 0
+
+        _expiration_time = self.kwargs.get("client_secret_expires_in", 2592000)
+        return utc_time_sans_frac() + _expiration_time
+
     def add_client_secret(self, cinfo, client_id, context):
-        delta_int = int(self.kwargs.get("client_secret_expiration_time", 0))
-        args = {"delta": delta_int} if delta_int else {}
         client_secret = secret(context.seed, client_id)
-        cinfo.update(
-            {
-                "client_secret": client_secret,
-                "client_secret_expires_at": client_secret_expiration_time(**args),
-            }
-        )
+        cinfo["client_secret"] = client_secret
+        _eat = self.client_secret_expiration_time()
+        if _eat:
+            cinfo["client_secret_expires_at"] = _eat
 
         return client_secret
 

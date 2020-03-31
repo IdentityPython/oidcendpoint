@@ -3,21 +3,27 @@ import logging
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
 from oidcmsg import oidc
+from oidcmsg.exception import MissingRequiredAttribute
+from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AccessTokenResponse
+from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.oidc import TokenErrorResponse
 
 from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import ProcessError
 from oidcendpoint.token_handler import AccessCodeUsed
+from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
 
 logger = logging.getLogger(__name__)
 
 
-class AccessToken(Endpoint):
-    request_cls = oidc.AccessTokenRequest
+class TokenCoop(Endpoint):
+    request_cls = oidc.Message
     response_cls = oidc.AccessTokenResponse
     error_cls = TokenErrorResponse
     request_format = "json"
@@ -35,16 +41,25 @@ class AccessToken(Endpoint):
             self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
                 "client_authn_method"
             ]
+        self.allow_refresh = kwargs.get("allow_refresh", True)
+
+    def _refresh_access_token(self, req, **kwargs):
+        _sdb = self.endpoint_context.sdb
+
+        rtoken = req["refresh_token"]
+        try:
+            _info = _sdb.refresh_token(rtoken)
+        except ExpiredToken:
+            return self.error_cls(
+                error="invalid_request", error_description="Refresh token is expired"
+            )
+
+        return by_schema(AccessTokenResponse, **_info)
 
     def _access_token(self, req, **kwargs):
         _context = self.endpoint_context
         _sdb = _context.sdb
         _log_debug = logger.debug
-
-        if req["grant_type"] != "authorization_code":
-            return self.error_cls(
-                error="invalid_request", error_description="Unknown grant_type"
-            )
 
         try:
             _access_code = req["code"].replace(" ", "+")
@@ -119,7 +134,7 @@ class AccessToken(Endpoint):
         sinfo = endpoint_context.sdb[token]
         return sinfo["authn_req"]["client_id"]
 
-    def _post_parse_request(self, request, client_id="", **kwargs):
+    def _access_token_post_parse_request(self, request, client_id="", **kwargs):
         """
         This is where clients come to get their access tokens
 
@@ -127,6 +142,8 @@ class AccessToken(Endpoint):
         :param authn: Authentication info, comes from HTTP header
         :returns:
         """
+
+        request = AccessTokenRequest(**request.to_dict())
 
         if "state" in request:
             try:
@@ -148,6 +165,46 @@ class AccessToken(Endpoint):
 
         return request
 
+    def _refresh_token_post_parse_request(self, request, client_id="", **kwargs):
+        """
+        This is where clients come to refresh their access tokens
+
+        :param request: The request
+        :param authn: Authentication info, comes from HTTP header
+        :returns:
+        """
+
+        request = RefreshAccessTokenRequest(**request.to_dict())
+
+        # verify that the request message is correct
+        try:
+            request.verify(keyjar=self.endpoint_context.keyjar)
+        except (MissingRequiredAttribute, ValueError, MissingRequiredValue) as err:
+            return self.error_cls(error="invalid_request", error_description="%s" % err)
+
+        try:
+            keyjar = self.endpoint_context.keyjar
+        except AttributeError:
+            keyjar = ""
+
+        request.verify(keyjar=keyjar, opponent_id=client_id)
+
+        if "client_id" not in request:  # Optional for refresh access token request
+            request["client_id"] = client_id
+
+        logger.debug("%s: %s" % (request.__class__.__name__, sanitize(request)))
+
+        return request
+
+    def _post_parse_request(self, request, client_id="", **kwargs):
+        if request["grant_type"] == "authorization_code":
+            return self._access_token_post_parse_request(request, client_id, **kwargs)
+        else:  # request["grant_type"] == "refresh_token":
+            if self.allow_refresh:
+                return self._refresh_token_post_parse_request(request, client_id, **kwargs)
+            else:
+                raise ProcessError("Refresh Token not allowed")
+
     def process_request(self, request=None, **kwargs):
         """
 
@@ -158,17 +215,32 @@ class AccessToken(Endpoint):
         if isinstance(request, self.error_cls):
             return request
         try:
-            response_args = self._access_token(request, **kwargs)
+            if request["grant_type"] == "authorization_code":
+                logger.debug("Access Token Request")
+                response_args = self._access_token(request, **kwargs)
+            elif request["grant_type"] == "refresh_token":
+                logger.debug("Refresh Access Token Request")
+                response_args = self._refresh_access_token(request, **kwargs)
+            else:
+                return self.error_cls(
+                    error="invalid_request", error_description="Wrong grant_type"
+                )
         except JWEException as err:
             return self.error_cls(error="invalid_request", error_description="%s" % err)
 
         if isinstance(response_args, ResponseMessage):
             return response_args
 
+        if request["grant_type"] == "authorization_code":
+            _token = request["code"].replace(" ", "+")
+        else:
+            _token = request["refresh_token"].replace(" ", "+")
+
         _access_token = response_args["access_token"]
         _cookie = new_cookie(
             self.endpoint_context, sub=self.endpoint_context.sdb[_access_token]["sub"]
         )
+
         _headers = [("Content-type", "application/json")]
         resp = {"response_args": response_args, "http_headers": _headers}
         if _cookie:
