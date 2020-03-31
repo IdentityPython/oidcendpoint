@@ -4,6 +4,9 @@ import pytest
 from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.key_jar import init_key_jar
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+
 from oidcendpoint import user_info
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
@@ -15,8 +18,6 @@ from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -109,15 +110,17 @@ class TestEndpoint(object):
                 "code": {"lifetime": 600},
                 "token": {
                     "class": "oidcendpoint.jwt_token.JWTToken",
-                    "lifetime": 3600,
-                    "add_claims": [
-                        "email",
-                        "email_verified",
-                        "phone_number",
-                        "phone_number_verified",
-                    ],
-                    "add_claim_by_scope": True,
-                    "aud": ["https://example.org/appl"],
+                    "kwargs": {
+                        "lifetime": 3600,
+                        "add_claims": [
+                            "email",
+                            "email_verified",
+                            "phone_number",
+                            "phone_number_verified",
+                        ],
+                        "add_claim_by_scope": True,
+                        "aud": ["https://example.org/appl"],
+                    }
                 },
             },
             "endpoint": {
@@ -217,6 +220,6 @@ class TestEndpoint(object):
         assert handler.is_expired(_dic["access_token"]) is False
 
         assert (
-            handler.is_expired(_dic["access_token"], utc_time_sans_frac() + 4000)
-            is True
+                handler.is_expired(_dic["access_token"], utc_time_sans_frac() + 4000)
+                is True
         )
