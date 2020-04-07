@@ -134,6 +134,18 @@ class EndpointContext:
         self.par_db = {}
         self.dev_auth_db = {}
 
+        for param in [
+            "issuer",
+            "sso_ttl",
+            "symkey",
+            "client_authn",
+            "id_token_schema",
+        ]:
+            try:
+                setattr(self, param, conf[param])
+            except KeyError:
+                pass
+
         self.th_args = get_token_handlers(conf)
 
         # client database
@@ -164,18 +176,6 @@ class EndpointContext:
                 "register": "oidc_op_rp",
                 "session_management": "sman",
             }
-
-        for param in [
-            "issuer",
-            "sso_ttl",
-            "symkey",
-            "client_authn",
-            "id_token_schema",
-        ]:
-            try:
-                setattr(self, param, conf[param])
-            except KeyError:
-                pass
 
         try:
             self.template_handler = conf["template_handler"]
