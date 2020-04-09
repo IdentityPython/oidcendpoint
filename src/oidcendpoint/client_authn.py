@@ -310,6 +310,8 @@ def verify_client(
             pass
 
     for _method in _methods:
+        if _method is None:
+            continue
         if _method.is_usable(request, authorization_info):
             try:
                 auth_info = _method.verify(request=request, authorization_info=authorization_info,
@@ -322,7 +324,10 @@ def verify_client(
                 break
 
     if not auth_info:
-        return auth_info
+        if None in _methods:
+            auth_info = {"method": "none", "client_id": request.get("client_id")}
+        else:
+            return auth_info
 
     if also_known_as:
         client_id = also_known_as[auth_info.get("client_id")]
@@ -375,10 +380,13 @@ def client_auth_setup(auth_set, endpoint_context):
     res = []
 
     for item in auth_set:
-        _cls = CLIENT_AUTHN_METHOD.get(item)
-        if _cls:
-            res.append(_cls(endpoint_context))
+        if item is None or item.lower() == 'none':
+            res.append(None)
         else:
-            res.append(importer(item)(endpoint_context))
+            _cls = CLIENT_AUTHN_METHOD.get(item)
+            if _cls:
+                res.append(_cls(endpoint_context))
+            else:
+                res.append(importer(item)(endpoint_context))
 
     return res
