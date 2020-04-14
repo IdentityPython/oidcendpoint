@@ -530,3 +530,43 @@ class TestEndpoint(object):
 
             res = self.session_endpoint.do_verified_logout(_sid, "client_1")
             assert res == []
+
+    def test_logout_from_client_unknow_sid(self):
+        self._code_auth("1234567")
+        self._code_auth2("abcdefg")
+
+        # client0
+        self.session_endpoint.endpoint_context.cdb["client_1"][
+            "backchannel_logout_uri"
+        ] = "https://example.com/bc_logout"
+        self.session_endpoint.endpoint_context.cdb["client_1"]["client_id"] = "client_1"
+        self.session_endpoint.endpoint_context.cdb["client_2"][
+            "frontchannel_logout_uri"
+        ] = "https://example.com/fc_logout"
+        self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
+
+        _sid = 'sid'
+
+        res = self.session_endpoint.logout_all_clients(_sid, "client_1")
+        assert res == {}
+
+    def test_logout_from_client_no_session(self):
+        self._code_auth("1234567")
+        self._code_auth2("abcdefg")
+
+        # client0
+        self.session_endpoint.endpoint_context.cdb["client_1"][
+            "backchannel_logout_uri"
+        ] = "https://example.com/bc_logout"
+        self.session_endpoint.endpoint_context.cdb["client_1"]["client_id"] = "client_1"
+        self.session_endpoint.endpoint_context.cdb["client_2"][
+            "frontchannel_logout_uri"
+        ] = "https://example.com/fc_logout"
+        self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
+
+        _sid = self._get_sid()
+
+        self.session_endpoint.endpoint_context.sdb.sso_db.delete('uid2sid', 'diana')
+
+        res = self.session_endpoint.logout_all_clients(_sid, "client_1")
+        assert res == {}
