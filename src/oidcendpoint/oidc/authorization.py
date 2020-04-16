@@ -655,6 +655,7 @@ class Authorization(Endpoint):
 
         _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
+        logger.debug("client {}: {}".format(_cid, cinfo))
 
         cookie = kwargs.get("cookie", "")
         if cookie:
