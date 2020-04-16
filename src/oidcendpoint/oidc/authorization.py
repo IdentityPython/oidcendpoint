@@ -407,6 +407,8 @@ class Authorization(Endpoint):
         # To authenticate or Not
         if identity is None:  # No!
             logger.info("No active authentication")
+            logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
+
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
                 return {
