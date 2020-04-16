@@ -387,6 +387,8 @@ class Registration(Endpoint):
         if set_secret:
             client_secret = self.add_client_secret(_cinfo, client_id, _context)
 
+        logger.debug("Stored client info in CDB under cid={}".format(client_id))
+
         _context.cdb[client_id] = _cinfo
         _cinfo = self.do_client_registration(
             request,
@@ -407,6 +409,8 @@ class Registration(Endpoint):
         if client_secret:
             _context.keyjar.add_symmetric(client_id, str(client_secret))
 
+        logger.debug("Stored updated client info in CDB under cid={}".format(client_id))
+        logger.debug("ClientInfo: {}".format(_cinfo))
         _context.cdb[client_id] = _cinfo
 
         # Not all databases can be sync'ed
