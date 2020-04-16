@@ -487,7 +487,7 @@ class Authorization(Endpoint):
 
     def error_response(self, response_info, error, error_description):
         resp = AuthorizationErrorResponse(
-            error=error, error_description=error_description
+            error=error, error_description=str(error_description)
         )
         response_info["response_args"] = resp
         return response_info
