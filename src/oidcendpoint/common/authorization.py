@@ -69,6 +69,8 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
     if not _cid:
         logger.error("No client id found")
         raise UnknownClient("No client_id provided")
+    else:
+        logger.debug('Client ID: {}'.format(_cid))
 
     _redirect_uri = unquote(request[uri_type])
 
@@ -84,6 +86,9 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
     # Get the clients registered redirect uris
     redirect_uris = endpoint_context.cdb.get(_cid, {}).get("{}s".format(uri_type))
     if not redirect_uris:
+        if _cid not in endpoint_context.cdb:
+            logger.debug("CIDs: {}".format(list(endpoint_context.cdb.keys())))
+            raise ValueError("No such client")
         raise ValueError("No registered {}".format(uri_type))
     else:
         for regbase, rquery in redirect_uris:
