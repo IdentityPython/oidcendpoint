@@ -537,6 +537,8 @@ class Authorization(Endpoint):
 
         response_info = create_authn_response(self, request, sid)
 
+        logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
+
         try:
             redirect_uri = get_uri(self.endpoint_context, request, "redirect_uri")
         except (RedirectURIError, ParameterError) as err:
