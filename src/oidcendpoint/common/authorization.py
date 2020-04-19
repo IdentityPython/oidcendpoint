@@ -89,7 +89,7 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
     if not redirect_uris:
         if _cid not in endpoint_context.cdb:
             logger.debug("CIDs: {}".format(list(endpoint_context.cdb.keys())))
-            raise ValueError("No such client")
+            raise KeyError("No such client")
         raise ValueError("No registered {}".format(uri_type))
     else:
         for regbase, rquery in redirect_uris:
