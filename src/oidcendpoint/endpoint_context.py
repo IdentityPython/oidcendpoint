@@ -149,7 +149,7 @@ class EndpointContext:
         self.th_args = get_token_handlers(conf)
 
         # client database
-        self.cdb = client_db or {}
+        self.set_client_db()
 
         # session db
         self._sub_func = {}
@@ -260,7 +260,20 @@ class EndpointContext:
         logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
     def set_jti_db(self, db=None):
-        self.jti_db = db or InMemoryDataBase()
+        if db is None and self.conf.get("jti_db"):
+            _spec = self.conf.get("jti_db")
+            _kwargs = _spec.get("kwargs", {})
+            self.jti_db = importer(_spec["class"])(**_kwargs)
+        else:
+            self.jti_db = db or InMemoryDataBase()
+
+    def set_client_db(self, db=None):
+        if db is None and self.conf.get("client_db"):
+            _spec = self.conf.get("client_db")
+            _kwargs = _spec.get("kwargs", {})
+            self.cdb = importer(_spec["class"])(**_kwargs)
+        else:
+            self.cdb = {}
 
     def do_add_on(self):
         if self.conf.get("add_on"):
