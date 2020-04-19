@@ -6,6 +6,15 @@ class InMemoryDataBase(object):
         if self.db.get(key):
             return 1
 
+    def __getitem__(self, key):
+        return self.db.get(key, None)
+
+    def __setitem__(self, key, value):
+        self.db[key] = value
+
+    def __delitem__(self, key):
+        del self.db[key]
+
     def set(self, key, value):
         self.db[key] = value
 
