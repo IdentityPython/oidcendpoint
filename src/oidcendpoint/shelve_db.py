@@ -43,3 +43,6 @@ class ShelveDataBase(object):
 
     def close(self):
         self.db.close()
+
+    def sync(self):
+        self.db.sync()

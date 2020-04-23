@@ -1034,6 +1034,11 @@ class TestEndpoint_shelve(object):
         _sdb.sso_db.close()
         _sdb._db.clear()
         _sdb._db.close()
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb.clear()
+        _ec.cdb.close()
+        _ec.jti_db.clear()
+        _ec.jti_db.close()
 
     def test_init(self):
         assert self.endpoint
