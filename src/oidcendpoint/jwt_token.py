@@ -24,6 +24,7 @@ class JWTToken(Token):
         typ,
         keyjar=None,
         issuer=None,
+        cdb=None,
         aud=None,
         alg="ES256",
         lifetime=300,
@@ -38,7 +39,7 @@ class JWTToken(Token):
 
         self.key_jar = keyjar or ec.keyjar
         self.issuer = issuer or ec.issuer
-        self.cdb = ec.cdb
+        self.cdb = cdb or ec.cdb
 
         self.def_aud = aud or []
         self.alg = alg

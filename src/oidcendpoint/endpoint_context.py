@@ -146,10 +146,12 @@ class EndpointContext:
             except KeyError:
                 pass
 
-        self.th_args = get_token_handlers(conf)
-
         # client database
+        # Initialize cdb before the token handlers since the JWT token handler
+        # might need it
         self.set_client_db()
+
+        self.th_args = get_token_handlers(conf)
 
         # session db
         self._sub_func = {}
