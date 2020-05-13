@@ -1,6 +1,6 @@
 import logging
 
-from oidcendpoint.user_info import SCOPE2CLAIMS
+from oidcendpoint.scopes import SCOPE2CLAIMS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,11 +22,11 @@ def add_custom_scopes(endpoint, **kwargs):
     # add to defaults
     authz_enp = endpoint.get("authorization")
     if authz_enp:
-        _supported = set(authz_enp.default_capabilities['scopes_supported'])
+        _supported = set(authz_enp.scopes_supported)
         _supported.update(set(kwargs.keys()))
-        authz_enp.default_capabilities['scopes_supported'] = list(_supported)
+        authz_enp.scopes_supported = list(_supported)
 
-        _claims = set(authz_enp.default_capabilities['claims_supported'])
+        _claims = set(authz_enp.claims_supported)
         for vals in kwargs.values():
             _claims.update(set(vals))
-        authz_enp.default_capabilities['claims_supported'] = list(_claims)
+        authz_enp.claims_supported = list(_claims)

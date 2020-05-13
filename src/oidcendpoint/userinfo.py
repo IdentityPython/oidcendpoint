@@ -4,7 +4,7 @@ from oidcmsg.oidc import Claims
 
 from oidcendpoint import sanitize
 from oidcendpoint.exception import FailedAuthentication
-from oidcendpoint.user_info import scope2claims
+from oidcendpoint.scopes import convert_scopes2claims
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +123,12 @@ def collect_user_info(
     if scope_to_claims is None:
         scope_to_claims = endpoint_context.scope2claims
 
-    supported_scopes = [s for s in authn_req["scope"] if
-                        s in endpoint_context.provider_info["scopes_supported"]]
+    _allowed = endpoint_context.scopes_handler.allowed_scopes(authn_req['client_id'],
+                                                              endpoint_context)
+    supported_scopes = [s for s in authn_req["scope"] if s in _allowed]
 
     if userinfo_claims is None:
-        uic = scope2claims(supported_scopes, map=scope_to_claims)
+        uic = convert_scopes2claims(supported_scopes, map=scope_to_claims)
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session
@@ -141,10 +142,9 @@ def collect_user_info(
 
         if uic:
             userinfo_claims = Claims(**uic)
+            logger.debug("userinfo_claim: %s" % sanitize(userinfo_claims.to_dict()))
         else:
             userinfo_claims = None
-
-        logger.debug("userinfo_claim: %s" % sanitize(userinfo_claims.to_dict()))
 
     logger.debug("Session info: %s" % sanitize(session))
 

@@ -11,10 +11,10 @@ from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.scopes import SCOPE2CLAIMS
+from oidcendpoint.scopes import convert_scopes2claims
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
-from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.user_info import UserInfo
-from oidcendpoint.user_info import scope2claims
 from oidcendpoint.userinfo import by_schema
 from oidcendpoint.userinfo import claims_match
 from oidcendpoint.userinfo import collect_user_info
@@ -75,8 +75,8 @@ USERINFO_DB = json.loads(open(full_path("users.json")).read())
 
 
 def test_default_scope2claims():
-    assert scope2claims(["openid"]) == {"sub": None}
-    assert set(scope2claims(["profile"]).keys()) == {
+    assert convert_scopes2claims(["openid"]) == {"sub": None}
+    assert set(convert_scopes2claims(["profile"]).keys()) == {
         "name",
         "given_name",
         "family_name",
@@ -92,15 +92,15 @@ def test_default_scope2claims():
         "updated_at",
         "preferred_username",
     }
-    assert set(scope2claims(["email"]).keys()) == {"email", "email_verified"}
-    assert set(scope2claims(["address"]).keys()) == {"address"}
-    assert set(scope2claims(["phone"]).keys()) == {
+    assert set(convert_scopes2claims(["email"]).keys()) == {"email", "email_verified"}
+    assert set(convert_scopes2claims(["address"]).keys()) == {"address"}
+    assert set(convert_scopes2claims(["phone"]).keys()) == {
         "phone_number",
         "phone_number_verified",
     }
-    assert scope2claims(["offline_access"]) == {}
+    assert convert_scopes2claims(["offline_access"]) == {}
 
-    assert scope2claims(["openid", "email", "phone"]) == {
+    assert convert_scopes2claims(["openid", "email", "phone"]) == {
         "sub": None,
         "email": None,
         "email_verified": None,
@@ -126,17 +126,17 @@ def test_custom_scopes():
     _scopes = SCOPE2CLAIMS.copy()
     _scopes.update(custom_scopes)
 
-    assert set(scope2claims(["email"], map=_scopes).keys()) == {
+    assert set(convert_scopes2claims(["email"], map=_scopes).keys()) == {
         "email",
         "email_verified",
     }
-    assert set(scope2claims(["address"], map=_scopes).keys()) == {"address"}
-    assert set(scope2claims(["phone"], map=_scopes).keys()) == {
+    assert set(convert_scopes2claims(["address"], map=_scopes).keys()) == {"address"}
+    assert set(convert_scopes2claims(["phone"], map=_scopes).keys()) == {
         "phone_number",
         "phone_number_verified",
     }
 
-    assert set(scope2claims(["research_and_scholarship"], map=_scopes).keys()) == {
+    assert set(convert_scopes2claims(["research_and_scholarship"], map=_scopes).keys()) == {
         "name",
         "given_name",
         "family_name",
@@ -147,6 +147,7 @@ def test_custom_scopes():
         "eduperson_scoped_affiliation",
     }
 
+
 PROVIDER_INFO = {
     "claims_supported": ["auth_time", "acr", "given_name",
                          "nickname",
@@ -156,6 +157,7 @@ PROVIDER_INFO = {
                          "http://example.info/claims/groups",
                          ]
 }
+
 
 def test_update_claims_authn_req_id_token():
     _session_info = {"authn_req": OIDR}
@@ -278,6 +280,8 @@ class TestCollectUserInfo:
                 "template_dir": "template",
             }
         )
+        # Just has to be there
+        self.endpoint_context.cdb['client1'] = {}
 
     def test_collect_user_info(self):
         _req = OIDR.copy()
@@ -412,6 +416,7 @@ class TestCollectUserInfoCustomScopes:
                 "template_dir": "template",
             }
         )
+        self.endpoint_context.cdb['client1'] = {}
 
     def test_collect_user_info(self):
         _session_info = {"authn_req": OIDR}

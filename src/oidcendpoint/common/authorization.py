@@ -1,5 +1,4 @@
 import logging
-from urllib.parse import parse_qs
 from urllib.parse import unquote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
@@ -13,7 +12,6 @@ from oidcmsg.oidc import verified_claim_name
 from oidcendpoint import sanitize
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.util import split_uri
 
 logger = logging.getLogger(__name__)
@@ -28,12 +26,6 @@ FORM_POST = """<html>
     </form>
   </body>
 </html>"""
-
-DEFAULT_SCOPES = list(SCOPE2CLAIMS.keys())
-_CLAIMS = set()
-for scope, claims in SCOPE2CLAIMS.items():
-    _CLAIMS.update(set(claims))
-DEFAULT_CLAIMS = list(_CLAIMS)
 
 
 def inputs(form_args):

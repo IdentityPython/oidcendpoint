@@ -9,7 +9,7 @@ from oidcendpoint.exception import ToOld
 from oidcendpoint.token_handler import Token
 from oidcendpoint.token_handler import is_expired
 from oidcendpoint.token_handler import UnknownToken
-from oidcendpoint.user_info import scope2claims
+from oidcendpoint.scopes import convert_scopes2claims
 
 
 class JWTToken(Token):
@@ -81,9 +81,7 @@ class JWTToken(Token):
             self.do_add_claims(
                 payload,
                 uinfo,
-                scope2claims(
-                    sinfo["authn_req"]["scope"], map=self.scope_claims_map
-                ).keys(),
+                convert_scopes2claims(sinfo["authn_req"]["scope"], map=self.scope_claims_map).keys(),
             )
         # Add claims if is access token
         if self.type == 'T' and self.enable_claims_per_client:
