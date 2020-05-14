@@ -11,7 +11,6 @@ from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import ProcessError
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
@@ -234,9 +233,9 @@ class TestEndpoint(object):
         _jwt.with_jti = True
         _assertion = _jwt.pack({"aud": [_context.endpoint["token"].full_path]})
         _token_request.update({
-                                  "client_assertion": _assertion,
-                                  "client_assertion_type": JWT_BEARER
-                              })
+            "client_assertion": _assertion,
+            "client_assertion_type": JWT_BEARER
+        })
         _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
 
         _context.sdb.update(session_id, user="diana")

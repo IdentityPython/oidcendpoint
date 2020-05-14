@@ -12,6 +12,7 @@ from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.in_memory_db import InMemoryDataBase
+from oidcendpoint.oidc.token_coop import allow_refresh
 from oidcendpoint.scopes import SCOPE2CLAIMS
 from oidcendpoint.scopes import Scopes
 from oidcendpoint.scopes import available_claims
@@ -225,6 +226,10 @@ class EndpointContext:
             _authz.scopes_supported = available_scopes(self)
             _authz.claims_supported = available_claims(self)
 
+        _token_endp = self.endpoint.get('token')
+        if _token_endp:
+            _token_endp.allow_refresh = allow_refresh(self)
+
         for item in ["userinfo", "login_hint_lookup", "login_hint2acrs", "add_on"]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
@@ -380,11 +385,13 @@ class EndpointContext:
         _cap = self.conf.get("capabilities", {})
 
         for endpoint, endpoint_instance in self.endpoint.items():
-            if endpoint_instance.endpoint_info:
-                _cap.update(endpoint_instance.endpoint_info)
-
             if endpoint in ["webfinger", "provider_config"]:
                 continue
+
+            if endpoint_instance.endpoint_info:
+                for key, val in endpoint_instance.endpoint_info.items():
+                    if key not in _cap:
+                        _cap[key] = val
 
         return _cap
 
