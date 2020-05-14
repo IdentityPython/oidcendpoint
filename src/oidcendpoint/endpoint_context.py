@@ -12,7 +12,6 @@ from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.in_memory_db import InMemoryDataBase
-from oidcendpoint.oidc.token_coop import allow_refresh
 from oidcendpoint.scopes import SCOPE2CLAIMS
 from oidcendpoint.scopes import Scopes
 from oidcendpoint.scopes import available_claims
@@ -21,6 +20,7 @@ from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
+from oidcendpoint.util import allow_refresh_token
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import get_http_params
 from oidcendpoint.util import importer
@@ -228,7 +228,7 @@ class EndpointContext:
 
         _token_endp = self.endpoint.get('token')
         if _token_endp:
-            _token_endp.allow_refresh = allow_refresh(self)
+            _token_endp.allow_refresh = allow_refresh_token(self)
 
         for item in ["userinfo", "login_hint_lookup", "login_hint2acrs", "add_on"]:
             _func = getattr(self, "do_{}".format(item), None)

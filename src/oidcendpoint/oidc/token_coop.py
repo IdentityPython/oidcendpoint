@@ -2,7 +2,6 @@ import logging
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
-from oidcendpoint.exception import OidcEndpointError
 from oidcmsg import oidc
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
@@ -21,24 +20,6 @@ from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.userinfo import by_schema
 
 logger = logging.getLogger(__name__)
-
-
-def allow_refresh(endpoint_context):
-    # Are there a refresh_token handler
-    refresh_token_handler = endpoint_context.sdb.handler.handler.get('refresh_token')
-    # Is refresh_token grant type supported
-    if refresh_token_handler:
-        if 'refresh_token' in endpoint_context.conf['capabilities']['grant_types_supported']:
-            # self.allow_refresh = kwargs.get("allow_refresh", True)
-            return True
-        else:
-            logger.warning('Refresh Token handler available but grant type not supported')
-    else:
-        if 'refresh_token' in endpoint_context.conf.capabilities['grant_types_supported']:
-            logger.error('refresh_token grant type to be supported but no refresh_token '
-                         'handler available')
-            raise OidcEndpointError('Grant type "refresh_token" lacks support')
-    return False
 
 
 class TokenCoop(Endpoint):
