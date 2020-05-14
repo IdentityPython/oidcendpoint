@@ -26,7 +26,7 @@ KEYDEFS = [
 
 ISSUER = "https://example.com/"
 
-KEYJAR = init_key_jar(key_defs=KEYDEFS, owner=ISSUER)
+KEYJAR = init_key_jar(key_defs=KEYDEFS, issuer_id=ISSUER)
 KEYJAR.import_jwks(KEYJAR.export_jwks(True, ISSUER), "")
 
 RESPONSE_TYPES_SUPPORTED = [
