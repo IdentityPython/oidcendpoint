@@ -178,7 +178,7 @@ class TestEndpoint(object):
         self.rp_keyjar = init_key_jar(key_defs=KEYDEFS, issuer_id="s6BhdRkqt3")
         # Add RP's keys to the OP's keyjar
         endpoint_context.keyjar.import_jwks(
-            self.rp_keyjar.export_jwks(issuer="s6BhdRkqt3"), "s6BhdRkqt3"
+            self.rp_keyjar.export_jwks(issuer_id="s6BhdRkqt3"), "s6BhdRkqt3"
         )
 
         self.pushed_authorization_endpoint = endpoint_context.endpoint[
