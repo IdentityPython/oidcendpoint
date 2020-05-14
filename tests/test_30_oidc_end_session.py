@@ -38,7 +38,7 @@ KEYDEFS = [
 ]
 
 KEYJAR = build_keyjar(KEYDEFS)
-KEYJAR.import_jwks(KEYJAR.export_jwks(private=True, issuer=""), issuer=ISS)
+KEYJAR.import_jwks(KEYJAR.export_jwks(private=True), ISS)
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"],

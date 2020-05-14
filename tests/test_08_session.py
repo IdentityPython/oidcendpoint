@@ -2,7 +2,8 @@ import os
 import time
 
 import pytest
-from oidcendpoint.shelve_db import ShelveDataBase
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import OpenIDRequest
 
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
@@ -13,14 +14,11 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.session import SessionDB
 from oidcendpoint.session import setup_session
+from oidcendpoint.shelve_db import ShelveDataBase
 from oidcendpoint.sso_db import SSODb
-from oidcendpoint.token_handler import AccessCodeUsed
-from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import WrongTokenType
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import OpenIDRequest
 
 __author__ = "rohe0002"
 
@@ -333,8 +331,8 @@ class TestSessionDB(object):
 
         info = self.sdb[sid]
         assert (
-            info["sub"]
-            == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
+                info["sub"]
+                == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
         )
 
         self.sdb.do_sub(
@@ -346,8 +344,8 @@ class TestSessionDB(object):
         )
         info2 = self.sdb[sid]
         assert (
-            info2["sub"]
-            == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
+                info2["sub"]
+                == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
         )
 
         self.sdb.do_sub(
@@ -360,8 +358,8 @@ class TestSessionDB(object):
 
         info2 = self.sdb[sid]
         assert (
-            info2["sub"]
-            == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
+                info2["sub"]
+                == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
         )
 
     def test_match_session(self):
@@ -780,8 +778,8 @@ class TestSessionShelveDB(object):
 
         info = self.sdb[sid]
         assert (
-            info["sub"]
-            == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
+                info["sub"]
+                == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
         )
 
         self.sdb.do_sub(
@@ -793,8 +791,8 @@ class TestSessionShelveDB(object):
         )
         info2 = self.sdb[sid]
         assert (
-            info2["sub"]
-            == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
+                info2["sub"]
+                == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
         )
 
         self.sdb.do_sub(
@@ -807,8 +805,8 @@ class TestSessionShelveDB(object):
 
         info2 = self.sdb[sid]
         assert (
-            info2["sub"]
-            == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
+                info2["sub"]
+                == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
         )
         self._reset()
 

@@ -153,7 +153,7 @@ class TestClientSecretJWT():
 
     def test_client_secret_jwt(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # The only own key the client has a this point
         client_keyjar.add_symmetric("", client_secret, ["sig"])
 
@@ -179,7 +179,7 @@ class TestPrivateKeyJWT():
         # Own dynamic keys
         client_keyjar = build_keyjar(KEYDEFS)
         # The servers keys
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
 
         _jwks = client_keyjar.export_jwks()
         endpoint_context.keyjar.import_jwks(_jwks, client_id)
@@ -200,7 +200,7 @@ class TestPrivateKeyJWT():
         # Own dynamic keys
         client_keyjar = build_keyjar(KEYDEFS)
         # The servers keys
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
 
         _jwks = client_keyjar.export_jwks()
         endpoint_context.keyjar.import_jwks(_jwks, client_id)
@@ -227,7 +227,7 @@ class TestPrivateKeyJWT():
         # Own dynamic keys
         client_keyjar = build_keyjar(KEYDEFS)
         # The servers keys
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
 
         _jwks = client_keyjar.export_jwks()
         endpoint_context.keyjar.import_jwks(_jwks, client_id)
@@ -283,7 +283,7 @@ class TestJWSAuthnMethod():
 
     def test_jws_authn_method_wrong_key(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # Fake symmetric key
         client_keyjar.add_symmetric("", "client_secret:client_secret", ["sig"])
 
@@ -297,7 +297,7 @@ class TestJWSAuthnMethod():
 
     def test_jws_authn_method_aud_iss(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # The only own key the client has a this point
         client_keyjar.add_symmetric("", client_secret, ["sig"])
 
@@ -312,7 +312,7 @@ class TestJWSAuthnMethod():
 
     def test_jws_authn_method_aud_token_endpoint(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # The only own key the client has a this point
         client_keyjar.add_symmetric("", client_secret, ["sig"])
 
@@ -328,7 +328,7 @@ class TestJWSAuthnMethod():
 
     def test_jws_authn_method_aud_not_me(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # The only own key the client has a this point
         client_keyjar.add_symmetric("", client_secret, ["sig"])
 
@@ -346,7 +346,7 @@ class TestJWSAuthnMethod():
 
     def test_jws_authn_method_aud_userinfo_endpoint(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # The only own key the client has a this point
         client_keyjar.add_symmetric("", client_secret, ["sig"])
 
@@ -400,7 +400,7 @@ class TestVerify():
 
     def test_verify_client_jws_authn_method(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # The only own key the client has a this point
         client_keyjar.add_symmetric("", client_secret, ["sig"])
 
@@ -464,7 +464,7 @@ class TestVerify2():
 
     def test_verify_client_jws_authn_method(self):
         client_keyjar = KeyJar()
-        client_keyjar[CONF["issuer"]] = KEYJAR.issuer_keys[""]
+        client_keyjar.import_jwks(KEYJAR.export_jwks(private=True), CONF["issuer"])
         # The only own key the client has a this point
         client_keyjar.add_symmetric("", client_secret, ["sig"])
 
