@@ -147,7 +147,7 @@ class TestTokenHandler(object):
 
     def test_get_handler(self):
         _token = self.handler["code"]("another_id")
-        th = self.handler.get_handler(_token)
+        th, _ = self.handler.get_handler(_token)
         assert th.type == "A"
 
     def test_keys(self):
