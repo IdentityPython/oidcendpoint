@@ -5,6 +5,7 @@ import warnings
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
+from cryptojwt.exception import Invalid
 from cryptojwt.key_jar import init_key_jar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
@@ -214,18 +215,12 @@ class TokenHandler(object):
         return item in self.handler
 
     def info(self, item, order=None):
-        if order is None:
-            order = self.handler_order
-
-        for typ in order:
-            try:
-                return self.handler[typ].info(item)
-            except (KeyError, WrongTokenType, InvalidToken, UnknownToken,
-                    BadSyntax):
-                pass
-
-        logger.info("Unknown token format")
-        raise KeyError(item)
+        _handler, _item_info = self.get_handler(item, order)
+        if _handler is None:
+            logger.info("Unknown token format")
+            raise KeyError(item)
+        else:
+            return _item_info
 
     def sid(self, token, order=None):
         return self.info(token, order)["sid"]
@@ -239,13 +234,13 @@ class TokenHandler(object):
 
         for typ in order:
             try:
-                self.handler[typ].info(token)
-            except (KeyError, WrongTokenType, InvalidToken, UnknownToken):
+                item_info = self.handler[typ].info(token)
+            except (KeyError, WrongTokenType, InvalidToken, UnknownToken, Invalid):
                 pass
             else:
-                return self.handler[typ]
+                return self.handler[typ], item_info
 
-        return None
+        return None, None
 
     def keys(self):
         return self.handler.keys()
