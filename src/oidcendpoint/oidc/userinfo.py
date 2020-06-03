@@ -139,7 +139,13 @@ class UserInfo(Endpoint):
             request = {}
 
         # Verify that the client is allowed to do this
-        auth_info = self.client_authentication(request, auth, endpoint="userinfo", **kwargs)
+        try:
+            auth_info = self.client_authentication(
+                request, auth, endpoint="userinfo", **kwargs
+            )
+        except ValueError as e:
+            return dict(error="invalid_token", error_description=e.args[0])
+
         if isinstance(auth_info, ResponseMessage):
             return auth_info
         else:

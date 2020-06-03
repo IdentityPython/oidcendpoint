@@ -210,6 +210,15 @@ class TestEndpoint(object):
 
         assert set(_req.keys()) == {"client_id", "access_token"}
 
+    def test_parse_invalid_token(self):
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer invalid"
+        )
+
+        assert _req == {
+            "error": "invalid_token", "error_description": "Unknown token"
+        }
+
     def test_process_request(self):
         session_id = setup_session(
             self.endpoint.endpoint_context,
