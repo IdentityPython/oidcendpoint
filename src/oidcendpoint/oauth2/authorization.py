@@ -260,7 +260,7 @@ class Authorization(Endpoint):
         except (RedirectURIError, ParameterError, UnknownClient) as err:
             return AuthorizationErrorResponse(
                 error="invalid_request",
-                error_description="{}:{}".format(err.__class__.__name__, err),
+                error_description="{}: {}".format(err.__class__.__name__, err),
             )
         else:
             request["redirect_uri"] = redirect_uri
