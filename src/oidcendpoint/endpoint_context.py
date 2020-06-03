@@ -399,6 +399,10 @@ class EndpointContext:
         _claims = set()
         for scope, claims in self.scope2claims.items():
             _claims.update(set(claims))
+
+        extra_claims = self.conf.get("extra_claims_supported")
+        if extra_claims:
+            _claims.update(set(extra_claims))
         return list(_claims)
 
     def create_providerinfo(self, capabilities):

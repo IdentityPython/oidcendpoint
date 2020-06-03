@@ -152,3 +152,12 @@ def test_cdb():
     endpoint_context.cdb = _clients["oidc_clients"]
 
     assert set(endpoint_context.cdb.keys()) == {"client1", "client2", "client3"}
+
+
+def test_extra_claims_supported():
+    _cnf = copy(conf)
+    _cnf["extra_claims_supported"] = ["aba", "douba"]
+    endpoint_context = EndpointContext(_cnf)
+
+    assert "aba" in endpoint_context.provider_info["claims_supported"]
+    assert "douba" in endpoint_context.provider_info["claims_supported"]
