@@ -148,7 +148,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
@@ -223,10 +223,8 @@ class TestEndpoint(object):
         _resp = self.authn_endpoint.process_request(_pr_resp)
 
         _token_request = TOKEN_REQ.copy()
-        sid = self.token_endpoint.endpoint_context.sdb.get_sid_by_kv(
-            "state", _authn_req["state"]
-        )
-        _token_request["code"] = self.token_endpoint.endpoint_context.sdb[sid]["code"]
+        sids = self.token_endpoint.endpoint_context.sdb.get_sid_by_kv(_authn_req["state"], "state")
+        _token_request["code"] = self.token_endpoint.endpoint_context.sdb[sids[0]]["code"]
         _token_request["code_verifier"] = _cc_info["code_verifier"]
         _req = self.token_endpoint.parse_request(_token_request)
         assert _req

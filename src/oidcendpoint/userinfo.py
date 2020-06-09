@@ -126,9 +126,10 @@ def collect_user_info(
     _allowed = endpoint_context.scopes_handler.allowed_scopes(authn_req['client_id'],
                                                               endpoint_context)
     supported_scopes = [s for s in authn_req["scope"] if s in _allowed]
-
     if userinfo_claims is None:
-        uic = convert_scopes2claims(supported_scopes, map=scope_to_claims)
+        _allowed_claims = endpoint_context.claims_handler.allowed_claims(authn_req['client_id'],
+                                                                         endpoint_context)
+        uic = convert_scopes2claims(supported_scopes, _allowed_claims, map=scope_to_claims)
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session

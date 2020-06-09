@@ -74,7 +74,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+            "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
             "endpoint": {
                 "registration": {
                     "path": "registration",

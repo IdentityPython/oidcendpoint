@@ -33,7 +33,7 @@ class TestUserAuthn(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "endpoint": {},
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "authentication": {
                 "user": {
                     "acr": INTERNETPROTOCOLPASSWORD,

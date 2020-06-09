@@ -49,7 +49,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "endpoint": {},
-            "jwks": {
+            "keys": {
                 "public_path": "jwks.json",
                 "key_defs": KEYDEFS,
                 "private_path": "own/jwks.json",

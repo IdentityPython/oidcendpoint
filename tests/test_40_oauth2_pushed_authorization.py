@@ -100,7 +100,7 @@ class TestEndpoint(object):
             },
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
@@ -112,17 +112,17 @@ class TestEndpoint(object):
             },
             "endpoint": {
                 "provider_config": {
-                    "path": "{}/.well-known/openid-configuration",
+                    "path": ".well-known/openid-configuration",
                     "class": ProviderConfiguration,
                     "kwargs": {},
                 },
                 "registration": {
-                    "path": "{}/registration",
+                    "path": "registration",
                     "class": Registration,
                     "kwargs": {},
                 },
                 "authorization": {
-                    "path": "{}/authorization",
+                    "path": "authorization",
                     "class": Authorization,
                     "kwargs": {
                         "response_types_supported": [

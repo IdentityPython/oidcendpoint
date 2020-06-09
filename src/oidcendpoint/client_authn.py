@@ -251,9 +251,39 @@ class PrivateKeyJWT(JWSAuthnMethod):
     def verify(self, request=None, **kwargs):
         res = JWSAuthnMethod.verify(self, request, key_type="private_key",
                                     **kwargs)
-        # Verify that an RS or ES alg was used
+        # Verify that an RS or ES alg was used ?
         res['method'] = self.tag
         return res
+
+
+class RequestParam(ClientAuthnMethod):
+    tag = 'request_param'
+
+    def is_usable(self, request=None, authorization_info=None):
+        if request and 'request' in request:
+            return True
+
+    def verify(self, request=None, **kwargs):
+        _jwt = JWT(self.endpoint_context.keyjar, msg_cls=JsonWebToken)
+        try:
+            _jwt = _jwt.unpack(request["request"])
+        except (Invalid, MissingKey, BadSignature) as err:
+            logger.info("%s" % sanitize(err))
+            raise AuthnFailure("Could not verify client_assertion.")
+
+        # If there is a jti use it to make sure one-time usage is true
+        _jti = _jwt.get('jti')
+        if _jti:
+            _key = "{}:{}".format(_jwt['iss'], _jti)
+            if _key in self.endpoint_context.jti_db:
+                raise MultipleUsage("Have seen this token once before")
+            else:
+                self.endpoint_context.jti_db.set(_key, utc_time_sans_frac())
+
+        request[verified_claim_name("client_assertion")] = _jwt
+        client_id = kwargs.get("client_id") or _jwt["iss"]
+
+        return {"client_id": client_id, "jwt": _jwt}
 
 
 CLIENT_AUTHN_METHOD = {
@@ -263,6 +293,7 @@ CLIENT_AUTHN_METHOD = {
     "bearer_body": BearerBody,
     "client_secret_jwt": ClientSecretJWT,
     "private_key_jwt": PrivateKeyJWT,
+    "request_param": RequestParam,
     "none": None,
 }
 

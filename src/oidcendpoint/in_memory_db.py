@@ -1,3 +1,8 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class InMemoryDataBase(object):
     def __init__(self):
         self.db = {}
@@ -18,8 +23,8 @@ class InMemoryDataBase(object):
     def set(self, key, value):
         self.db[key] = value
 
-    def get(self, key):
-        return self.db.get(key, None)
+    def get(self, key, default=None):
+        return self.db.get(key, default)
 
     def delete(self, key):
         if self.db.get(key):

@@ -76,7 +76,7 @@ class Token(object):
         self.lifetime = lifetime
         self.args = kwargs
 
-    def __call__(self, sid, *args, **kwargs):
+    def __call__(self, sid):
         """
         Return a token.
 

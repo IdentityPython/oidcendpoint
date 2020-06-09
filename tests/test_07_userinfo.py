@@ -12,6 +12,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.scopes import SCOPE2CLAIMS
+from oidcendpoint.scopes import STANDARD_CLAIMS
 from oidcendpoint.scopes import convert_scopes2claims
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
@@ -75,8 +76,8 @@ USERINFO_DB = json.loads(open(full_path("users.json")).read())
 
 
 def test_default_scope2claims():
-    assert convert_scopes2claims(["openid"]) == {"sub": None}
-    assert set(convert_scopes2claims(["profile"]).keys()) == {
+    assert convert_scopes2claims(["openid"], STANDARD_CLAIMS) == {"sub": None}
+    assert set(convert_scopes2claims(["profile"], STANDARD_CLAIMS).keys()) == {
         "name",
         "given_name",
         "family_name",
@@ -92,15 +93,16 @@ def test_default_scope2claims():
         "updated_at",
         "preferred_username",
     }
-    assert set(convert_scopes2claims(["email"]).keys()) == {"email", "email_verified"}
-    assert set(convert_scopes2claims(["address"]).keys()) == {"address"}
-    assert set(convert_scopes2claims(["phone"]).keys()) == {
+    assert set(convert_scopes2claims(["email"], STANDARD_CLAIMS).keys()) == {"email",
+                                                                             "email_verified"}
+    assert set(convert_scopes2claims(["address"], STANDARD_CLAIMS).keys()) == {"address"}
+    assert set(convert_scopes2claims(["phone"], STANDARD_CLAIMS).keys()) == {
         "phone_number",
         "phone_number_verified",
     }
-    assert convert_scopes2claims(["offline_access"]) == {}
+    assert convert_scopes2claims(["offline_access"], STANDARD_CLAIMS) == {}
 
-    assert convert_scopes2claims(["openid", "email", "phone"]) == {
+    assert convert_scopes2claims(["openid", "email", "phone"], STANDARD_CLAIMS) == {
         "sub": None,
         "email": None,
         "email_verified": None,
@@ -125,27 +127,30 @@ def test_custom_scopes():
 
     _scopes = SCOPE2CLAIMS.copy()
     _scopes.update(custom_scopes)
+    _available_claims = STANDARD_CLAIMS[:]
+    _available_claims.append('eduperson_scoped_affiliation')
 
-    assert set(convert_scopes2claims(["email"], map=_scopes).keys()) == {
+    assert set(convert_scopes2claims(["email"], _available_claims, map=_scopes).keys()) == {
         "email",
         "email_verified",
     }
-    assert set(convert_scopes2claims(["address"], map=_scopes).keys()) == {"address"}
-    assert set(convert_scopes2claims(["phone"], map=_scopes).keys()) == {
+    assert set(convert_scopes2claims(["address"], _available_claims, map=_scopes).keys()) == {
+        "address"}
+    assert set(convert_scopes2claims(["phone"], _available_claims, map=_scopes).keys()) == {
         "phone_number",
         "phone_number_verified",
     }
 
-    assert set(convert_scopes2claims(["research_and_scholarship"], map=_scopes).keys()) == {
-        "name",
-        "given_name",
-        "family_name",
-        "email",
-        "email_verified",
-        "sub",
-        "iss",
-        "eduperson_scoped_affiliation",
-    }
+    assert set(convert_scopes2claims(["research_and_scholarship"], _available_claims,
+                                     map=_scopes).keys()) == {
+               "name",
+               "given_name",
+               "family_name",
+               "email",
+               "email_verified",
+               "sub",
+               "eduperson_scoped_affiliation",
+           }
 
 
 PROVIDER_INFO = {
@@ -265,7 +270,7 @@ class TestCollectUserInfo:
                         },
                     },
                 },
-                "jwks": {
+                "keys": {
                     "public_path": "jwks.json",
                     "key_defs": KEYDEFS,
                     "uri_path": "static/jwks.json",
@@ -401,7 +406,7 @@ class TestCollectUserInfoCustomScopes:
                         },
                     }
                 },
-                "jwks": {
+                "keys": {
                     "public_path": "jwks.json",
                     "key_defs": KEYDEFS,
                     "uri_path": "static/jwks.json",
@@ -451,11 +456,7 @@ class TestCollectUserInfoCustomScopes:
 
         res = collect_user_info(self.endpoint_context, session)
 
-        assert res == {
-            "sub": "doe",
-            "email": "diana@example.org",
-            "email_verified": False,
-        }
+        assert res == {"sub": "doe"}
 
     def test_collect_user_info_scope_not_supported(self):
         _req = OIDR.copy()

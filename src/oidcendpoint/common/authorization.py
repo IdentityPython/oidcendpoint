@@ -76,8 +76,11 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
 
     match = False
     # Get the clients registered redirect uris
-    logger.debug('Client info: {}'.format(endpoint_context.cdb[_cid]))
-    redirect_uris = endpoint_context.cdb.get(_cid, {}).get("{}s".format(uri_type))
+    client_info = endpoint_context.cdb.get(_cid, {})
+    if not client_info:
+        raise KeyError('No such client')
+    logger.debug('Client info: {}'.format(client_info))
+    redirect_uris = client_info.get("{}s".format(uri_type))
     if not redirect_uris:
         if _cid not in endpoint_context.cdb:
             logger.debug("CIDs: {}".format(list(endpoint_context.cdb.keys())))
