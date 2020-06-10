@@ -134,8 +134,16 @@ class Session(Endpoint):
 
         # Find all RPs this user has logged it from
         uid = _sso_db.get_uid_by_sid(sid)
+        if uid is None:
+            logger.debug("Can not translate sid:%s into a user id", sid)
+            return {}
+
         _client_sid = {}
         usids = _sso_db.get_sids_by_uid(uid)
+        if usids is None:
+            logger.debug("No sessions found for uid: %s", uid)
+            return {}
+
         for usid in usids:
             _client_sid[_sdb[usid]["authn_req"]["client_id"]] = usid
 

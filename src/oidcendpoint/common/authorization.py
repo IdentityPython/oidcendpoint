@@ -1,5 +1,4 @@
 import logging
-from urllib.parse import parse_qs
 from urllib.parse import unquote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
@@ -13,7 +12,6 @@ from oidcmsg.oidc import verified_claim_name
 from oidcendpoint import sanitize
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.util import split_uri
 
 logger = logging.getLogger(__name__)
@@ -28,12 +26,6 @@ FORM_POST = """<html>
     </form>
   </body>
 </html>"""
-
-DEFAULT_SCOPES = list(SCOPE2CLAIMS.keys())
-_CLAIMS = set()
-for scope, claims in SCOPE2CLAIMS.items():
-    _CLAIMS.update(set(claims))
-DEFAULT_CLAIMS = list(_CLAIMS)
 
 
 def inputs(form_args):
@@ -69,6 +61,8 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
     if not _cid:
         logger.error("No client id found")
         raise UnknownClient("No client_id provided")
+    else:
+        logger.debug('Client ID: {}'.format(_cid))
 
     _redirect_uri = unquote(request[uri_type])
 
@@ -82,8 +76,12 @@ def verify_uri(endpoint_context, request, uri_type, client_id=None):
 
     match = False
     # Get the clients registered redirect uris
+    logger.debug('Client info: {}'.format(endpoint_context.cdb[_cid]))
     redirect_uris = endpoint_context.cdb.get(_cid, {}).get("{}s".format(uri_type))
     if not redirect_uris:
+        if _cid not in endpoint_context.cdb:
+            logger.debug("CIDs: {}".format(list(endpoint_context.cdb.keys())))
+            raise KeyError("No such client")
         raise ValueError("No registered {}".format(uri_type))
     else:
         for regbase, rquery in redirect_uris:

@@ -253,7 +253,7 @@ class IDToken(object):
 
         _cinfo = _context.cdb[_client_id]
 
-        idtoken_claims = dict(self.kwargs.get("default_claims", {}))
+        idtoken_claims = dict(self.kwargs.get("available_claims", {}))
         if self.enable_claims_per_client:
             idtoken_claims.update(_cinfo.get("id_token_claims", {}))
         lifetime = self.kwargs.get("lifetime")

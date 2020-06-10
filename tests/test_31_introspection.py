@@ -165,8 +165,10 @@ class TestEndpoint:
             "template_dir": "template",
         }
         if jwt_token:
-            conf["token_handler_args"]["token"]["class"] = \
-                "oidcendpoint.jwt_token.JWTToken"
+            conf["token_handler_args"]["token"] = {
+                "class": "oidcendpoint.jwt_token.JWTToken",
+                "kwargs": {}
+            }
         endpoint_context = EndpointContext(conf)
         endpoint_context.cdb["client_1"] = {
             "client_secret": "hemligt",

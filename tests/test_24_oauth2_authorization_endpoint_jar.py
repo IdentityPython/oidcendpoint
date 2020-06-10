@@ -130,7 +130,7 @@ class TestEndpoint(object):
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
-                    "default_claims": {
+                    "available_claims": {
                         "email": {"essential": True},
                         "email_verified": {"essential": True},
                     }

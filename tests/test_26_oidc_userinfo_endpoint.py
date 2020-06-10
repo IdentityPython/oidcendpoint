@@ -170,10 +170,26 @@ class TestEndpoint(object):
     def test_init(self):
         assert self.endpoint
         assert set(self.endpoint.endpoint_context.provider_info["claims_supported"]) == {
-            'iss', 'picture', 'birthdate', 'middle_name', 'zoneinfo', 'locale', 'address', 'gender',
-            'email', 'nickname', 'phone_number_verified', 'sub', 'phone_number', 'name',
-            'family_name', 'preferred_username', 'email_verified', 'updated_at', 'website',
-            'given_name', 'eduperson_scoped_affiliation', 'profile'}
+            'address',
+            'birthdate',
+            'email',
+            'email_verified',
+            'family_name',
+            'gender',
+            'given_name',
+            'locale',
+            'middle_name',
+            'name',
+            'nickname',
+            'phone_number',
+            'phone_number_verified',
+            'picture',
+            'preferred_username',
+            'profile',
+            'sub',
+            'updated_at',
+            'website',
+            'zoneinfo'}
 
     def test_parse(self):
         session_id = setup_session(

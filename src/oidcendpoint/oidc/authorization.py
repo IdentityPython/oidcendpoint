@@ -21,8 +21,6 @@ from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.common.authorization import AllowedAlgorithms
-from oidcendpoint.common.authorization import DEFAULT_CLAIMS
-from oidcendpoint.common.authorization import DEFAULT_SCOPES
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import authn_args_gather
 from oidcendpoint.common.authorization import get_uri
@@ -205,8 +203,6 @@ class Authorization(Endpoint):
         "request_object_encryption_alg_values_supported": None,
         "request_object_encryption_enc_values_supported": None,
         "grant_types_supported": ["authorization_code", "implicit"],
-        "scopes_supported": DEFAULT_SCOPES,
-        "claims_supported": DEFAULT_CLAIMS,
         "claim_types_supported": ["normal", "aggregated", "distributed"]
     }
 
@@ -216,6 +212,9 @@ class Authorization(Endpoint):
         self.post_parse_request.append(self._do_request_uri)
         self.post_parse_request.append(self._post_parse_request)
         self.allowed_request_algorithms = AllowedAlgorithms(ALG_PARAMS)
+        # These has to be done elsewhere. To make sure things happen in order
+        # self.scopes_supported = available_scopes(endpoint_context)
+        # self.claims_supported = available_claims(endpoint_context)
 
     def filter_request(self, endpoint_context, req):
         return req
@@ -407,6 +406,8 @@ class Authorization(Endpoint):
         # To authenticate or Not
         if identity is None:  # No!
             logger.info("No active authentication")
+            logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
+
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
                 return {
@@ -487,7 +488,7 @@ class Authorization(Endpoint):
 
     def error_response(self, response_info, error, error_description):
         resp = AuthorizationErrorResponse(
-            error=error, error_description=error_description
+            error=error, error_description=str(error_description)
         )
         response_info["response_args"] = resp
         return response_info
@@ -536,6 +537,8 @@ class Authorization(Endpoint):
             )
 
         response_info = create_authn_response(self, request, sid)
+
+        logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
 
         try:
             redirect_uri = get_uri(self.endpoint_context, request, "redirect_uri")
@@ -655,6 +658,7 @@ class Authorization(Endpoint):
 
         _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
+        logger.debug("client {}: {}".format(_cid, cinfo))
 
         cookie = kwargs.get("cookie", "")
         if cookie:

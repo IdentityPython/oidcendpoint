@@ -11,6 +11,15 @@ class ShelveDataBase(object):
         else:
             return False
 
+    def __setitem__(self, key, value):
+        self.db[key] = value
+
+    def __getitem__(self, key):
+        return self.get(key, None)
+
+    def __delitem__(self, key):
+        return self.delete(key)
+
     def set(self, key, value):
         self.db[key] = value
 
@@ -34,3 +43,6 @@ class ShelveDataBase(object):
 
     def close(self):
         self.db.close()
+
+    def sync(self):
+        self.db.sync()

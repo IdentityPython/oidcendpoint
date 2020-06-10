@@ -258,7 +258,7 @@ class TestEndpoint(object):
         # default signing alg
         assert algs == {"sign": True, "encrypt": False, "sign_alg": "RS512"}
 
-    def test_default_claims(self):
+    def test_available_claims(self):
         session_info = {
             "authn_req": AREQN,
             "sub": "sub",
@@ -268,7 +268,7 @@ class TestEndpoint(object):
                 "uid": "diana"
             },
         }
-        self.endpoint_context.idtoken.kwargs['default_claims'] = {
+        self.endpoint_context.idtoken.kwargs['available_claims'] = {
             "nickname": {"essential": True}
         }
         req = {"client_id": "client_1"}
@@ -281,7 +281,7 @@ class TestEndpoint(object):
         res = _jwt.unpack(_token)
         assert "nickname" in res
 
-    def test_no_default_claims(self):
+    def test_no_available_claims(self):
         session_info = {
             "authn_req": AREQN,
             "sub": "sub",
@@ -339,7 +339,7 @@ class TestEndpoint(object):
         self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
             "address": None
         }
-        self.endpoint_context.idtoken.kwargs['default_claims'] = {
+        self.endpoint_context.idtoken.kwargs['available_claims'] = {
             "nickname": {"essential": True}
         }
         self.endpoint_context.idtoken.enable_claims_per_client = True

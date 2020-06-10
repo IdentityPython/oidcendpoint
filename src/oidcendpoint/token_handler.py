@@ -1,9 +1,11 @@
 import base64
 import hashlib
 import logging
+import warnings
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
+from cryptojwt.exception import Invalid
 from cryptojwt.key_jar import init_key_jar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
@@ -213,18 +215,12 @@ class TokenHandler(object):
         return item in self.handler
 
     def info(self, item, order=None):
-        if order is None:
-            order = self.handler_order
-
-        for typ in order:
-            try:
-                return self.handler[typ].info(item)
-            except (KeyError, WrongTokenType, InvalidToken, UnknownToken,
-                    BadSyntax):
-                pass
-
-        logger.info("Unknown token format")
-        raise KeyError(item)
+        _handler, _item_info = self.get_handler(item, order)
+        if _handler is None:
+            logger.info("Unknown token format")
+            raise KeyError(item)
+        else:
+            return _item_info
 
     def sid(self, token, order=None):
         return self.info(token, order)["sid"]
@@ -238,13 +234,13 @@ class TokenHandler(object):
 
         for typ in order:
             try:
-                self.handler[typ].info(token)
-            except (KeyError, WrongTokenType, InvalidToken, UnknownToken):
+                item_info = self.handler[typ].info(token)
+            except (KeyError, WrongTokenType, InvalidToken, UnknownToken, Invalid):
                 pass
             else:
-                return self.handler[typ]
+                return self.handler[typ], item_info
 
-        return None
+        return None, None
 
     def keys(self):
         return self.handler.keys()
@@ -258,7 +254,28 @@ def init_token_handler(ec, spec, typ):
     else:
         cls = importer(_cls)
 
-    return cls(typ=typ, ec=ec, **spec)
+    _kwargs = spec.get('kwargs')
+    if _kwargs is None:
+        if cls != DefaultToken:
+            warnings.warn(
+                "Token initialisation arguments should be grouped under 'kwargs'.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        _kwargs = spec
+
+    return cls(typ=typ, ec=ec, **_kwargs)
+
+
+def _add_passwd(keyjar, conf, kid):
+    if keyjar:
+        _keys = keyjar.get_encrypt_key(key_type="oct", kid=kid)
+        if _keys:
+            pw = as_unicode(_keys[0].k)
+            if "kwargs" in conf:
+                conf["kwargs"]["password"] = pw
+            else:
+                conf["password"] = pw
 
 
 def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
@@ -282,26 +299,15 @@ def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
     args = {}
 
     if code:
-        if kj:
-            _keys = kj.get_encrypt_key(key_type="oct", kid="code")
-            if _keys:
-                code["password"] = as_unicode(_keys[0].k)
+        _add_passwd(kj, code, "code")
         args["code_handler"] = init_token_handler(ec, code, TTYPE["code"])
 
     if token:
-        if kj:
-            _keys = kj.get_encrypt_key(key_type="oct", kid="token")
-            if _keys:
-                token["password"] = as_unicode(_keys[0].k)
+        _add_passwd(kj, token, "token")
         args["access_token_handler"] = init_token_handler(ec, token, TTYPE["token"])
 
     if refresh:
-        if kj:
-            _keys = kj.get_encrypt_key(key_type="oct", kid="refresh")
-            if _keys:
-                refresh["password"] = as_unicode(_keys[0].k)
-        args["refresh_token_handler"] = init_token_handler(
-            ec, refresh, TTYPE["refresh"]
-        )
+        _add_passwd(kj, refresh, "refresh")
+        args["refresh_token_handler"] = init_token_handler(ec, refresh, TTYPE["refresh"])
 
     return TokenHandler(**args)

@@ -187,7 +187,7 @@ class TestEndpoint(object):
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
-                    "default_claims": {
+                    "available_claims": {
                         "email": {"essential": True},
                         "email_verified": {"essential": True},
                     }
@@ -445,7 +445,7 @@ class TestEndpoint(object):
         _ec = self.endpoint.endpoint_context
         request = {"redirect_uri": "https://rp.example.com/cb"}
 
-        with pytest.raises(ValueError):
+        with pytest.raises(KeyError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
 
     def test_verify_uri_unregistered(self):
@@ -898,7 +898,7 @@ class TestEndpoint_shelve(object):
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
-                    "default_claims": {
+                    "available_claims": {
                         "email": {"essential": True},
                         "email_verified": {"essential": True},
                     }
@@ -993,11 +993,30 @@ class TestEndpoint_shelve(object):
                     'flag': 'c',
                     "writeback": True
                 }
+            },
+            "jti_db": {
+                "class": 'oidcendpoint.shelve_db.ShelveDataBase',
+                "kwargs": {
+                    "filename": 'jti',
+                    'flag': 'c',
+                    "writeback": True
+                }
+            },
+            "client_db": {
+                "class": 'oidcendpoint.shelve_db.ShelveDataBase',
+                "kwargs": {
+                    "filename": 'client',
+                    'flag': 'c',
+                    "writeback": True
+                }
             }
+
         }
         endpoint_context = EndpointContext(conf)
         _clients = yaml.safe_load(io.StringIO(client_yaml))
-        endpoint_context.cdb = _clients["oidc_clients"]
+        for c,v in _clients["oidc_clients"].items():
+            endpoint_context.cdb[c] = v
+
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
@@ -1015,6 +1034,11 @@ class TestEndpoint_shelve(object):
         _sdb.sso_db.close()
         _sdb._db.clear()
         _sdb._db.close()
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb.clear()
+        _ec.cdb.close()
+        _ec.jti_db.clear()
+        _ec.jti_db.close()
 
     def test_init(self):
         assert self.endpoint
@@ -1194,7 +1218,7 @@ class TestEndpoint_shelve(object):
         _ec = self.endpoint.endpoint_context
         request = {"redirect_uri": "https://rp.example.com/cb"}
 
-        with pytest.raises(ValueError):
+        with pytest.raises(KeyError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
         self._reset()
 

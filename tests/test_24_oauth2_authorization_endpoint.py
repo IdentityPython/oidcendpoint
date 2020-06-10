@@ -147,7 +147,7 @@ class TestEndpoint(object):
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
-                    "default_claims": {
+                    "available_claims": {
                         "email": {"essential": True},
                         "email_verified": {"essential": True},
                     }
@@ -262,7 +262,7 @@ class TestEndpoint(object):
         _ec = self.endpoint.endpoint_context
         request = {"redirect_uri": "https://rp.example.com/cb"}
 
-        with pytest.raises(ValueError):
+        with pytest.raises(KeyError):
             verify_uri(_ec, request, "redirect_uri", "client_id")
 
     def test_verify_uri_unregistered(self):

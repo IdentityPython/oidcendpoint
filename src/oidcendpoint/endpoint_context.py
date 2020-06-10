@@ -10,14 +10,16 @@ from oidcmsg.oidc import IdToken
 
 from oidcendpoint import authz
 from oidcendpoint import rndstr
-from oidcendpoint.client_authn import CLIENT_AUTHN_METHOD
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.in_memory_db import InMemoryDataBase
+from oidcendpoint.scopes import SCOPE2CLAIMS
+from oidcendpoint.scopes import Scopes
+from oidcendpoint.scopes import available_claims
+from oidcendpoint.scopes import available_scopes
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
-from oidcendpoint.user_info import SCOPE2CLAIMS
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import get_http_params
 from oidcendpoint.util import importer
@@ -86,18 +88,17 @@ def get_token_handlers(conf):
 
 class EndpointContext:
     def __init__(
-        self,
-        conf,
-        keyjar=None,
-        client_db=None,
-        session_db=None,
-        sso_db=None,
-        cwd="",
-        cookie_dealer=None,
-        httpc=None,
-        cookie_name=None,
-        jwks_uri_path=None,
-        jti_db=None,
+            self,
+            conf,
+            keyjar=None,
+            session_db=None,
+            sso_db=None,
+            cwd="",
+            cookie_dealer=None,
+            httpc=None,
+            cookie_name=None,
+            jwks_uri_path=None,
+            jti_db=None,
     ):
         self.conf = conf
         self.keyjar = keyjar or KeyJar()
@@ -134,10 +135,22 @@ class EndpointContext:
         self.par_db = {}
         self.dev_auth_db = {}
 
+        for param in [
+            "issuer",
+            "sso_ttl",
+            "symkey",
+            "client_authn",
+            "id_token_schema",
+        ]:
+            try:
+                setattr(self, param, conf[param])
+            except KeyError:
+                pass
+
         self.th_args = get_token_handlers(conf)
 
         # client database
-        self.cdb = client_db or {}
+        self.set_client_db()
 
         # session db
         self._sub_func = {}
@@ -164,18 +177,6 @@ class EndpointContext:
                 "register": "oidc_op_rp",
                 "session_management": "sman",
             }
-
-        for param in [
-            "issuer",
-            "sso_ttl",
-            "symkey",
-            "client_authn",
-            "id_token_schema",
-        ]:
-            try:
-                setattr(self, param, conf[param])
-            except KeyError:
-                pass
 
         try:
             self.template_handler = conf["template_handler"]
@@ -217,12 +218,17 @@ class EndpointContext:
 
         _cap = self.do_endpoints()
 
+        self.provider_info = self.create_providerinfo(_cap)
+
+        _authz = self.endpoint.get('authorization')
+        if _authz:
+            _authz.scopes_supported = available_scopes(self)
+            _authz.claims_supported = available_claims(self)
+
         for item in ["userinfo", "login_hint_lookup", "login_hint2acrs", "add_on"]:
             _func = getattr(self, "do_{}".format(item), None)
             if _func:
                 _func()
-
-        self.provider_info = self.create_providerinfo(_cap)
 
         # which signing/encryption algorithms to use in what context
         self.jwx_def = {}
@@ -236,9 +242,20 @@ class EndpointContext:
         # The HTTP clients request arguments
         _cnf = conf.get("http_params")
         if _cnf:
-            self.httpc_params= get_http_params(_cnf)
-        else: # Backward compatibility
+            self.httpc_params = get_http_params(_cnf)
+        else:  # Backward compatibility
             self.httpc_params = {"verify": conf.get("verify_ssl")}
+
+        self.scopes = self.get_scopes_handler()
+
+    def get_scopes_handler(self):
+        _spec = self.conf.get('scopes_handler')
+        if _spec:
+            _kwargs = _spec.get("kwargs", {})
+            _cls = importer(_spec["class"])(**_kwargs)
+            self.scopes_handler = _cls(_kwargs)
+        else:
+            self.scopes_handler = Scopes()
 
     def set_session_db(self, sso_db=None, db=None):
         if sso_db is None and self.conf.get("sso_db"):
@@ -260,7 +277,20 @@ class EndpointContext:
         logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
     def set_jti_db(self, db=None):
-        self.jti_db = db or InMemoryDataBase()
+        if db is None and self.conf.get("jti_db"):
+            _spec = self.conf.get("jti_db")
+            _kwargs = _spec.get("kwargs", {})
+            self.jti_db = importer(_spec["class"])(**_kwargs)
+        else:
+            self.jti_db = db or InMemoryDataBase()
+
+    def set_client_db(self, db=None):
+        if db is None and self.conf.get("client_db"):
+            _spec = self.conf.get("client_db")
+            _kwargs = _spec.get("kwargs", {})
+            self.cdb = importer(_spec["class"])(**_kwargs)
+        else:
+            self.cdb = {}
 
     def do_add_on(self):
         if self.conf.get("add_on"):
