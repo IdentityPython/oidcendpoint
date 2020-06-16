@@ -238,7 +238,7 @@ class EndpointContext(OidcContext):
         self.events = None
 
         # The HTTP clients request arguments
-        _cnf = conf.get("http_params")
+        _cnf = conf.get("httpc_params")
         if _cnf:
             self.httpc_params = get_http_params(_cnf)
         else:  # Backward compatibility
