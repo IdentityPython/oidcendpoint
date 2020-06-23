@@ -5,6 +5,8 @@ from urllib.parse import parse_qs
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
+from oidcendpoint.exception import OidcEndpointError
+
 logger = logging.getLogger(__name__)
 
 OAUTH2_NOCACHE_HEADERS = [("Pragma", "no-cache"), ("Cache-Control", "no-store")]
@@ -169,4 +171,27 @@ def split_uri(uri):
         base = urlunsplit(p)
         return base, ''
 
+
+def allow_refresh_token(endpoint_context):
+    # Are there a refresh_token handler
+    refresh_token_handler = endpoint_context.sdb.handler.handler.get('refresh_token')
+
+    # Is refresh_token grant type supported
+    _token_supported = False
+    _cap = endpoint_context.conf.get('capabilities')
+    if _cap:
+        if 'refresh_token' in _cap['grant_types_supported']:
+            # self.allow_refresh = kwargs.get("allow_refresh", True)
+            _token_supported = True
+
+    if refresh_token_handler and _token_supported:
+        return True
+    elif refresh_token_handler:
+        logger.warning('Refresh Token handler available but grant type not supported')
+    elif _token_supported:
+        logger.error(
+            'refresh_token grant type to be supported but no refresh_token handler available')
+        raise OidcEndpointError('Grant type "refresh_token" lacks support')
+
+    return False
 

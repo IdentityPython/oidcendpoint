@@ -41,7 +41,7 @@ class TokenCoop(Endpoint):
             self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
                 "client_authn_method"
             ]
-        self.allow_refresh = kwargs.get("allow_refresh", True)
+        self.allow_refresh = False
 
     def _refresh_access_token(self, req, **kwargs):
         _sdb = self.endpoint_context.sdb

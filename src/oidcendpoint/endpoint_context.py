@@ -2,24 +2,23 @@ import logging
 import os
 
 import requests
-from cryptojwt.key_jar import KeyJar
-from cryptojwt.key_jar import init_key_jar
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 from oidcmsg.oidc import IdToken
+from oidcmsg.context import OidcContext
 
 from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.id_token import IDToken
-from oidcendpoint.in_memory_db import InMemoryDataBase
+from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import SCOPE2CLAIMS
+from oidcendpoint.scopes import STANDARD_CLAIMS
 from oidcendpoint.scopes import Scopes
-from oidcendpoint.scopes import available_claims
-from oidcendpoint.scopes import available_scopes
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
+from oidcendpoint.util import allow_refresh_token
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import get_http_params
 from oidcendpoint.util import importer
@@ -86,32 +85,44 @@ def get_token_handlers(conf):
     return th_args
 
 
-class EndpointContext:
+class EndpointContext(OidcContext):
     def __init__(
             self,
             conf,
             keyjar=None,
-            session_db=None,
-            sso_db=None,
             cwd="",
             cookie_dealer=None,
             httpc=None,
             cookie_name=None,
             jwks_uri_path=None,
-            jti_db=None,
     ):
+        OidcContext.__init__(self, conf, keyjar, entity_id=conf.get('issuer', ''))
         self.conf = conf
-        self.keyjar = keyjar or KeyJar()
+
+        # For my Dev environment
+        self.sso_db = None
+        self.session_db = None
+        self.state_db = None
+        self.cdb = None
+        self.jti_db = None
+        self.registration_access_token = None
+
+        self.add_boxes(
+            {
+                'state': 'state_db', 'client': 'cdb', 'jti': 'jti_db',
+                'registration_access_token': 'registration_access_token',
+                'sso': 'sso_db', 'session': 'session_db'
+            },
+            self.db_conf
+        )
+
         self.cwd = cwd
 
-        if self.keyjar is None or self.keyjar.owners() == []:
-            args = {k: v for k, v in conf["jwks"].items() if k != "uri_path"}
-            self.keyjar = init_key_jar(**args)
-
+        # Those that use seed wants bytes but I can only store str.
         try:
-            self.seed = bytes(conf["seed"], "utf-8")
+            self.set('seed', conf["seed"])
         except KeyError:
-            self.seed = bytes(rndstr(16), "utf-8")
+            self.set('seed', rndstr(32))
 
         # Default values, to be changed below depending on configuration
         self.endpoint = {}
@@ -132,8 +143,6 @@ class EndpointContext:
         self.scope2claims = SCOPE2CLAIMS
         # arguments for endpoints add-ons
         self.args = {}
-        self.par_db = {}
-        self.dev_auth_db = {}
 
         for param in [
             "issuer",
@@ -149,23 +158,16 @@ class EndpointContext:
 
         self.th_args = get_token_handlers(conf)
 
-        # client database
-        self.set_client_db()
+        # self.cdb = self.get_db(db_conf, 'client')
+        # self.registration_access_token = self.get_db(db_conf, 'registration_access_token')
+        # self.jti_db = self.get_db(db_conf, 'jti')
 
         # session db
         self._sub_func = {}
         self.do_sub_func()
 
-        # set self.sdb
-        if session_db:
-            self.set_session_db(sso_db, db=session_db)
-        else:
-            self.set_session_db(sso_db)
-
-        if jti_db:
-            self.set_jti_db(db=jti_db)
-        else:
-            self.set_jti_db()
+        # has to be after the above
+        self.set_session_db()
 
         if cookie_name:
             self.cookie_name = cookie_name
@@ -193,7 +195,7 @@ class EndpointContext:
         self.setup = {}
         if not jwks_uri_path:
             try:
-                jwks_uri_path = conf["jwks"]["uri_path"]
+                jwks_uri_path = conf["keys"]["uri_path"]
             except KeyError:
                 pass
 
@@ -220,10 +222,9 @@ class EndpointContext:
 
         self.provider_info = self.create_providerinfo(_cap)
 
-        _authz = self.endpoint.get('authorization')
-        if _authz:
-            _authz.scopes_supported = available_scopes(self)
-            _authz.claims_supported = available_claims(self)
+        _token_endp = self.endpoint.get('token')
+        if _token_endp:
+            _token_endp.allow_refresh = allow_refresh_token(self)
 
         for item in ["userinfo", "login_hint_lookup", "login_hint2acrs", "add_on"]:
             _func = getattr(self, "do_{}".format(item), None)
@@ -236,19 +237,27 @@ class EndpointContext:
         # special type of logging
         self.events = None
 
-        # client registration access tokens
-        self.registration_access_token = {}
-
         # The HTTP clients request arguments
-        _cnf = conf.get("http_params")
+        _cnf = conf.get("httpc_params")
         if _cnf:
             self.httpc_params = get_http_params(_cnf)
         else:  # Backward compatibility
             self.httpc_params = {"verify": conf.get("verify_ssl")}
 
-        self.scopes = self.get_scopes_handler()
+        self.set_scopes_handler()
+        self.set_claims_handler()
 
-    def get_scopes_handler(self):
+        # If pushed authorization is supported
+        if 'pushed_authorization_request_endpoint' in self.provider_info:
+            self.par_db = None
+            self.add_boxes({'par': 'par_db'}, self.db_conf)
+
+        # If device authentication is supported
+        if 'device_authorization_supported' in self.provider_info:
+            self.dev_auth_db = None
+            self.add_boxes({'dev_auth': 'dev_auth_db'}, self.db_conf)
+
+    def set_scopes_handler(self):
         _spec = self.conf.get('scopes_handler')
         if _spec:
             _kwargs = _spec.get("kwargs", {})
@@ -257,40 +266,20 @@ class EndpointContext:
         else:
             self.scopes_handler = Scopes()
 
-    def set_session_db(self, sso_db=None, db=None):
-        if sso_db is None and self.conf.get("sso_db"):
-            _spec = self.conf.get("sso_db")
+    def set_claims_handler(self):
+        _spec = self.conf.get('claims_handler')
+        if _spec:
             _kwargs = _spec.get("kwargs", {})
-            _db = importer(_spec["class"])(**_kwargs)
-            sso_db = SSODb(_db)
+            _cls = importer(_spec["class"])(**_kwargs)
+            self.claims_handler = _cls(_kwargs)
         else:
-            sso_db = sso_db or SSODb()
+            self.claims_handler = Claims()
 
-        if db is None and self.conf.get("session_db"):
-            _spec = self.conf.get("session_db")
-            _kwargs = _spec.get("kwargs", {})
-            db = importer(_spec["class"])(**_kwargs)
-
-        self.do_session_db(sso_db, db)
+    def set_session_db(self):
+        self.do_session_db(SSODb(db=self.sso_db), self.session_db)
         # append userinfo db to the session db
         self.do_userinfo()
         logger.debug("Session DB: {}".format(self.sdb.__dict__))
-
-    def set_jti_db(self, db=None):
-        if db is None and self.conf.get("jti_db"):
-            _spec = self.conf.get("jti_db")
-            _kwargs = _spec.get("kwargs", {})
-            self.jti_db = importer(_spec["class"])(**_kwargs)
-        else:
-            self.jti_db = db or InMemoryDataBase()
-
-    def set_client_db(self, db=None):
-        if db is None and self.conf.get("client_db"):
-            _spec = self.conf.get("client_db")
-            _kwargs = _spec.get("kwargs", {})
-            self.cdb = importer(_spec["class"])(**_kwargs)
-        else:
-            self.cdb = {}
 
     def do_add_on(self):
         if self.conf.get("add_on"):
@@ -380,11 +369,13 @@ class EndpointContext:
         _cap = self.conf.get("capabilities", {})
 
         for endpoint, endpoint_instance in self.endpoint.items():
-            if endpoint_instance.endpoint_info:
-                _cap.update(endpoint_instance.endpoint_info)
-
             if endpoint in ["webfinger", "provider_config"]:
                 continue
+
+            if endpoint_instance.endpoint_info:
+                for key, val in endpoint_instance.endpoint_info.items():
+                    if key not in _cap:
+                        _cap[key] = val
 
         return _cap
 
@@ -394,12 +385,6 @@ class EndpointContext:
             self.authz = init_service(authz_spec, self)
         else:
             self.authz = authz.Implicit(self)
-
-    def claims_supported(self):
-        _claims = set()
-        for scope, claims in self.scope2claims.items():
-            _claims.update(set(claims))
-        return list(_claims)
 
     def create_providerinfo(self, capabilities):
         """
@@ -423,6 +408,9 @@ class EndpointContext:
             _provider_info["jwks_uri"] = self.jwks_uri
 
         _provider_info.update(self.idtoken.provider_info)
-        _provider_info["claims_supported"] = self.claims_supported()
+        if 'scopes_supported' not in _provider_info:
+            _provider_info['scopes_supported'] = [s for s in self.scope2claims.keys()]
+        if 'claims_supported' not in _provider_info:
+            _provider_info["claims_supported"] = STANDARD_CLAIMS[:]
 
         return _provider_info

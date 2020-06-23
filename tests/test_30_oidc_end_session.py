@@ -105,7 +105,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
             "endpoint": {
                 "provider_config": {
                     "path": "{}/.well-known/openid-configuration",
@@ -566,7 +566,7 @@ class TestEndpoint(object):
 
         _sid = self._get_sid()
 
-        self.session_endpoint.endpoint_context.sdb.sso_db.delete('uid2sid', 'diana')
+        self.session_endpoint.endpoint_context.sdb.sso_db.delete('diana', 'sid')
 
         res = self.session_endpoint.logout_all_clients(_sid, "client_1")
         assert res == {}

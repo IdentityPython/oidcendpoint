@@ -100,11 +100,11 @@ class TestEndpoint(object):
             },
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
-                    "default_claims": {
+                    "available_claims": {
                         "email": {"essential": True},
                         "email_verified": {"essential": True},
                     }
@@ -112,17 +112,17 @@ class TestEndpoint(object):
             },
             "endpoint": {
                 "provider_config": {
-                    "path": "{}/.well-known/openid-configuration",
+                    "path": ".well-known/openid-configuration",
                     "class": ProviderConfiguration,
                     "kwargs": {},
                 },
                 "registration": {
-                    "path": "{}/registration",
+                    "path": "registration",
                     "class": Registration,
                     "kwargs": {},
                 },
                 "authorization": {
-                    "path": "{}/authorization",
+                    "path": "authorization",
                     "class": Authorization,
                     "kwargs": {
                         "response_types_supported": [
@@ -175,10 +175,10 @@ class TestEndpoint(object):
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
 
-        self.rp_keyjar = init_key_jar(key_defs=KEYDEFS, owner="s6BhdRkqt3")
+        self.rp_keyjar = init_key_jar(key_defs=KEYDEFS, issuer_id="s6BhdRkqt3")
         # Add RP's keys to the OP's keyjar
         endpoint_context.keyjar.import_jwks(
-            self.rp_keyjar.export_jwks(issuer="s6BhdRkqt3"), "s6BhdRkqt3"
+            self.rp_keyjar.export_jwks(issuer_id="s6BhdRkqt3"), "s6BhdRkqt3"
         )
 
         self.pushed_authorization_endpoint = endpoint_context.endpoint[

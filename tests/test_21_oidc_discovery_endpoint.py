@@ -28,7 +28,7 @@ class TestEndpoint(object):
                     "kwargs": {"client_authn_method": None},
                 }
             },
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "authentication": {
                 "anon": {
                     "acr": INTERNETPROTOCOLPASSWORD,

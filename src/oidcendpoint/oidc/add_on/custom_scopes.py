@@ -12,21 +12,16 @@ def add_custom_scopes(endpoint, **kwargs):
     # Just need an endpoint, anyone will do
     _endpoint = list(endpoint.values())[0]
 
-    _scopes = SCOPE2CLAIMS.copy()
-    _scopes.update(kwargs)
+    _scopes2claims = SCOPE2CLAIMS.copy()
+    _scopes2claims.update(kwargs)
+    _endpoint.endpoint_context.scope2claims = _scopes2claims
 
-    _endpoint.scope_to_claims = _scopes
-    _endpoint.endpoint_context.idtoken.scope_to_claims = _scopes
-    _endpoint.endpoint_context.scope2claims = _scopes
+    pi = _endpoint.endpoint_context.provider_info
+    _scopes = set(pi.get('scopes_supported', []))
+    _scopes.update(set(kwargs.keys()))
+    pi['scopes_supported'] = list(_scopes)
 
-    # add to defaults
-    authz_enp = endpoint.get("authorization")
-    if authz_enp:
-        _supported = set(authz_enp.scopes_supported)
-        _supported.update(set(kwargs.keys()))
-        authz_enp.scopes_supported = list(_supported)
-
-        _claims = set(authz_enp.claims_supported)
-        for vals in kwargs.values():
-            _claims.update(set(vals))
-        authz_enp.claims_supported = list(_claims)
+    _claims = set(pi.get('claims_supported', []))
+    for vals in kwargs.values():
+        _claims.update(set(vals))
+    pi['claims_supported'] = list(_claims)

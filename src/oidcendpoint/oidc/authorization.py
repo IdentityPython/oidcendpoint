@@ -212,9 +212,6 @@ class Authorization(Endpoint):
         self.post_parse_request.append(self._do_request_uri)
         self.post_parse_request.append(self._post_parse_request)
         self.allowed_request_algorithms = AllowedAlgorithms(ALG_PARAMS)
-        # These has to be done elsewhere. To make sure things happen in order
-        # self.scopes_supported = available_scopes(endpoint_context)
-        # self.claims_supported = available_claims(endpoint_context)
 
     def filter_request(self, endpoint_context, req):
         return req

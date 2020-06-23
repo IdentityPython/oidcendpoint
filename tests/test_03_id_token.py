@@ -6,6 +6,9 @@ import pytest
 from cryptojwt.jws import jws
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RegistrationResponse
+
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -15,8 +18,6 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import RegistrationResponse
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -49,7 +50,7 @@ conf = {
     "grant_expires_in": 300,
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
-    "jwks": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+    "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
     "jwks_uri": "https://example.com/jwks.json",
     "endpoint": {
         "authorization_endpoint": {
@@ -86,12 +87,13 @@ class TestEndpoint(object):
     def create_idtoken(self):
         self.endpoint_context = EndpointContext(conf)
         self.endpoint_context.cdb["client_1"] = {
-            "client_secret": "hemligt",
+            "client_secret": "hemligtochintekort",
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
         }
+        self.endpoint_context.keyjar.add_symmetric('client_1', 'hemligtochintekort', ['sig', 'enc'])
 
     def test_id_token_payload_0(self):
         session_info = {"authn_req": AREQN, "sub": "1234567890"}
@@ -178,9 +180,8 @@ class TestEndpoint(object):
         assert info["lifetime"] == 300
 
     def test_sign_encrypt_id_token(self):
-        client_info = RegistrationResponse(
-            id_token_signed_response_alg="RS512", client_id="client_1"
-        )
+        client_info = RegistrationResponse(id_token_signed_response_alg="RS512",
+                                           client_id="client_1")
         session_info = {
             "authn_req": AREQN,
             "sub": "sub",
@@ -190,9 +191,7 @@ class TestEndpoint(object):
         self.endpoint_context.jwx_def["signing_alg"] = {"id_token": "RS384"}
         self.endpoint_context.cdb["client_1"] = client_info.to_dict()
 
-        _token = self.endpoint_context.idtoken.sign_encrypt(
-            session_info, "client_1", sign=True
-        )
+        _token = self.endpoint_context.idtoken.sign_encrypt(session_info, "client_1", sign=True)
         assert _token
 
         _jws = jws.factory(_token)

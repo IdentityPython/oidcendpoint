@@ -39,6 +39,7 @@ class JWTToken(Token):
         self.key_jar = keyjar or ec.keyjar
         self.issuer = issuer or ec.issuer
         self.cdb = ec.cdb
+        self.cntx = ec
 
         self.def_aud = aud or []
         self.alg = alg
@@ -61,7 +62,7 @@ class JWTToken(Token):
                 pass
 
     def __call__(
-        self, sid: str, uinfo: Dict, sinfo: Dict, *args, aud: Optional[Any],
+        self, sid: str, uinfo: Dict, sinfo: Dict, aud: Optional[Any],
         client_id: Optional[str], **kwargs
     ):
         """
@@ -70,7 +71,8 @@ class JWTToken(Token):
         :param sid: Session id
         :param uinfo: User information
         :param sinfo: Session information
-        :param aud: The default audience == client_id
+        :param aud: audience
+        :param client_id: client_id
         :return:
         """
         payload = {"sid": sid, "ttype": self.type, "sub": sinfo["sub"]}
@@ -78,10 +80,12 @@ class JWTToken(Token):
         if self.add_claims:
             self.do_add_claims(payload, uinfo, self.add_claims)
         if self.add_claims_by_scope:
+            _allowed_claims = self.cntx.claims_handler.allowed_claims(self.cntx, client_id)
             self.do_add_claims(
                 payload,
                 uinfo,
-                convert_scopes2claims(sinfo["authn_req"]["scope"], map=self.scope_claims_map).keys(),
+                convert_scopes2claims(sinfo["authn_req"]["scope"], _allowed_claims,
+                                      map=self.scope_claims_map).keys(),
             )
         # Add claims if is access token
         if self.type == 'T' and self.enable_claims_per_client:

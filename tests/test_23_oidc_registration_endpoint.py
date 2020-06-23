@@ -76,7 +76,7 @@ class TestEndpoint(object):
                     "refresh_token",
                 ],
             },
-            "jwks": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+            "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
             "id_token": {"class": IDToken},
             "endpoint": {
                 "registration": {

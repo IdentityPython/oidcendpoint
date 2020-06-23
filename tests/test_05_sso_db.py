@@ -1,13 +1,29 @@
+import shutil
+
 import pytest
 
-from oidcendpoint.shelve_db import ShelveDataBase
 from oidcendpoint.sso_db import SSODb
 
+DB_CONF = {
+              'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
+              'fdir': 'db/sso',
+              'key_conv': 'oidcmsg.storage.converter.QPKey',
+              'value_conv': 'oidcmsg.storage.converter.JSON'
+          }
 
-class TestSessionDB(object):
+
+def rmtree(item):
+    try:
+        shutil.rmtree(item)
+    except FileNotFoundError:
+        pass
+
+
+class TestSSODB(object):
     @pytest.fixture(autouse=True)
     def create_sdb(self):
-        self.sso_db = SSODb()
+        rmtree('db/sso')
+        self.sso_db = SSODb(DB_CONF)
 
     def test_map_sid2uid(self):
         self.sso_db.map_sid2uid("session id 1", "Lizz")
@@ -117,138 +133,3 @@ class TestSessionDB(object):
         res = self.sso_db.get_subs_by_uid("Lizz")
 
         assert set(res) == {"abcdefgh", "012346789"}
-
-
-class TestSessionShelveDB(object):
-    @pytest.fixture(autouse=True)
-    def create_sdb(self):
-        # Create fresh database each time
-        _db = ShelveDataBase(filename='shelf', flag='n', writeback=True)
-        self.sso_db = SSODb(_db)
-
-    def _reset(self):
-        self.sso_db.clear()
-        self.sso_db.close()
-
-    def test_map_sid2uid(self):
-        self.sso_db.map_sid2uid("session id 1", "Lizz")
-        assert self.sso_db.get_sids_by_uid("Lizz") == ["session id 1"]
-        self._reset()
-
-    def test_missing_map(self):
-        assert self.sso_db.get_sids_by_uid("Lizz") is None
-        self._reset()
-
-    def test_multiple_map_sid2uid(self):
-        self.sso_db.map_sid2uid("session id 1", "Lizz")
-        self.sso_db.map_sid2uid("session id 2", "Lizz")
-        assert set(self.sso_db.get_sids_by_uid("Lizz")) == {
-            "session id 1",
-            "session id 2",
-        }
-        self._reset()
-
-    def test_map_unmap_sid2uid(self):
-        self.sso_db.map_sid2uid("session id 1", "Lizz")
-        self.sso_db.map_sid2uid("session id 2", "Lizz")
-        assert set(self.sso_db.get_sids_by_uid("Lizz")) == {
-            "session id 1",
-            "session id 2",
-        }
-
-        self.sso_db.remove_sid2uid("session id 1", "Lizz")
-        assert self.sso_db.get_sids_by_uid("Lizz") == ["session id 2"]
-        self._reset()
-
-    def test_get_uid_by_sid(self):
-        self.sso_db.map_sid2uid("session id 1", "Lizz")
-        self.sso_db.map_sid2uid("session id 2", "Lizz")
-
-        assert self.sso_db.get_uid_by_sid("session id 1") == "Lizz"
-        assert self.sso_db.get_uid_by_sid("session id 2") == "Lizz"
-        self._reset()
-
-    def test_remove_uid(self):
-        self.sso_db.map_sid2uid("session id 1", "Lizz")
-        self.sso_db.map_sid2uid("session id 2", "Diana")
-
-        self.sso_db.remove_uid("Lizz")
-        assert self.sso_db.get_uid_by_sid("session id 1") is None
-        assert self.sso_db.get_sids_by_uid("Lizz") is None
-        self._reset()
-
-    def test_map_sid2sub(self):
-        self.sso_db.map_sid2sub("session id 1", "abcdefgh")
-        assert self.sso_db.get_sids_by_sub("abcdefgh") == ["session id 1"]
-        self._reset()
-
-    def test_missing_sid2sub_map(self):
-        assert self.sso_db.get_sids_by_sub("abcdefgh") is None
-        self._reset()
-
-    def test_multiple_map_sid2sub(self):
-        self.sso_db.map_sid2sub("session id 1", "abcdefgh")
-        self.sso_db.map_sid2sub("session id 2", "abcdefgh")
-        assert set(self.sso_db.get_sids_by_sub("abcdefgh")) == {
-            "session id 1",
-            "session id 2",
-        }
-        self._reset()
-
-    def test_map_unmap_sid2sub(self):
-        self.sso_db.map_sid2sub("session id 1", "abcdefgh")
-        self.sso_db.map_sid2sub("session id 2", "abcdefgh")
-        assert set(self.sso_db.get_sids_by_sub("abcdefgh")) == {
-            "session id 1",
-            "session id 2",
-        }
-
-        self.sso_db.remove_sid2sub("session id 1", "abcdefgh")
-        assert self.sso_db.get_sids_by_sub("abcdefgh") == ["session id 2"]
-        self._reset()
-
-    def test_get_sub_by_sid(self):
-        self.sso_db.map_sid2sub("session id 1", "abcdefgh")
-        self.sso_db.map_sid2sub("session id 2", "abcdefgh")
-
-        assert set(self.sso_db.get_sids_by_sub("abcdefgh")) == {
-            "session id 1",
-            "session id 2",
-        }
-        self._reset()
-
-    def test_remove_sub(self):
-        self.sso_db.map_sid2sub("session id 1", "abcdefgh")
-        self.sso_db.map_sid2sub("session id 2", "012346789")
-
-        self.sso_db.remove_sub("abcdefgh")
-        assert self.sso_db.get_sub_by_sid("session id 1") is None
-        assert self.sso_db.get_sids_by_sub("abcdefgh") is None
-        # have not touched the others
-        assert self.sso_db.get_sub_by_sid("session id 2") == "012346789"
-        assert self.sso_db.get_sids_by_sub("012346789") == ["session id 2"]
-        self._reset()
-
-    def test_get_sub_by_uid_same_sub(self):
-        self.sso_db.map_sid2sub("session id 1", "abcdefgh")
-        self.sso_db.map_sid2sub("session id 2", "abcdefgh")
-
-        self.sso_db.map_sid2uid("session id 1", "Lizz")
-        self.sso_db.map_sid2uid("session id 2", "Lizz")
-
-        res = self.sso_db.get_subs_by_uid("Lizz")
-
-        assert set(res) == {"abcdefgh"}
-        self._reset()
-
-    def test_get_sub_by_uid_different_sub(self):
-        self.sso_db.map_sid2sub("session id 1", "abcdefgh")
-        self.sso_db.map_sid2sub("session id 2", "012346789")
-
-        self.sso_db.map_sid2uid("session id 1", "Lizz")
-        self.sso_db.map_sid2uid("session id 2", "Lizz")
-
-        res = self.sso_db.get_subs_by_uid("Lizz")
-
-        assert set(res) == {"abcdefgh", "012346789"}
-        self._reset()

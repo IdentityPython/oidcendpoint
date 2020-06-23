@@ -288,7 +288,9 @@ class Endpoint(object):
                 else:
                     raise
 
+        LOGGER.debug('authn_info: %s', authn_info)
         if authn_info == {} and self.client_authn_method and len(self.client_authn_method):
+            LOGGER.debug('client_authn_method: %s', self.client_authn_method)
             raise UnAuthorizedClient("Authorization failed")
 
         return authn_info

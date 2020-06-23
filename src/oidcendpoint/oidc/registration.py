@@ -336,7 +336,7 @@ class Registration(Endpoint):
         return utc_time_sans_frac() + _expiration_time
 
     def add_client_secret(self, cinfo, client_id, context):
-        client_secret = secret(context.seed, client_id)
+        client_secret = secret(context.get('seed'), client_id)
         cinfo["client_secret"] = client_secret
         _eat = self.client_secret_expiration_time()
         if _eat:

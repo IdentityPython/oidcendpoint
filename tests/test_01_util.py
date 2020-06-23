@@ -19,7 +19,7 @@ conf = {
     "verify_ssl": False,
     "capabilities": {},
     "jwks_uri": "https://example.com/jwks.json",
-    "jwks": {
+    "keys": {
         "private_path": "own/jwks.json",
         "key_defs": KEYDEFS,
         "uri_path": "static/jwks.json",

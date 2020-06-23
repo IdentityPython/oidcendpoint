@@ -229,7 +229,7 @@ conf = {
     "verify_ssl": False,
     "endpoint": {"token": {"path": "token", "class": AccessToken, "kwargs": {}}},
     "template_dir": "template",
-    "jwks": {
+    "keys": {
         "private_path": "own/jwks.json",
         "key_defs": KEYDEFS,
         "uri_path": "static/jwks.json",

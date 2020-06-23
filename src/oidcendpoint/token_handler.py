@@ -9,7 +9,6 @@ from cryptojwt.exception import Invalid
 from cryptojwt.key_jar import init_key_jar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-from cryptojwt.exception import BadSyntax
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint import rndstr
@@ -77,7 +76,7 @@ class Token(object):
         self.lifetime = lifetime
         self.args = kwargs
 
-    def __call__(self, sid, *args, **kwargs):
+    def __call__(self, sid):
         """
         Return a token.
 
@@ -118,7 +117,7 @@ class Token(object):
 
 class DefaultToken(Token):
     def __init__(
-        self, password, typ="", token_type="Bearer", **kwargs
+            self, password, typ="", token_type="Bearer", **kwargs
     ):
         Token.__init__(self, typ, **kwargs)
         self.crypt = Crypt(password)
@@ -197,7 +196,7 @@ class DefaultToken(Token):
 
 class TokenHandler(object):
     def __init__(
-        self, access_token_handler=None, code_handler=None, refresh_token_handler=None
+            self, access_token_handler=None, code_handler=None, refresh_token_handler=None
     ):
 
         self.handler = {"code": code_handler, "access_token": access_token_handler}
@@ -215,12 +214,13 @@ class TokenHandler(object):
         return item in self.handler
 
     def info(self, item, order=None):
-        _handler, _item_info = self.get_handler(item, order)
+        _handler, item_info = self.get_handler(item, order)
+
         if _handler is None:
             logger.info("Unknown token format")
             raise KeyError(item)
         else:
-            return _item_info
+            return item_info
 
     def sid(self, token, order=None):
         return self.info(token, order)["sid"]
@@ -234,11 +234,11 @@ class TokenHandler(object):
 
         for typ in order:
             try:
-                item_info = self.handler[typ].info(token)
+                res = self.handler[typ].info(token)
             except (KeyError, WrongTokenType, InvalidToken, UnknownToken, Invalid):
                 pass
             else:
-                return self.handler[typ], item_info
+                return self.handler[typ], res
 
         return None, None
 

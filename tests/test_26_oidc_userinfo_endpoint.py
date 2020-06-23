@@ -83,7 +83,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
             "id_token": {"class": IDToken, "kwargs": {}},
             "endpoint": {
                 "provider_config": {
@@ -150,7 +150,6 @@ class TestEndpoint(object):
                             "email",
                             "email_verified",
                             "sub",
-                            "iss",
                             "eduperson_scoped_affiliation",
                         ]
                     },
@@ -174,6 +173,7 @@ class TestEndpoint(object):
             'birthdate',
             'email',
             'email_verified',
+            "eduperson_scoped_affiliation",
             'family_name',
             'gender',
             'given_name',
