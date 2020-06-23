@@ -1,10 +1,10 @@
-from abstorage.extension import LabeledAbstractStorage
+from oidcmsg.storage.extension import LabeledAbstractStorage
 
 STORAGE_CONF = {
-    'handler': 'abstorage.storages.abfile.AbstractFileSystem',
+    'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
     'fdir': 'client_db',
-    'key_conv': 'abstorage.converter.QPKey',
-    'value_conv': 'abstorage.converter.JSON'
+    'key_conv': 'oidcmsg.storage.converter.QPKey',
+    'value_conv': 'oidcmsg.storage.converter.JSON'
 }
 
 
