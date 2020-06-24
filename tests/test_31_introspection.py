@@ -134,6 +134,7 @@ class TestEndpoint:
                     "kwargs": {
                         "release": ["username"],
                         "client_authn_method": ["client_secret_post"],
+                        "enable_claims_per_client": False,
                     },
                 },
                 "token": {
@@ -176,6 +177,7 @@ class TestEndpoint:
             "client_salt": "salted",
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
+            "introspection_claims": ["nickname", "eduperson_scoped_affiliation"],
         }
         endpoint_context.keyjar.import_jwks_as_json(
             endpoint_context.keyjar.export_jwks_as_json(private=True),
@@ -305,6 +307,25 @@ class TestEndpoint:
         assert "sub" in _resp_args
         assert _resp_args["active"]
         assert _resp_args["scope"] == "openid"
+
+    def test_introspection_claims(self):
+        self.introspection_endpoint.enable_claims_per_client = True
+        _context = self.introspection_endpoint.endpoint_context
+        _token = self._create_at("diana", lifetime=6000, with_jti=True)
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": _token,
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        _resp_args = _resp["response_args"]
+        assert "nickname" in _resp_args
+        assert _resp_args["nickname"] == 'Dina'
+        assert "eduperson_scoped_affiliation" in _resp_args
+        assert _resp_args["eduperson_scoped_affiliation"] == ['staff@example.org']
+        assert "family_name" not in _resp_args
 
     def test_jwt_unknown_key(self):
         _keyjar = build_keyjar(KEYDEFS)

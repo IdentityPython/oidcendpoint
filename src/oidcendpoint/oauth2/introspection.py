@@ -22,6 +22,9 @@ class Introspection(Endpoint):
     def __init__(self, **kwargs):
         Endpoint.__init__(self, **kwargs)
         self.offset = kwargs.get("offset", 0)
+        self.enable_claims_per_client = kwargs.get(
+            "enable_claims_per_client", False
+        )
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         """
@@ -34,6 +37,27 @@ class Introspection(Endpoint):
         """
         sinfo = endpoint_context.sdb[token]
         return sinfo["authn_req"]["client_id"]
+
+    def _get_client_claims(self, token):
+        client_id = self.get_client_id_from_token(
+            self.endpoint_context, token
+        )
+        client = self.endpoint_context.cdb.get(client_id, {})
+        return client.get("introspection_claims")
+
+    def _get_user_info(self, token_info):
+        user_id = self.endpoint_context.sdb.sso_db.get_uid_by_sid(
+            token_info["sid"]
+        )
+        return self.endpoint_context.userinfo(user_id, client_id=None)
+
+    def _add_claims(self, token_info, claims, payload):
+        user_info = self._get_user_info(token_info)
+        for attr in claims:
+            try:
+                payload[attr] = user_info[attr]
+            except KeyError:
+                pass
 
     def _introspect(self, token):
         try:
@@ -89,6 +113,12 @@ class Introspection(Endpoint):
 
         _resp.update(_info)
         _resp.weed()
+
+        if self.enable_claims_per_client:
+            client_claims = self._get_client_claims(_token)
+            if client_claims:
+                self._add_claims(_info, client_claims, _resp)
+
         _resp["active"] = True
 
         return {"response_args": _resp}
