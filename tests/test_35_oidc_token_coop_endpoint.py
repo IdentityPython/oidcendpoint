@@ -17,6 +17,7 @@ from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.token_coop import AccessToken
 from oidcendpoint.oidc.token_coop import TokenCoop
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -321,7 +322,7 @@ class TestEndpoint(object):
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
-        self.endpoint.allow_refresh = False
+        self.endpoint.helper = {"authorization_code": AccessToken}
 
         _request = REFRESH_TOKEN_REQ.copy()
         _request["refresh_token"] = _resp["response_args"]["refresh_token"]
