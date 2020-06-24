@@ -66,7 +66,7 @@ class Introspection(Endpoint):
             return None
 
         # Make sure that the token is an access_token or a refresh_token
-        if token not in info.get("access_token") and token != info.get(
+        if token != info.get("access_token") and token != info.get(
             "refresh_token"
         ):
             return None
