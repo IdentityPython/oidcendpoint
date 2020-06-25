@@ -98,7 +98,15 @@ class ClientSecretBasic(ClientAuthnMethod):
     def verify(self, authorization_info, **kwargs):
         client_info = basic_authn(authorization_info)
 
-        if self.endpoint_context.cdb[client_info["id"]]["client_secret"] == client_info["secret"]:
+        _cdb_info = self.endpoint_context.cdb.get(client_info["id"])
+        if _cdb_info is None:
+            raise AuthnFailure("Unknown client")
+
+        _secret = _cdb_info.get('client_secret')
+        if _secret is None:
+            raise AuthnFailure("")
+
+        if _secret == client_info["secret"]:
             return {"client_id": client_info["id"]}
         else:
             raise AuthnFailure()
@@ -122,7 +130,7 @@ class ClientSecretPost(ClientSecretBasic):
 
     def verify(self, request, **kwargs):
         if self.endpoint_context.cdb[request["client_id"]]["client_secret"] == request[
-            "client_secret"]:
+                "client_secret"]:
             return {"client_id": request["client_id"]}
         else:
             raise AuthnFailure("secrets doesn't match")
@@ -369,12 +377,13 @@ def verify_client(
     _token = auth_info.get("token")
 
     if client_id:
-        if not client_id in endpoint_context.cdb:
+        _cinfo = endpoint_context.cdb.get(client_id)
+        if _cinfo is None:
             raise UnknownClient("Unknown Client ID")
 
-        _cinfo = endpoint_context.cdb[client_id]
-        if isinstance(_cinfo, str):
-            if not _cinfo in endpoint_context.cdb:
+        if isinstance(_cinfo, str): # This is if _cinfo is a reference to another client_id
+            _cinfo = endpoint_context.cdb.get(_cinfo)
+            if _cinfo is None:
                 raise UnknownClient("Unknown Client ID")
 
         if not valid_client_info(_cinfo):
