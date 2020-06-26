@@ -3,7 +3,6 @@ import json
 
 import pytest
 import responses
-
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization

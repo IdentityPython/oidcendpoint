@@ -5,9 +5,6 @@ import yaml
 from cryptojwt import JWT
 from cryptojwt.jwt import remove_jwt_parameters
 from cryptojwt.key_jar import init_key_jar
-from oidcmsg.message import Message
-from oidcmsg.oauth2 import AuthorizationRequest
-
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -15,6 +12,8 @@ from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.oauth2.pushed_authorization import PushedAuthorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
+from oidcmsg.message import Message
+from oidcmsg.oauth2 import AuthorizationRequest
 
 CAPABILITIES = {
     "subject_types_supported": ["public", "pairwise"],

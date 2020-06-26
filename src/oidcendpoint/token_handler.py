@@ -9,12 +9,11 @@ from cryptojwt.exception import Invalid
 from cryptojwt.key_jar import init_key_jar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-from oidcmsg.time_util import time_sans_frac
-
 from oidcendpoint import rndstr
 from oidcendpoint.util import importer
 from oidcendpoint.util import lv_pack
 from oidcendpoint.util import lv_unpack
+from oidcmsg.time_util import time_sans_frac
 
 __author__ = "Roland Hedberg"
 

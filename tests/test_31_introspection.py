@@ -7,12 +7,6 @@ from cryptojwt import JWT
 from cryptojwt import as_unicode
 from cryptojwt.key_jar import build_keyjar
 from cryptojwt.utils import as_bytes
-from oidcmsg.oauth2 import TokenIntrospectionRequest
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AccessTokenResponse
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.time_util import utc_time_sans_frac
-
 from oidcendpoint.client_authn import ClientSecretPost
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.client_authn import WrongAuthnMethod
@@ -25,6 +19,11 @@ from oidcendpoint.oidc.token_coop import TokenCoop
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oauth2 import TokenIntrospectionRequest
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AccessTokenResponse
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import utc_time_sans_frac
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},

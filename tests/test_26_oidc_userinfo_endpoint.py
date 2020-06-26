@@ -3,9 +3,6 @@ import os
 
 import pytest
 from cryptojwt.jwt import utc_time_sans_frac
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-
 from oidcendpoint import user_info
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -17,6 +14,8 @@ from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},

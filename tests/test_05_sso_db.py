@@ -1,7 +1,6 @@
 import shutil
 
 import pytest
-
 from oidcendpoint.sso_db import SSODb
 
 DB_CONF = {

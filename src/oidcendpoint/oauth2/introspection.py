@@ -1,10 +1,9 @@
 """Implements RFC7662"""
 import logging
 
+from oidcendpoint.endpoint import Endpoint
 from oidcmsg import oauth2
 from oidcmsg.time_util import utc_time_sans_frac
-
-from oidcendpoint.endpoint import Endpoint
 
 LOGGER = logging.getLogger(__name__)
 

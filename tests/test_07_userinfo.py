@@ -2,10 +2,6 @@ import json
 import os
 
 import pytest
-from oidcmsg.message import Message
-from oidcmsg.oidc import OpenIDRequest
-from oidcmsg.oidc import OpenIDSchema
-
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
@@ -20,6 +16,9 @@ from oidcendpoint.userinfo import by_schema
 from oidcendpoint.userinfo import claims_match
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import update_claims
+from oidcmsg.message import Message
+from oidcmsg.oidc import OpenIDRequest
+from oidcmsg.oidc import OpenIDSchema
 
 CLAIMS = {
     "userinfo": {

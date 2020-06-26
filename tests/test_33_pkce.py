@@ -3,11 +3,6 @@ import json
 import os
 import string
 
-try:
-    import random.SystemRandom as rnd
-except ImportError:
-    import random as rnd
-
 import pytest
 import yaml
 from cryptojwt.utils import b64e
@@ -19,6 +14,12 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
+
+try:
+    import random.SystemRandom as rnd
+except ImportError:
+    import random as rnd
+
 
 BASECH = string.ascii_letters + string.digits + "-._~"
 

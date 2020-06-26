@@ -1,10 +1,9 @@
 import logging
 
-from oidcmsg.oidc import Claims
-
 from oidcendpoint import sanitize
 from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.scopes import convert_scopes2claims
+from oidcmsg.oidc import Claims
 
 logger = logging.getLogger(__name__)
 

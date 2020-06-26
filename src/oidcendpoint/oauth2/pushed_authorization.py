@@ -1,8 +1,7 @@
 import uuid
 
-from oidcmsg import oauth2
-
 from oidcendpoint.oauth2.authorization import Authorization
+from oidcmsg import oauth2
 
 
 class PushedAuthorization(Authorization):

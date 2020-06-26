@@ -2,7 +2,6 @@ import logging
 
 from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
-
 from oidcendpoint.endpoint import construct_endpoint_info
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import userinfo_in_id_token_claims

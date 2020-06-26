@@ -3,7 +3,6 @@ from http.cookies import SimpleCookie
 import pytest
 from cryptojwt.jwk.hmac import SYMKey
 from cryptojwt.key_jar import init_key_jar
-
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.cookie import compute_session_state

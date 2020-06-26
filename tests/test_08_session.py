@@ -3,11 +3,6 @@ import shutil
 import time
 
 import pytest
-from oidcmsg.storage import AbstractStorage
-from oidcendpoint.sso_db import SSODb
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import OpenIDRequest
-
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
 from oidcendpoint.authn_event import create_authn_event
@@ -16,9 +11,13 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.session import SessionDB
 from oidcendpoint.session import setup_session
+from oidcendpoint.sso_db import SSODb
 from oidcendpoint.token_handler import WrongTokenType
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import OpenIDRequest
+from oidcmsg.storage import AbstractStorage
 
 __author__ = "rohe0002"
 

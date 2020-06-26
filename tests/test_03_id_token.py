@@ -6,9 +6,6 @@ import pytest
 from cryptojwt.jws import jws
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import RegistrationResponse
-
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -18,6 +15,8 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RegistrationResponse
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},

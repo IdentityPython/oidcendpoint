@@ -232,6 +232,12 @@ class TokenExchange(EndpointHelper):
         if _policy:
             _resource_policy = _policy.get(req['resource'])
             if _resource_policy:
+                # Verify that the token is OK
+                _token = req['subject_token']
+                if self.endpoint.endpoint_context.sdb.is_token_valid(_token) is False:
+                    return TokenErrorResponse(error="invalid_request",
+                                              error_description="Not allowed")
+                # Should probably verify token type too.
                 _info = copy.copy(_resource_policy)
                 if _info['issued_token_type'] == "urn:ietf:params:oauth:token-type:access_token":
                     _aud, _scope = aud_and_scope(req['resource'])

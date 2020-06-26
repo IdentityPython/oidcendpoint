@@ -4,17 +4,16 @@ from urllib.parse import urlparse
 
 from cryptojwt import jwe
 from cryptojwt.jws.jws import SIGNER_ALGS
-from oidcmsg.exception import MissingRequiredAttribute
-from oidcmsg.exception import MissingRequiredValue
-from oidcmsg.message import Message
-from oidcmsg.oauth2 import ResponseMessage
-
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.client_authn import client_auth_setup
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
+from oidcmsg.exception import MissingRequiredAttribute
+from oidcmsg.exception import MissingRequiredValue
+from oidcmsg.message import Message
+from oidcmsg.oauth2 import ResponseMessage
 
 __author__ = "Roland Hedberg"
 

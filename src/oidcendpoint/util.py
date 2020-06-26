@@ -194,4 +194,3 @@ def allow_refresh_token(endpoint_context):
         raise OidcEndpointError('Grant type "refresh_token" lacks support')
 
     return False
-

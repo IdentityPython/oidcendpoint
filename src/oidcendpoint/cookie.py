@@ -19,11 +19,10 @@ from cryptojwt.key_bundle import init_key
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64e
-from oidcmsg import time_util
-from oidcmsg.time_util import in_a_while
-
 from oidcendpoint.util import lv_pack
 from oidcendpoint.util import lv_unpack
+from oidcmsg import time_util
+from oidcmsg.time_util import in_a_while
 
 __author__ = "Roland Hedberg"
 

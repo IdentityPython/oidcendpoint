@@ -4,12 +4,11 @@ from typing import Optional
 
 from cryptojwt import JWT
 from cryptojwt.jws.exception import JWSException
-
 from oidcendpoint.exception import ToOld
-from oidcendpoint.token_handler import Token
-from oidcendpoint.token_handler import is_expired
-from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.scopes import convert_scopes2claims
+from oidcendpoint.token_handler import Token
+from oidcendpoint.token_handler import UnknownToken
+from oidcendpoint.token_handler import is_expired
 
 
 class JWTToken(Token):

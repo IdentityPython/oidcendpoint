@@ -2,10 +2,6 @@ import json
 import os
 
 import pytest
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc.token_exchange import TokenExchangeRequest
-
 from oidcendpoint.client_authn import ClientSecretBasic
 from oidcendpoint.client_authn import ClientSecretJWT
 from oidcendpoint.client_authn import ClientSecretPost
@@ -23,6 +19,9 @@ from oidcendpoint.oidc.token_coop import TokenExchange
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc.token_exchange import TokenExchangeRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -79,13 +78,6 @@ TOKEN_REQ = AccessTokenRequest(
 )
 
 TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
-
-TOKEN_EXCHANGE_REQ = TokenExchangeRequest(
-    grant_type="urn:ietf:params:oauth:grant-type:token-exchange",
-    subject_token="accVkjcJyb4BWCxGsndESCJQbdFMogUC5PbRDqceLTC",
-    subject_token_type="urn:ietf:params:oauth:token-type:Aaccess_token",
-    resource="https://backend.example.com/api"
-)
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -197,9 +189,15 @@ class TestEndpoint(object):
         _req = self.token_endpoint.parse_request(_token_request)
         _resp = self.token_endpoint.process_request(request=_req)
 
-        _request = TOKEN_EXCHANGE_REQ.copy()
+        token_exchange_req = TokenExchangeRequest(
+            grant_type="urn:ietf:params:oauth:grant-type:token-exchange",
+            subject_token=_resp['response_args']['access_token'],
+            subject_token_type="urn:ietf:params:oauth:token-type:access_token",
+            resource="https://backend.example.com/api"
+        )
+
         _req = self.token_endpoint.parse_request(
-            _request.to_json(), auth="Basic cnMwODpsb25nLXNlY3VyZS1yYW5kb20tc2VjcmV0")
+            token_exchange_req.to_json(), auth="Basic cnMwODpsb25nLXNlY3VyZS1yYW5kb20tc2VjcmV0")
         _resp = self.token_endpoint.process_request(request=_req)
         assert set(_resp.keys()) == {"response_args", "http_headers"}
         assert set(_resp["response_args"].keys()) == {'access_token', 'token_type', 'expires_in',

@@ -4,10 +4,6 @@ import os
 import pytest
 from cryptojwt import JWT
 from cryptojwt.key_jar import build_keyjar
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import RefreshAccessTokenRequest
-
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
@@ -22,6 +18,9 @@ from oidcendpoint.oidc.token_coop import TokenCoop
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RefreshAccessTokenRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},

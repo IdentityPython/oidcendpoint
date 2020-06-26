@@ -9,9 +9,6 @@ from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-from oidcmsg.oidc import JsonWebToken
-from oidcmsg.oidc import verified_claim_name
-
 from oidcendpoint import JWT_BEARER
 from oidcendpoint import sanitize
 from oidcendpoint.exception import InvalidClient
@@ -19,6 +16,8 @@ from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import NotForMe
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.util import importer
+from oidcmsg.oidc import JsonWebToken
+from oidcmsg.oidc import verified_claim_name
 
 logger = logging.getLogger(__name__)
 

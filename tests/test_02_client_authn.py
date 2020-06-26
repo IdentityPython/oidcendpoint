@@ -7,7 +7,6 @@ from cryptojwt.key_jar import KeyJar
 from cryptojwt.key_jar import build_keyjar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import AuthnFailure
 from oidcendpoint.client_authn import BearerBody

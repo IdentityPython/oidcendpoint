@@ -4,15 +4,12 @@ import os
 import requests
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
-from oidcmsg.oidc import IdToken
-from oidcmsg.context import OidcContext
-
 from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.id_token import IDToken
-from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import SCOPE2CLAIMS
 from oidcendpoint.scopes import STANDARD_CLAIMS
+from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import Scopes
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
@@ -22,6 +19,8 @@ from oidcendpoint.util import allow_refresh_token
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import get_http_params
 from oidcendpoint.util import importer
+from oidcmsg.context import OidcContext
+from oidcmsg.oidc import IdToken
 
 logger = logging.getLogger(__name__)
 

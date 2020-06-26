@@ -4,7 +4,6 @@ import os
 import pytest
 from cryptojwt import JWT
 from cryptojwt.key_jar import build_keyjar
-
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
@@ -252,4 +251,3 @@ class TestEndpoint(object):
         # 2nd time used
         with pytest.raises(UnAuthorizedClient):
             self.endpoint.parse_request(_token_request)
-
