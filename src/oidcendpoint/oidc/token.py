@@ -2,16 +2,15 @@ import logging
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
-from oidcmsg import oidc
-from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.oidc import AccessTokenResponse
-from oidcmsg.oidc import TokenErrorResponse
-
 from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.userinfo import by_schema
+from oidcmsg import oidc
+from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oidc import AccessTokenResponse
+from oidcmsg.oidc import TokenErrorResponse
 
 logger = logging.getLogger(__name__)
 

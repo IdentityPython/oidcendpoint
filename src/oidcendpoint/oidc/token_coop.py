@@ -6,6 +6,13 @@ from cryptojwt import JWT
 from cryptojwt.exception import JWKESTException
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
+from oidcendpoint import sanitize
+from oidcendpoint.cookie import new_cookie
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import ProcessError
+from oidcendpoint.token_handler import AccessCodeUsed
+from oidcendpoint.token_handler import ExpiredToken
+from oidcendpoint.userinfo import by_schema
 from oidcmsg import oidc
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
@@ -17,14 +24,6 @@ from oidcmsg.oidc import TokenErrorResponse
 from oidcmsg.oidc.token_exchange import TokenExchangeRequest
 from oidcmsg.oidc.token_exchange import TokenExchangeResponse
 from oidcmsg.storage import importer
-
-from oidcendpoint import sanitize
-from oidcendpoint.cookie import new_cookie
-from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.exception import ProcessError
-from oidcendpoint.token_handler import AccessCodeUsed
-from oidcendpoint.token_handler import ExpiredToken
-from oidcendpoint.userinfo import by_schema
 
 logger = logging.getLogger(__name__)
 

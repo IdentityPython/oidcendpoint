@@ -3,16 +3,15 @@ from urllib.parse import unquote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
+from oidcendpoint import sanitize
+from oidcendpoint.exception import RedirectURIError
+from oidcendpoint.exception import UnknownClient
+from oidcendpoint.util import split_uri
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
-
-from oidcendpoint import sanitize
-from oidcendpoint.exception import RedirectURIError
-from oidcendpoint.exception import UnknownClient
-from oidcendpoint.util import split_uri
 
 logger = logging.getLogger(__name__)
 

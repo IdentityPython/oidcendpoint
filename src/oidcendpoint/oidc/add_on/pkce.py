@@ -2,7 +2,6 @@ import hashlib
 import logging
 
 from cryptojwt.utils import b64e
-
 from oidcendpoint.exception import ProcessError
 
 LOGGER = logging.getLogger(__name__)

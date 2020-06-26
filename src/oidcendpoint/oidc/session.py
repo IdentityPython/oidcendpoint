@@ -11,18 +11,17 @@ from cryptojwt.jws.jws import factory
 from cryptojwt.jws.utils import alg2keytype
 from cryptojwt.jwt import JWT
 from cryptojwt.utils import as_bytes
+from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
+from oidcendpoint.common.authorization import verify_uri
+from oidcendpoint.cookie import append_cookie
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.endpoint_context import add_path
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc.session import BACK_CHANNEL_LOGOUT_EVENT
 from oidcmsg.oidc.session import EndSessionRequest
-
-from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
-from oidcendpoint.common.authorization import verify_uri
-from oidcendpoint.cookie import append_cookie
-from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.endpoint_context import add_path
 
 logger = logging.getLogger(__name__)
 

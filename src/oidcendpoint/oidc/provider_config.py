@@ -1,8 +1,7 @@
 import logging
 
-from oidcmsg import oidc
-
 from oidcendpoint.endpoint import Endpoint
+from oidcmsg import oidc
 
 logger = logging.getLogger(__name__)
 

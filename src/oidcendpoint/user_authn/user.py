@@ -13,13 +13,13 @@ from urllib.parse import urlunsplit
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT
-
 from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication, OnlyForTestingWarning
+from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import InvalidCookieSign
 from oidcendpoint.exception import NoSuchAuthentication
+from oidcendpoint.exception import OnlyForTestingWarning
 from oidcendpoint.exception import ToOld
 from oidcendpoint.util import instantiate
 

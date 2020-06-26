@@ -3,14 +3,13 @@ import logging
 
 from cryptojwt.exception import MissingValue
 from cryptojwt.jwt import JWT
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.userinfo import collect_user_info
+from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 from oidcmsg import oidc
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.time_util import time_sans_frac
-
-from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
 

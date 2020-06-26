@@ -9,19 +9,11 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
-from oidcmsg import oidc
-from oidcmsg.exception import ParameterError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import AuthorizationRequest
-from oidcmsg.oidc import AuthorizationResponse
-from oidcmsg.oidc import Claims
-from oidcmsg.oidc import verified_claim_name
-
 from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import FORM_POST
+from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import authn_args_gather
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
@@ -39,6 +31,13 @@ from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
+from oidcmsg import oidc
+from oidcmsg.exception import ParameterError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import AuthorizationRequest
+from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.oidc import Claims
+from oidcmsg.oidc import verified_claim_name
 
 logger = logging.getLogger(__name__)
 

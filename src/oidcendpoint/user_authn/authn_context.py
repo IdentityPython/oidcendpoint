@@ -1,8 +1,7 @@
 import logging
 
-from oidcmsg.oidc import verified_claim_name
-
 from oidcendpoint.util import instantiate
+from oidcmsg.oidc import verified_claim_name
 
 __author__ = "Roland Hedberg"
 

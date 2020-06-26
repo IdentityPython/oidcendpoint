@@ -2,7 +2,6 @@ import copy
 import json
 
 import pytest
-
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.token import AccessToken

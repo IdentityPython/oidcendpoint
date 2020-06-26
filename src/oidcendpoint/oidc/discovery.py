@@ -1,8 +1,7 @@
+from oidcendpoint.endpoint import Endpoint
 from oidcmsg import oidc
 from oidcmsg.oidc import JRD
 from oidcmsg.oidc import Link
-
-from oidcendpoint.endpoint import Endpoint
 
 OIC_ISSUER = "http://openid.net/specs/connect/1.0/issuer"
 

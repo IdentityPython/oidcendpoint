@@ -1,9 +1,8 @@
+from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.oidc.registration import comb_uri
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import RegistrationResponse
-
-from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.oidc.registration import comb_uri
 
 
 class RegistrationRead(Endpoint):

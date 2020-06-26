@@ -9,13 +9,6 @@ from urllib.parse import urlencode
 from urllib.parse import urlparse
 
 from cryptojwt.jws.utils import alg2keytype
-from oidcmsg.exception import MessageException
-from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.oidc import ClientRegistrationErrorResponse
-from oidcmsg.oidc import RegistrationRequest
-from oidcmsg.oidc import RegistrationResponse
-from oidcmsg.time_util import utc_time_sans_frac
-
 from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
@@ -24,6 +17,12 @@ from oidcendpoint.exception import CapabilitiesMisMatch
 from oidcendpoint.exception import InvalidRedirectURIError
 from oidcendpoint.exception import InvalidSectorIdentifier
 from oidcendpoint.util import split_uri
+from oidcmsg.exception import MessageException
+from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oidc import ClientRegistrationErrorResponse
+from oidcmsg.oidc import RegistrationRequest
+from oidcmsg.oidc import RegistrationResponse
+from oidcmsg.time_util import utc_time_sans_frac
 
 PREFERENCE2PROVIDER = {
     # "require_signed_request_object": "request_object_algs_supported",
@@ -203,7 +202,7 @@ class Registration(Endpoint):
                         for iss in ["", _context.issuer]:
                             _k.extend(
                                 _context.keyjar.get_signing_key(
-                                    ktyp, alg=request[item], owner=iss
+                                    ktyp, alg=request[item], issuer_id=iss
                                 )
                             )
                         if not _k:
