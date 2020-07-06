@@ -80,7 +80,9 @@ class JWTToken(Token):
         if self.add_claims:
             self.do_add_claims(payload, uinfo, self.add_claims)
         if self.add_claims_by_scope:
-            _allowed_claims = self.cntx.claims_handler.allowed_claims(self.cntx, client_id)
+            _allowed_claims = self.cntx.claims_handler.allowed_claims(
+                client_id, self.cntx
+            )
             self.do_add_claims(
                 payload,
                 uinfo,
