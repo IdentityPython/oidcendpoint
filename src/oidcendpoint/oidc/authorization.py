@@ -368,6 +368,7 @@ class Authorization(Endpoint):
 
         authn = res["method"]
         authn_class_ref = res["acr"]
+        session = None
 
         try:
             _auth_info = kwargs.get("authn", "")
@@ -444,12 +445,23 @@ class Authorization(Endpoint):
                         else:
                             return {"function": authn, "args": authn_args}
 
-        authn_event = create_authn_event(
-            identity["uid"],
-            identity.get("salt", ""),
-            authn_info=authn_class_ref,
-            time_stamp=_ts,
-        )
+        if session:
+            authn_event = session.get('authn_event')
+            if authn_event is None:
+                authn_event = create_authn_event(
+                    identity["uid"],
+                    identity.get("salt", ""),
+                    authn_info=authn_class_ref,
+                    time_stamp=_ts,
+                )
+        else:
+            authn_event = create_authn_event(
+                identity["uid"],
+                identity.get("salt", ""),
+                authn_info=authn_class_ref,
+                time_stamp=_ts,
+            )
+
         if "valid_until" in authn_event:
             vu = time.time() + authn.kwargs.get("expires_in", 0.0)
             authn_event["valid_until"] = vu
