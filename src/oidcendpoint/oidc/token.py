@@ -58,7 +58,7 @@ class AccessToken(Endpoint):
             _info = _sdb[_access_code]
         except KeyError:
             return self.error_cls(
-                error="invalid_request", error_description="Code is invalid"
+                error="invalid_grant", error_description="Code is invalid"
             )
 
         _authn_req = _info["authn_req"]
@@ -66,7 +66,7 @@ class AccessToken(Endpoint):
         # assert that the code is valid
         if _context.sdb.is_session_revoked(_access_code):
             return self.error_cls(
-                error="invalid_request", error_description="Session is revoked"
+                error="invalid_grant", error_description="Session is revoked"
             )
 
         # If redirect_uri was in the initial authorization request
