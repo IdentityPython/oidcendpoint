@@ -1,8 +1,8 @@
 import io
 import json
 import os
-from secrets import choice
 import string
+from secrets import choice
 
 import pytest
 import yaml
