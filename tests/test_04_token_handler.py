@@ -5,6 +5,7 @@ import random
 import time
 
 import pytest
+
 from oidcendpoint.token_handler import Crypt
 from oidcendpoint.token_handler import DefaultToken
 from oidcendpoint.token_handler import TokenHandler

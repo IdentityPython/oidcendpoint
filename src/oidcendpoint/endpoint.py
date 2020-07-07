@@ -181,7 +181,9 @@ class Endpoint(object):
         self.client_authn_method = []
         if _methods:
             self.client_authn_method = client_auth_setup(_methods, endpoint_context)
-        elif _methods is not None:  # [] or '' or something not None but regarded as nothing.
+        elif (
+            _methods is not None
+        ):  # [] or '' or something not None but regarded as nothing.
             self.client_authn_method = [None]  # Ignore default value
         elif self.default_capabilities:
             _methods = self.default_capabilities.get("client_authn_method")
@@ -231,7 +233,9 @@ class Endpoint(object):
         # Verify that the client is allowed to do this
         _client_id = ""
         try:
-            auth_info = self.client_authentication(req, auth, endpoint=self.name, **kwargs)
+            auth_info = self.client_authentication(
+                req, auth, endpoint=self.name, **kwargs
+            )
         except UnknownOrNoAuthnMethod:
             # If there is no required client authentication method
             if not self.client_authn_method:
@@ -277,7 +281,11 @@ class Endpoint(object):
 
         try:
             authn_info = verify_client(
-                self.endpoint_context, request, auth, self.get_client_id_from_token, **kwargs
+                self.endpoint_context,
+                request,
+                auth,
+                self.get_client_id_from_token,
+                **kwargs
             )
         except UnknownOrNoAuthnMethod:
             if self.client_authn_method is None:
@@ -288,9 +296,13 @@ class Endpoint(object):
                 else:
                     raise
 
-        LOGGER.debug('authn_info: %s', authn_info)
-        if authn_info == {} and self.client_authn_method and len(self.client_authn_method):
-            LOGGER.debug('client_authn_method: %s', self.client_authn_method)
+        LOGGER.debug("authn_info: %s", authn_info)
+        if (
+            authn_info == {}
+            and self.client_authn_method
+            and len(self.client_authn_method)
+        ):
+            LOGGER.debug("client_authn_method: %s", self.client_authn_method)
             raise UnAuthorizedClient("Authorization failed")
 
         return authn_info
@@ -367,10 +379,10 @@ class Endpoint(object):
                 pass
         elif "response_msg" in kwargs:
             resp = kwargs["response_msg"]
-            _response_placement = kwargs.get('response_placement')
+            _response_placement = kwargs.get("response_placement")
             do_placement = False
             _response = ""
-            content_type = kwargs.get('content_type')
+            content_type = kwargs.get("content_type")
             if content_type is None:
                 if self.response_format == "json":
                     content_type = "application/json"
@@ -382,7 +394,7 @@ class Endpoint(object):
             _response = self.response_info(response_args, request, **kwargs)
 
         if do_placement:
-            content_type = kwargs.get('content_type')
+            content_type = kwargs.get("content_type")
             if content_type is None:
                 if self.response_placement == "body":
                     if self.response_format == "json":

@@ -20,8 +20,8 @@ from oidcmsg.oidc import verified_claim_name
 from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import FORM_POST
+from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import authn_args_gather
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
@@ -137,7 +137,7 @@ def proposed_user(request):
 def acr_claims(request):
     acrdef = None
 
-    _claims = request.get('claims')
+    _claims = request.get("claims")
     if isinstance(_claims, str):
         _claims = Claims().from_json(_claims)
 
@@ -203,7 +203,7 @@ class Authorization(Endpoint):
         "request_object_encryption_alg_values_supported": None,
         "request_object_encryption_enc_values_supported": None,
         "grant_types_supported": ["authorization_code", "implicit"],
-        "claim_types_supported": ["normal", "aggregated", "distributed"]
+        "claim_types_supported": ["normal", "aggregated", "distributed"],
     }
 
     def __init__(self, endpoint_context, **kwargs):
@@ -254,8 +254,9 @@ class Authorization(Endpoint):
                 if _p[0] not in _registered:
                     raise ValueError("A request_uri outside the registered")
             # Fetch the request
-            _resp = endpoint_context.httpc.get(_request_uri,
-                                               **endpoint_context.httpc_params)
+            _resp = endpoint_context.httpc.get(
+                _request_uri, **endpoint_context.httpc_params
+            )
             if _resp.status_code == 200:
                 args = {"keyjar": endpoint_context.keyjar}
                 request = AuthorizationRequest().from_jwt(_resp.text, **args)
@@ -403,7 +404,9 @@ class Authorization(Endpoint):
         # To authenticate or Not
         if identity is None:  # No!
             logger.info("No active authentication")
-            logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
+            logger.debug(
+                "Known clients: {}".format(list(self.endpoint_context.cdb.keys()))
+            )
 
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
@@ -425,11 +428,11 @@ class Authorization(Endpoint):
                 if "req_user" in kwargs:
                     sids = self.endpoint_context.sdb.get_sids_by_sub(kwargs["req_user"])
                     if (
-                            sids
-                            and user
-                            != self.endpoint_context.sdb.get_authentication_event(
-                        sids[-1]
-                    ).uid
+                        sids
+                        and user
+                        != self.endpoint_context.sdb.get_authentication_event(
+                            sids[-1]
+                        ).uid
                     ):
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
@@ -463,10 +466,13 @@ class Authorization(Endpoint):
                 inputs=inputs(kwargs["response_args"].to_dict()),
                 action=kwargs["return_uri"],
             )
-            kwargs.update({
-                "response_msg": msg,
-                "content_type": 'text/html',
-                "response_placement": "body"})
+            kwargs.update(
+                {
+                    "response_msg": msg,
+                    "content_type": "text/html",
+                    "response_placement": "body",
+                }
+            )
         elif resp_mode == "fragment":
             if "fragment_enc" in kwargs:
                 if not kwargs["fragment_enc"]:
@@ -553,7 +559,7 @@ class Authorization(Endpoint):
 
         _cookie = new_cookie(
             self.endpoint_context,
-            sub=user,
+            uid=user,
             sid=sid,
             state=request["state"],
             client_id=request["client_id"],
@@ -610,7 +616,8 @@ class Authorization(Endpoint):
                     as_unicode(_state),
                     typ="session",
                     cookie_name=ec.cookie_name["session_management"],
-                    same_site="None", http_only=False
+                    same_site="None",
+                    http_only=False,
                 )
 
                 opbs = session_cookie[ec.cookie_name["session_management"]]

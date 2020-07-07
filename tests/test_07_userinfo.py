@@ -93,9 +93,13 @@ def test_default_scope2claims():
         "updated_at",
         "preferred_username",
     }
-    assert set(convert_scopes2claims(["email"], STANDARD_CLAIMS).keys()) == {"email",
-                                                                             "email_verified"}
-    assert set(convert_scopes2claims(["address"], STANDARD_CLAIMS).keys()) == {"address"}
+    assert set(convert_scopes2claims(["email"], STANDARD_CLAIMS).keys()) == {
+        "email",
+        "email_verified",
+    }
+    assert set(convert_scopes2claims(["address"], STANDARD_CLAIMS).keys()) == {
+        "address"
+    }
     assert set(convert_scopes2claims(["phone"], STANDARD_CLAIMS).keys()) == {
         "phone_number",
         "phone_number_verified",
@@ -128,39 +132,44 @@ def test_custom_scopes():
     _scopes = SCOPE2CLAIMS.copy()
     _scopes.update(custom_scopes)
     _available_claims = STANDARD_CLAIMS[:]
-    _available_claims.append('eduperson_scoped_affiliation')
+    _available_claims.append("eduperson_scoped_affiliation")
 
-    assert set(convert_scopes2claims(["email"], _available_claims, map=_scopes).keys()) == {
+    assert set(
+        convert_scopes2claims(["email"], _available_claims, map=_scopes).keys()
+    ) == {"email", "email_verified",}
+    assert set(
+        convert_scopes2claims(["address"], _available_claims, map=_scopes).keys()
+    ) == {"address"}
+    assert set(
+        convert_scopes2claims(["phone"], _available_claims, map=_scopes).keys()
+    ) == {"phone_number", "phone_number_verified",}
+
+    assert set(
+        convert_scopes2claims(
+            ["research_and_scholarship"], _available_claims, map=_scopes
+        ).keys()
+    ) == {
+        "name",
+        "given_name",
+        "family_name",
         "email",
         "email_verified",
+        "sub",
+        "eduperson_scoped_affiliation",
     }
-    assert set(convert_scopes2claims(["address"], _available_claims, map=_scopes).keys()) == {
-        "address"}
-    assert set(convert_scopes2claims(["phone"], _available_claims, map=_scopes).keys()) == {
-        "phone_number",
-        "phone_number_verified",
-    }
-
-    assert set(convert_scopes2claims(["research_and_scholarship"], _available_claims,
-                                     map=_scopes).keys()) == {
-               "name",
-               "given_name",
-               "family_name",
-               "email",
-               "email_verified",
-               "sub",
-               "eduperson_scoped_affiliation",
-           }
 
 
 PROVIDER_INFO = {
-    "claims_supported": ["auth_time", "acr", "given_name",
-                         "nickname",
-                         "email",
-                         "email_verified",
-                         "picture",
-                         "http://example.info/claims/groups",
-                         ]
+    "claims_supported": [
+        "auth_time",
+        "acr",
+        "given_name",
+        "nickname",
+        "email",
+        "email_verified",
+        "picture",
+        "http://example.info/claims/groups",
+    ]
 }
 
 
@@ -263,7 +272,11 @@ class TestCollectUserInfo:
                             "response_types_supported": [
                                 " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
                             ],
-                            "response_modes_supported": ["query", "fragment", "form_post"],
+                            "response_modes_supported": [
+                                "query",
+                                "fragment",
+                                "form_post",
+                            ],
                             "claims_parameter_supported": True,
                             "request_parameter_supported": True,
                             "request_uri_parameter_supported": True,
@@ -286,7 +299,7 @@ class TestCollectUserInfo:
             }
         )
         # Just has to be there
-        self.endpoint_context.cdb['client1'] = {}
+        self.endpoint_context.cdb["client1"] = {}
 
     def test_collect_user_info(self):
         _req = OIDR.copy()
@@ -319,7 +332,9 @@ class TestCollectUserInfo:
         session["authn_event"] = create_authn_event("diana", "salt")
 
         self.endpoint_context.provider_info["scopes_supported"] = [
-            "openid", "email", "offline_access"
+            "openid",
+            "email",
+            "offline_access",
         ]
         res = collect_user_info(self.endpoint_context, session)
 
@@ -342,7 +357,9 @@ class TestCollectUserInfo:
 
         # Scope address not supported
         self.endpoint_context.provider_info["scopes_supported"] = [
-            "openid", "email", "offline_access"
+            "openid",
+            "email",
+            "offline_access",
         ]
         res = collect_user_info(self.endpoint_context, session)
 
@@ -382,7 +399,11 @@ class TestCollectUserInfoCustomScopes:
                             "response_types_supported": [
                                 " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
                             ],
-                            "response_modes_supported": ["query", "fragment", "form_post"],
+                            "response_modes_supported": [
+                                "query",
+                                "fragment",
+                                "form_post",
+                            ],
                             "claims_parameter_supported": True,
                             "request_parameter_supported": True,
                             "request_uri_parameter_supported": True,
@@ -421,7 +442,7 @@ class TestCollectUserInfoCustomScopes:
                 "template_dir": "template",
             }
         )
-        self.endpoint_context.cdb['client1'] = {}
+        self.endpoint_context.cdb["client1"] = {}
 
     def test_collect_user_info(self):
         _session_info = {"authn_req": OIDR}
@@ -433,11 +454,11 @@ class TestCollectUserInfoCustomScopes:
         res = collect_user_info(self.endpoint_context, session)
 
         assert res == {
-            'email': 'diana@example.org',
-            'email_verified': False,
-            'nickname': 'Dina',
-            'given_name': 'Diana',
-            'sub': 'doe'
+            "email": "diana@example.org",
+            "email_verified": False,
+            "nickname": "Dina",
+            "given_name": "Diana",
+            "sub": "doe",
         }
 
     def test_collect_user_info_2(self):
@@ -471,7 +492,9 @@ class TestCollectUserInfoCustomScopes:
 
         # Scope address not supported
         self.endpoint_context.provider_info["scopes_supported"] = [
-            "openid", "email", "offline_access"
+            "openid",
+            "email",
+            "offline_access",
         ]
         res = collect_user_info(self.endpoint_context, session)
 

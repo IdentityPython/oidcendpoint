@@ -176,8 +176,9 @@ class TestCookieDealerEnc(object):
         assert _value[2] == "sso"
 
     def test_mult_cookie_same_site(self):
-        _cookie1 = self.cookie_dealer.create_cookie("value", "sso", same_site="None",
-                                                    http_only=False)
+        _cookie1 = self.cookie_dealer.create_cookie(
+            "value", "sso", same_site="None", http_only=False
+        )
         _cookie = self.cookie_dealer.append_cookie(
             _cookie1, "session", "session_state", "session",
         )
@@ -272,31 +273,31 @@ def test_new_cookie():
 
 def test_cookie_default():
     _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
-    kaka = make_cookie('test', "data", sign_key=_key)
-    assert kaka['test']["secure"] is True
+    kaka = make_cookie("test", "data", sign_key=_key)
+    assert kaka["test"]["secure"] is True
     assert kaka["test"]["httponly"] is True
     assert kaka["test"]["samesite"] is ""
 
 
 def test_cookie_http_only_false():
     _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
-    kaka = make_cookie('test', "data", sign_key=_key, http_only=False)
-    assert kaka['test']["secure"] is True
+    kaka = make_cookie("test", "data", sign_key=_key, http_only=False)
+    assert kaka["test"]["secure"] is True
     assert kaka["test"]["httponly"] is False
     assert kaka["test"]["samesite"] is ""
 
 
 def test_cookie_not_secure():
     _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
-    kaka = make_cookie('test', "data", _key, secure=False)
-    assert kaka['test']["secure"] is False
+    kaka = make_cookie("test", "data", _key, secure=False)
+    assert kaka["test"]["secure"] is False
     assert kaka["test"]["httponly"] is True
     assert kaka["test"]["samesite"] is ""
 
 
 def test_cookie_same_site_none():
     _key = SYMKey(k="ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch")
-    kaka = make_cookie('test', "data", sign_key=_key, same_site="None")
-    assert kaka['test']["secure"] is True
+    kaka = make_cookie("test", "data", sign_key=_key, same_site="None")
+    assert kaka["test"]["secure"] is True
     assert kaka["test"]["httponly"] is True
     assert kaka["test"]["samesite"] is "None"

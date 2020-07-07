@@ -11,6 +11,13 @@ from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
+from oidcmsg.exception import ParameterError
+from oidcmsg.exception import URIError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oauth2 import AuthorizationRequest
+from oidcmsg.oauth2 import AuthorizationResponse
+from oidcmsg.time_util import in_a_while
+
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import create_authn_response
 from oidcendpoint.common.authorization import get_uri
@@ -28,12 +35,6 @@ from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.session import SessionInfo
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.exception import ParameterError
-from oidcmsg.exception import URIError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import AuthorizationRequest
-from oidcmsg.oauth2 import AuthorizationResponse
-from oidcmsg.time_util import in_a_while
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -541,8 +542,13 @@ class TestEndpoint(object):
             "return_uri": "https://example.com/cb",
         }
         info = self.endpoint.response_mode(request, **info)
-        assert set(info.keys()) == {"response_args", "return_uri", "response_msg",
-                                    "content_type", "response_placement"}
+        assert set(info.keys()) == {
+            "response_args",
+            "return_uri",
+            "response_msg",
+            "content_type",
+            "response_placement",
+        }
         assert info["response_msg"] == FORM_POST.format(
             action="https://example.com/cb",
             inputs='<input type="hidden" name="foo" value="bar"/>',

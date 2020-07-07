@@ -232,10 +232,9 @@ class TestEndpoint(object):
         _jwt = JWT(CLIENT_KEYJAR, iss=AUTH_REQ["client_id"], sign_alg="RS256")
         _jwt.with_jti = True
         _assertion = _jwt.pack({"aud": [_context.endpoint["token"].full_path]})
-        _token_request.update({
-            "client_assertion": _assertion,
-            "client_assertion_type": JWT_BEARER
-        })
+        _token_request.update(
+            {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
+        )
         _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
 
         _context.sdb.update(session_id, user="diana")

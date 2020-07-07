@@ -116,9 +116,7 @@ class Token(object):
 
 
 class DefaultToken(Token):
-    def __init__(
-            self, password, typ="", token_type="Bearer", **kwargs
-    ):
+    def __init__(self, password, typ="", token_type="Bearer", **kwargs):
         Token.__init__(self, typ, **kwargs)
         self.crypt = Crypt(password)
         self.token_type = token_type
@@ -196,7 +194,7 @@ class DefaultToken(Token):
 
 class TokenHandler(object):
     def __init__(
-            self, access_token_handler=None, code_handler=None, refresh_token_handler=None
+        self, access_token_handler=None, code_handler=None, refresh_token_handler=None
     ):
 
         self.handler = {"code": code_handler, "access_token": access_token_handler}
@@ -254,7 +252,7 @@ def init_token_handler(ec, spec, typ):
     else:
         cls = importer(_cls)
 
-    _kwargs = spec.get('kwargs')
+    _kwargs = spec.get("kwargs")
     if _kwargs is None:
         if cls != DefaultToken:
             warnings.warn(
@@ -308,6 +306,8 @@ def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
 
     if refresh:
         _add_passwd(kj, refresh, "refresh")
-        args["refresh_token_handler"] = init_token_handler(ec, refresh, TTYPE["refresh"])
+        args["refresh_token_handler"] = init_token_handler(
+            ec, refresh, TTYPE["refresh"]
+        )
 
     return TokenHandler(**args)

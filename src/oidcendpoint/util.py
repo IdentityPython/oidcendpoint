@@ -137,22 +137,22 @@ def lv_unpack(txt):
 
 
 def get_http_params(config):
-    _verify_ssl = config.get('verify')
+    _verify_ssl = config.get("verify")
     if _verify_ssl is None:
-        _verify_ssl = config.get('verify_ssl')
+        _verify_ssl = config.get("verify_ssl")
 
     if _verify_ssl in [True, False]:
         params = {"verify": _verify_ssl}
     else:
         params = {}
 
-    _cert = config.get('client_cert')
-    _key = config.get('client_key')
+    _cert = config.get("client_cert")
+    _key = config.get("client_key")
     if _cert:
         if _key:
-            params['cert'] = (_cert, _key)
+            params["cert"] = (_cert, _key)
         else:
-            params['cert'] = _cert
+            params["cert"] = _cert
 
     return params
 
@@ -161,37 +161,37 @@ def split_uri(uri):
     p = urlsplit(uri)
 
     if p.fragment:
-        p = p._replace(fragment='')
+        p = p._replace(fragment="")
 
     if p.query:
-        o = p._replace(query='')
+        o = p._replace(query="")
         base = urlunsplit(o)
         return base, parse_qs(p.query)
     else:
         base = urlunsplit(p)
-        return base, ''
+        return base, ""
 
 
 def allow_refresh_token(endpoint_context):
     # Are there a refresh_token handler
-    refresh_token_handler = endpoint_context.sdb.handler.handler.get('refresh_token')
+    refresh_token_handler = endpoint_context.sdb.handler.handler.get("refresh_token")
 
     # Is refresh_token grant type supported
     _token_supported = False
-    _cap = endpoint_context.conf.get('capabilities')
+    _cap = endpoint_context.conf.get("capabilities")
     if _cap:
-        if 'refresh_token' in _cap['grant_types_supported']:
+        if "refresh_token" in _cap["grant_types_supported"]:
             # self.allow_refresh = kwargs.get("allow_refresh", True)
             _token_supported = True
 
     if refresh_token_handler and _token_supported:
         return True
     elif refresh_token_handler:
-        logger.warning('Refresh Token handler available but grant type not supported')
+        logger.warning("Refresh Token handler available but grant type not supported")
     elif _token_supported:
         logger.error(
-            'refresh_token grant type to be supported but no refresh_token handler available')
+            "refresh_token grant type to be supported but no refresh_token handler available"
+        )
         raise OidcEndpointError('Grant type "refresh_token" lacks support')
 
     return False
-

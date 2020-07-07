@@ -111,7 +111,7 @@ class AccessToken(Endpoint):
                 return resp
 
             _sdb.update_by_token(_access_code, id_token=_idtoken)
-            _info = _sdb[_info['sid']]
+            _info = _sdb[_info["sid"]]
 
         return by_schema(AccessTokenResponse, **_info)
 
@@ -167,7 +167,9 @@ class AccessToken(Endpoint):
 
         _access_token = response_args["access_token"]
         _cookie = new_cookie(
-            self.endpoint_context, sub=self.endpoint_context.sdb[_access_token]["sub"]
+            self.endpoint_context,
+            sub=self.endpoint_context.sdb[_access_token]["sub"],
+            cookie_name=self.endpoint_context.cookie_name["session"],
         )
         _headers = [("Content-type", "application/json")]
         resp = {"response_args": response_args, "http_headers": _headers}

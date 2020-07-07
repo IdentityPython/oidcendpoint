@@ -5,11 +5,11 @@ import pytest
 from oidcendpoint.sso_db import SSODb
 
 DB_CONF = {
-              'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-              'fdir': 'db/sso',
-              'key_conv': 'oidcmsg.storage.converter.QPKey',
-              'value_conv': 'oidcmsg.storage.converter.JSON'
-          }
+    "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+    "fdir": "db/sso",
+    "key_conv": "oidcmsg.storage.converter.QPKey",
+    "value_conv": "oidcmsg.storage.converter.JSON",
+}
 
 
 def rmtree(item):
@@ -22,7 +22,7 @@ def rmtree(item):
 class TestSSODB(object):
     @pytest.fixture(autouse=True)
     def create_sdb(self):
-        rmtree('db/sso')
+        rmtree("db/sso")
         self.sso_db = SSODb(DB_CONF)
 
     def test_map_sid2uid(self):

@@ -119,7 +119,7 @@ class TestEndpoint(object):
                         ],
                         "add_claim_by_scope": True,
                         "aud": ["https://example.org/appl"],
-                    }
+                    },
                 },
             },
             "endpoint": {
@@ -195,12 +195,8 @@ class TestEndpoint(object):
     def test_client_claims(self, enable_claims_per_client):
         ec = self.endpoint.endpoint_context
         handler = ec.sdb.handler.handler["access_token"]
-        session_id = setup_session(
-            ec, AUTH_REQ, uid="diana"
-        )
-        ec.cdb["client_1"]['access_token_claims'] = {
-            "address": None
-        }
+        session_id = setup_session(ec, AUTH_REQ, uid="diana")
+        ec.cdb["client_1"]["access_token_claims"] = {"address": None}
         handler.enable_claims_per_client = enable_claims_per_client
         _dic = ec.sdb.upgrade_to_token(key=session_id)
 
@@ -219,6 +215,6 @@ class TestEndpoint(object):
         assert handler.is_expired(_dic["access_token"]) is False
 
         assert (
-                handler.is_expired(_dic["access_token"], utc_time_sans_frac() + 4000)
-                is True
+            handler.is_expired(_dic["access_token"], utc_time_sans_frac() + 4000)
+            is True
         )

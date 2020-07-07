@@ -3,10 +3,9 @@ import shutil
 import time
 
 import pytest
-from oidcmsg.storage import AbstractStorage
-from oidcendpoint.sso_db import SSODb
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
+from oidcmsg.storage import AbstractStorage
 
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
@@ -16,6 +15,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.session import SessionDB
 from oidcendpoint.session import setup_session
+from oidcendpoint.sso_db import SSODb
 from oidcendpoint.token_handler import WrongTokenType
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
@@ -64,18 +64,19 @@ def full_path(local_file):
 
 
 SSO_DB_CONF = {
-    'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-    'fdir': 'db/sso',
-    'key_conv': 'oidcmsg.storage.converter.QPKey',
-    'value_conv': 'oidcmsg.storage.converter.JSON'
+    "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+    "fdir": "db/sso",
+    "key_conv": "oidcmsg.storage.converter.QPKey",
+    "value_conv": "oidcmsg.storage.converter.JSON",
 }
 
 SESSION_DB_CONF = {
-    'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-    'fdir': 'db/session',
-    'key_conv': 'oidcmsg.storage.converter.QPKey',
-    'value_conv': 'oidcmsg.storage.converter.JSON'
+    "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+    "fdir": "db/session",
+    "key_conv": "oidcmsg.storage.converter.QPKey",
+    "value_conv": "oidcmsg.storage.converter.JSON",
 }
+
 
 def rmtree(item):
     try:
@@ -87,8 +88,8 @@ def rmtree(item):
 class TestSessionDB(object):
     @pytest.fixture(autouse=True)
     def create_sdb(self):
-        rmtree('db/sso')
-        rmtree('db/session')
+        rmtree("db/sso")
+        rmtree("db/session")
 
         passwd = rndstr(24)
         _th_args = {
@@ -100,8 +101,11 @@ class TestSessionDB(object):
         _token_handler = token_handler.factory(None, **_th_args)
         userinfo = UserInfo(db_file=full_path("users.json"))
         self.sdb = SessionDB(
-            AbstractStorage(SESSION_DB_CONF), _token_handler,
-            SSODb(SSO_DB_CONF), userinfo)
+            AbstractStorage(SESSION_DB_CONF),
+            _token_handler,
+            SSODb(SSO_DB_CONF),
+            userinfo,
+        )
 
     def test_create_authz_session(self):
         ae = create_authn_event("uid", "salt")
@@ -190,7 +194,7 @@ class TestSessionDB(object):
             "client_id",
             "oauth_state",
             "expires_in",
-            "expires_at"
+            "expires_at",
         }
 
         # can't update again
@@ -217,7 +221,7 @@ class TestSessionDB(object):
             "oauth_state",
             "refresh_token",
             "expires_in",
-            "expires_at"
+            "expires_at",
         }
 
         # You can't refresh a token using the token itself
@@ -243,7 +247,7 @@ class TestSessionDB(object):
             "client_id",
             "oauth_state",
             "expires_in",
-            "expires_at"
+            "expires_at",
         }
 
         assert _dict["id_token"] == "id_token"
@@ -356,8 +360,8 @@ class TestSessionDB(object):
 
         info = self.sdb[sid]
         assert (
-                info["sub"]
-                == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
+            info["sub"]
+            == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
         )
 
         self.sdb.do_sub(
@@ -369,8 +373,8 @@ class TestSessionDB(object):
         )
         info2 = self.sdb[sid]
         assert (
-                info2["sub"]
-                == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
+            info2["sub"]
+            == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
         )
 
         self.sdb.do_sub(
@@ -383,8 +387,8 @@ class TestSessionDB(object):
 
         info2 = self.sdb[sid]
         assert (
-                info2["sub"]
-                == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
+            info2["sub"]
+            == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
         )
 
     def test_match_session(self):
@@ -447,7 +451,7 @@ conf = {
     "userinfo": {"class": UserInfo, "kwargs": {"db_file": full_path("users.json")}},
     "template_dir": "template",
     "sso_db": SSO_DB_CONF,
-    "session_db": SESSION_DB_CONF
+    "session_db": SESSION_DB_CONF,
 }
 
 

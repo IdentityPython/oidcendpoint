@@ -2,8 +2,10 @@ import shelve
 
 
 class ShelveDataBase(object):
-    def __init__(self, filename, flag='c', protocol=None, writeback=False):
-        self.db = shelve.open(filename=filename, flag=flag, protocol=protocol, writeback=writeback)
+    def __init__(self, filename, flag="c", protocol=None, writeback=False):
+        self.db = shelve.open(
+            filename=filename, flag=flag, protocol=protocol, writeback=writeback
+        )
 
     def __contains__(self, key):
         if key in self.db:

@@ -4,10 +4,10 @@ import logging
 import time
 
 from oidcmsg.exception import MissingParameter
-from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_REQUIRED_STRING
+from oidcmsg.message import Message
 from oidcmsg.message import msg_ser
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import utc_time_sans_frac
@@ -48,7 +48,7 @@ def authn_event_deser(val, sformat="urlencoded"):
 
 
 def setup_session(
-        endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
+    endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
 ):
     """
     Setting up a user session
@@ -147,11 +147,11 @@ class SessionDB(object):
             if _info:
                 _si = SessionInfo(**_info)
                 if any(item == val for val in _si.values()):
-                    _si['sid'] = sid
+                    _si["sid"] = sid
                     return _si
         else:
             _si = SessionInfo(**_info)
-            _si['sid'] = item
+            _si["sid"] = item
             return _si
         raise KeyError
 
@@ -262,7 +262,7 @@ class SessionDB(object):
             return _sess_info["access_token"]
 
     def do_sub(
-            self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
+        self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
     ):
         """
         Create and store a subject identifier
@@ -321,18 +321,17 @@ class SessionDB(object):
         if client_id_aud:
             at_aud.append(client_id)
         return self.handler["access_token"](
-            sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud,
-            client_id=client_id
+            sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud, client_id=client_id
         )
 
     def upgrade_to_token(
-            self,
-            grant=None,
-            issue_refresh=False,
-            id_token="",
-            oidreq=None,
-            key=None,
-            scope=None,
+        self,
+        grant=None,
+        issue_refresh=False,
+        id_token="",
+        oidreq=None,
+        key=None,
+        scope=None,
     ):
         """
 
@@ -372,8 +371,9 @@ class SessionDB(object):
 
         if self.handler["access_token"].lifetime:
             session_info["expires_in"] = self.handler["access_token"].lifetime
-            session_info["expires_at"] = self.handler[
-                                             "access_token"].lifetime + utc_time_sans_frac()
+            session_info["expires_at"] = (
+                self.handler["access_token"].lifetime + utc_time_sans_frac()
+            )
 
         if issue_refresh and "refresh_token" in self.handler:
             session_info = self.replace_refresh_token(key, session_info)

@@ -25,8 +25,9 @@ SCOPE2CLAIMS = {
     "offline_access": [],
 }
 
-IGNORE = ['error', 'error_description', 'error_uri', '_claim_names', '_claim_sources']
+IGNORE = ["error", "error_description", "error_uri", "_claim_names", "_claim_sources"]
 STANDARD_CLAIMS = [c for c in OpenIDSchema.c_param.keys() if c not in IGNORE]
+
 
 def available_scopes(endpoint_context):
     _supported = endpoint_context.provider_info.get("scopes_supported")
@@ -51,7 +52,9 @@ def convert_scopes2claims(scopes, allowed_claims, map=None):
     res = {}
     for scope in scopes:
         try:
-            claims = dict([(name, None) for name in map[scope] if name in allowed_claims])
+            claims = dict(
+                [(name, None) for name in map[scope] if name in allowed_claims]
+            )
             res.update(claims)
         except KeyError:
             continue

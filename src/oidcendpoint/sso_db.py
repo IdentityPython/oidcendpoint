@@ -5,8 +5,8 @@ from oidcmsg.storage.extension import LabeledAbstractStorage
 logger = logging.getLogger(__name__)
 
 
-class DictDatabase():
-    def __init__(self, db_conf=None, db_label='', db=None):
+class DictDatabase:
+    def __init__(self, db_conf=None, db_label="", db=None):
         if db_conf:
             self._db = LabeledAbstractStorage(db_conf, db_label)
         else:
@@ -181,9 +181,9 @@ class SSODb(DictDatabase):
 
         :param sub: A Subject ID
         """
-        for _sid in self.get(sub, 'sid'):
+        for _sid in self.get(sub, "sid"):
             self.remove(_sid, "sub", sub)
-        self.delete(sub, 'sid')
+        self.delete(sub, "sid")
 
     def close(self):
         self._db.close()

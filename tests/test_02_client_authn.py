@@ -50,34 +50,28 @@ CONF = {
                     "private_key_jwt",
                     "client_secret_jwt",
                     "client_secret_post",
-                    "client_secret_basic"
+                    "client_secret_basic",
                 ]
-            }
+            },
         },
         "authorization": {
             "path": "auth",
             "class": Authorization,
-            "kwargs": {
-                "client_authn_method": ["bearer_header", "none"]
-            }
+            "kwargs": {"client_authn_method": ["bearer_header", "none"]},
         },
-        "registration": {
-            "path": "registration",
-            "class": Registration,
-            "kwargs": {}
-        },
+        "registration": {"path": "registration", "class": Registration, "kwargs": {}},
         "userinfo": {
             "path": "user",
             "class": UserInfo,
-            "kwargs": {"client_authn_method": ["bearer_body"]}
-        }
+            "kwargs": {"client_authn_method": ["bearer_body"]},
+        },
     },
     "template_dir": "template",
     "keys": {
         "private_path": "own/jwks.json",
         "key_defs": KEYDEFS,
         "uri_path": "static/jwks.json",
-    }
+    },
 }
 
 client_id = "client_id"
@@ -93,7 +87,7 @@ def get_client_id_from_token(endpoint_context, token, request=None):
     return ""
 
 
-class TestClientSecretBasic():
+class TestClientSecretBasic:
     @pytest.fixture(autouse=True)
     def create_method(self):
         endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -126,7 +120,7 @@ class TestClientSecretBasic():
             self.method.verify(authorization_info=authz_token)
 
 
-class TestClientSecretPost():
+class TestClientSecretPost:
     @pytest.fixture(autouse=True)
     def create_method(self):
         endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -148,7 +142,7 @@ class TestClientSecretPost():
             self.method.verify(request)
 
 
-class TestClientSecretJWT():
+class TestClientSecretJWT:
     @pytest.fixture(autouse=True)
     def create_method(self):
         endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -174,7 +168,7 @@ class TestClientSecretJWT():
         assert "jwt" in authn_info
 
 
-class TestPrivateKeyJWT():
+class TestPrivateKeyJWT:
     @pytest.fixture(autouse=True)
     def create_method(self):
         endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -213,7 +207,9 @@ class TestPrivateKeyJWT():
 
         _jwt = JWT(client_keyjar, iss=client_id, sign_alg="RS256")
         _jwt.with_jti = True
-        _assertion = _jwt.pack({"aud": [self.method.endpoint_context.endpoint["token"].full_path]})
+        _assertion = _jwt.pack(
+            {"aud": [self.method.endpoint_context.endpoint["token"].full_path]}
+        )
 
         request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
@@ -241,7 +237,8 @@ class TestPrivateKeyJWT():
         _jwt = JWT(client_keyjar, iss=client_id, sign_alg="RS256")
         _jwt.with_jti = True
         _assertion = _jwt.pack(
-            {"aud": [self.method.endpoint_context.endpoint["authorization"].full_path]})
+            {"aud": [self.method.endpoint_context.endpoint["authorization"].full_path]}
+        )
 
         request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
@@ -252,7 +249,7 @@ class TestPrivateKeyJWT():
         assert "jwt" in authn_info
 
 
-class TestBearerHeader():
+class TestBearerHeader:
     @pytest.fixture(autouse=True)
     def create_method(self):
         endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -270,7 +267,7 @@ class TestBearerHeader():
         assert self.method.is_usable(authorization_info=authorization_info) is False
 
 
-class TestBearerBody():
+class TestBearerBody:
     @pytest.fixture(autouse=True)
     def create_method(self):
         endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -287,7 +284,7 @@ class TestBearerBody():
             self.method.verify(request=request)
 
 
-class TestJWSAuthnMethod():
+class TestJWSAuthnMethod:
     @pytest.fixture(autouse=True)
     def create_method(self):
         endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -306,7 +303,7 @@ class TestJWSAuthnMethod():
         request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
         with pytest.raises(NoSuitableSigningKeys):
-            self.method.verify(request=request, key_type='private_key')
+            self.method.verify(request=request, key_type="private_key")
 
     def test_jws_authn_method_aud_iss(self):
         client_keyjar = KeyJar()
@@ -321,7 +318,7 @@ class TestJWSAuthnMethod():
 
         request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
-        assert self.method.verify(request=request, key_type='client_secret')
+        assert self.method.verify(request=request, key_type="client_secret")
 
     def test_jws_authn_method_aud_token_endpoint(self):
         client_keyjar = KeyJar()
@@ -337,7 +334,9 @@ class TestJWSAuthnMethod():
 
         request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
-        assert self.method.verify(request=request, endpoint="token", key_type='client_secret')
+        assert self.method.verify(
+            request=request, endpoint="token", key_type="client_secret"
+        )
 
     def test_jws_authn_method_aud_not_me(self):
         client_keyjar = KeyJar()
@@ -355,7 +354,7 @@ class TestJWSAuthnMethod():
         request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
         with pytest.raises(NotForMe):
-            self.method.verify(request=request, key_type='client_secret')
+            self.method.verify(request=request, key_type="client_secret")
 
     def test_jws_authn_method_aud_userinfo_endpoint(self):
         client_keyjar = KeyJar()
@@ -370,7 +369,9 @@ class TestJWSAuthnMethod():
 
         request = {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
 
-        assert self.method.verify(request=request, endpoint="userinfo", key_type='client_secret')
+        assert self.method.verify(
+            request=request, endpoint="userinfo", key_type="client_secret"
+        )
 
 
 def test_basic_auth():
@@ -405,7 +406,7 @@ def test_basic_auth_wrong_token():
         basic_authn("Basic {}".format(token))
 
 
-class TestVerify():
+class TestVerify:
     @pytest.fixture(autouse=True)
     def create_method(self):
         self.endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -431,9 +432,12 @@ class TestVerify():
     def test_verify_client_bearer_body(self):
         request = {"access_token": "1234567890", "client_id": client_id}
         self.endpoint_context.registration_access_token["1234567890"] = client_id
-        res = verify_client(self.endpoint_context, request,
-                            get_client_id_from_token=get_client_id_from_token,
-                            endpoint="userinfo")
+        res = verify_client(
+            self.endpoint_context,
+            request,
+            get_client_id_from_token=get_client_id_from_token,
+            endpoint="userinfo",
+        )
         assert set(res.keys()) == {"token", "method", "client_id"}
         assert res["method"] == "bearer_body"
 
@@ -447,8 +451,9 @@ class TestVerify():
         _token = "{}:{}".format(client_id, client_secret)
         token = as_unicode(base64.b64encode(as_bytes(_token)))
         authz_token = "Basic {}".format(token)
-        res = verify_client(self.endpoint_context, {}, authorization_info=authz_token,
-                            endpoint="token")
+        res = verify_client(
+            self.endpoint_context, {}, authorization_info=authz_token, endpoint="token"
+        )
         assert set(res.keys()) == {"method", "client_id"}
         assert res["method"] == "client_secret_basic"
 
@@ -463,13 +468,13 @@ class TestVerify():
             request,
             authorization_info=token,
             get_client_id_from_token=get_client_id_from_token,
-            endpoint="authorization"
+            endpoint="authorization",
         )
         assert set(res.keys()) == {"token", "method", "client_id"}
         assert res["method"] == "bearer_header"
 
 
-class TestVerify2():
+class TestVerify2:
     @pytest.fixture(autouse=True)
     def create_method(self):
         self.endpoint_context = EndpointContext(CONF, keyjar=KEYJAR)
@@ -495,9 +500,12 @@ class TestVerify2():
     def test_verify_client_bearer_body(self):
         request = {"access_token": "1234567890", "client_id": client_id}
         self.endpoint_context.registration_access_token["1234567890"] = client_id
-        res = verify_client(self.endpoint_context, request,
-                            get_client_id_from_token=get_client_id_from_token,
-                            endpoint="userinfo")
+        res = verify_client(
+            self.endpoint_context,
+            request,
+            get_client_id_from_token=get_client_id_from_token,
+            endpoint="userinfo",
+        )
         assert set(res.keys()) == {"token", "method", "client_id"}
         assert res["method"] == "bearer_body"
 
@@ -511,8 +519,9 @@ class TestVerify2():
         _token = "{}:{}".format(client_id, client_secret)
         token = as_unicode(base64.b64encode(as_bytes(_token)))
         authz_token = "Basic {}".format(token)
-        res = verify_client(self.endpoint_context, {}, authorization_info=authz_token,
-                            endpoint="token")
+        res = verify_client(
+            self.endpoint_context, {}, authorization_info=authz_token, endpoint="token"
+        )
         assert set(res.keys()) == {"method", "client_id"}
         assert res["method"] == "client_secret_basic"
 
@@ -527,7 +536,7 @@ class TestVerify2():
             request,
             authorization_info=token,
             get_client_id_from_token=get_client_id_from_token,
-            endpoint="authorization"
+            endpoint="authorization",
         )
         assert set(res.keys()) == {"token", "method", "client_id"}
         assert res["method"] == "bearer_header"
@@ -539,7 +548,7 @@ class TestVerify2():
             self.endpoint_context,
             request,
             authorization_info=None,
-            endpoint="authorization"
+            endpoint="authorization",
         )
         assert res["method"] == "none"
         assert res["client_id"] == "client_id"
@@ -551,6 +560,6 @@ class TestVerify2():
             self.endpoint_context,
             request,
             authorization_info=None,
-            endpoint="registration"
+            endpoint="registration",
         )
         assert res == {}

@@ -126,7 +126,7 @@ class TokenCoop(Endpoint):
                 return resp
 
             _sdb.update_by_token(_access_code, id_token=_idtoken)
-            _info = _sdb[_info['sid']]
+            _info = _sdb[_info["sid"]]
 
         return by_schema(AccessTokenResponse, **_info)
 
@@ -201,7 +201,9 @@ class TokenCoop(Endpoint):
             return self._access_token_post_parse_request(request, client_id, **kwargs)
         else:  # request["grant_type"] == "refresh_token":
             if self.allow_refresh:
-                return self._refresh_token_post_parse_request(request, client_id, **kwargs)
+                return self._refresh_token_post_parse_request(
+                    request, client_id, **kwargs
+                )
             else:
                 raise ProcessError("Refresh Token not allowed")
 
@@ -238,7 +240,9 @@ class TokenCoop(Endpoint):
 
         _access_token = response_args["access_token"]
         _cookie = new_cookie(
-            self.endpoint_context, sub=self.endpoint_context.sdb[_access_token]["sub"]
+            self.endpoint_context,
+            sub=self.endpoint_context.sdb[_access_token]["sub"],
+            cookie_name=self.endpoint_context.cookie_name["session"],
         )
 
         _headers = [("Content-type", "application/json")]

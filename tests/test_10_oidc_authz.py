@@ -3,6 +3,7 @@ import os
 
 import pytest
 from cryptojwt.key_jar import build_keyjar
+
 from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.authz import Implicit
 from oidcendpoint.authz import factory

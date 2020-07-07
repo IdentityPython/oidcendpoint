@@ -1,4 +1,5 @@
 import pytest
+
 from oidcendpoint.sso_db import SSODb
 
 

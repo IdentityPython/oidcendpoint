@@ -1,6 +1,6 @@
-from oidcmsg.message import Message
 from oidcmsg.message import SINGLE_OPTIONAL_INT
 from oidcmsg.message import SINGLE_REQUIRED_STRING
+from oidcmsg.message import Message
 from oidcmsg.time_util import time_sans_frac
 
 

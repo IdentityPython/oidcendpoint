@@ -116,7 +116,9 @@ class RefreshAccessToken(Endpoint):
 
         _token = request["refresh_token"].replace(" ", "+")
         _cookie = new_cookie(
-            self.endpoint_context, sub=self.endpoint_context.sdb[_token]["sub"]
+            self.endpoint_context,
+            sub=self.endpoint_context.sdb[_token]["sub"],
+            cookie_name=self.endpoint_context.cookie_name["session"],
         )
         _headers = [("Content-type", "application/json")]
         resp = {"response_args": response_args, "http_headers": _headers}

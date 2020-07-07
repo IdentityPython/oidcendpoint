@@ -84,7 +84,7 @@ class TestEndpoint(object):
                 "code": {"lifetime": 600},
                 "token": {
                     "class": "oidcendpoint.jwt_token.JWTToken",
-                    "kwargs":{
+                    "kwargs": {
                         "lifetime": 3600,
                         "add_claims": [
                             "email",
@@ -93,7 +93,7 @@ class TestEndpoint(object):
                             "phone_number_verified",
                         ],
                         "add_claim_by_scope": True,
-                        "aud": ["https://example.org/appl"]
+                        "aud": ["https://example.org/appl"],
                     },
                 },
                 "refresh": {"lifetime": 86400},

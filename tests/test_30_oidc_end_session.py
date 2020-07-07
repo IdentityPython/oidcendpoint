@@ -7,6 +7,12 @@ from urllib.parse import urlparse
 import pytest
 import responses
 from cryptojwt.key_jar import build_keyjar
+from oidcmsg.exception import InvalidRequest
+from oidcmsg.message import Message
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import verified_claim_name
+from oidcmsg.oidc import verify_id_token
+
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import new_cookie
@@ -21,11 +27,6 @@ from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.exception import InvalidRequest
-from oidcmsg.message import Message
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import verified_claim_name
-from oidcmsg.oidc import verify_id_token
 
 ISS = "https://example.com/"
 
@@ -518,8 +519,7 @@ class TestEndpoint(object):
 
     def test_do_verified_logout(self):
         with responses.RequestsMock() as rsps:
-            rsps.add("POST", "https://example.com/bc_logout",
-                     body="OK", status=200)
+            rsps.add("POST", "https://example.com/bc_logout", body="OK", status=200)
 
             self._code_auth("1234567")
             _cdb = self.session_endpoint.endpoint_context.cdb
@@ -545,7 +545,7 @@ class TestEndpoint(object):
         ] = "https://example.com/fc_logout"
         self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
 
-        _sid = 'sid'
+        _sid = "sid"
 
         res = self.session_endpoint.logout_all_clients(_sid, "client_1")
         assert res == {}
@@ -566,7 +566,7 @@ class TestEndpoint(object):
 
         _sid = self._get_sid()
 
-        self.session_endpoint.endpoint_context.sdb.sso_db.delete('diana', 'sid')
+        self.session_endpoint.endpoint_context.sdb.sso_db.delete("diana", "sid")
 
         res = self.session_endpoint.logout_all_clients(_sid, "client_1")
         assert res == {}

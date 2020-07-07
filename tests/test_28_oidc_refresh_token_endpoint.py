@@ -2,6 +2,10 @@ import json
 import os
 
 import pytest
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RefreshAccessTokenRequest
+
 from oidcendpoint.client_authn import ClientSecretBasic
 from oidcendpoint.client_authn import ClientSecretJWT
 from oidcendpoint.client_authn import ClientSecretPost
@@ -17,9 +21,6 @@ from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import RefreshAccessTokenRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},

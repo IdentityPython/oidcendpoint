@@ -110,12 +110,9 @@ class TestEndpoint:
                     # Should these keys be stored somewhere?
                     "read_only": False,
                     "key_defs": [
-                        {"type": "oct", "bytes": 24, "use": ["enc"],
-                         "kid": "code"},
-                        {"type": "oct", "bytes": 24, "use": ["enc"],
-                         "kid": "refresh"},
-                        {"type": "oct", "bytes": 24, "use": ["enc"],
-                         "kid": "token"},
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "code"},
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "refresh"},
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "token"},
                     ],
                 },
                 "code": {"lifetime": 600},
@@ -168,7 +165,7 @@ class TestEndpoint:
         if jwt_token:
             conf["token_handler_args"]["token"] = {
                 "class": "oidcendpoint.jwt_token.JWTToken",
-                "kwargs": {}
+                "kwargs": {},
             }
         endpoint_context = EndpointContext(conf)
         endpoint_context.cdb["client_1"] = {
@@ -190,10 +187,7 @@ class TestEndpoint:
         _context = self.introspection_endpoint.endpoint_context
 
         session_id = setup_session(
-            _context,
-            AUTH_REQ,
-            uid=uid,
-            acr=INTERNETPROTOCOLPASSWORD,
+            _context, AUTH_REQ, uid=uid, acr=INTERNETPROTOCOLPASSWORD,
         )
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request["code"] = _context.sdb[session_id]["code"]
@@ -322,9 +316,9 @@ class TestEndpoint:
         _resp = self.introspection_endpoint.process_request(_req)
         _resp_args = _resp["response_args"]
         assert "nickname" in _resp_args
-        assert _resp_args["nickname"] == 'Dina'
+        assert _resp_args["nickname"] == "Dina"
         assert "eduperson_scoped_affiliation" in _resp_args
-        assert _resp_args["eduperson_scoped_affiliation"] == ['staff@example.org']
+        assert _resp_args["eduperson_scoped_affiliation"] == ["staff@example.org"]
         assert "family_name" not in _resp_args
 
     def test_jwt_unknown_key(self):
@@ -333,7 +327,7 @@ class TestEndpoint:
         _jwt = JWT(
             _keyjar,
             iss=self.introspection_endpoint.endpoint_context.issuer,
-            lifetime=3600
+            lifetime=3600,
         )
 
         _jwt.with_jti = True
@@ -358,7 +352,7 @@ class TestEndpoint:
         _context = self.introspection_endpoint.endpoint_context
         _token = self._create_at("diana", lifetime=6000, with_jti=True)
         _info = self.token_endpoint.endpoint_context.sdb[_token]
-        _info['expires_at'] = utc_time_sans_frac() - 1000
+        _info["expires_at"] = utc_time_sans_frac() - 1000
         self.token_endpoint.endpoint_context.sdb[_token] = _info
 
         _req = self.introspection_endpoint.parse_request(
@@ -375,8 +369,7 @@ class TestEndpoint:
         _token = self._create_at("diana", lifetime=6000, with_jti=True)
         _context = self.introspection_endpoint.endpoint_context
 
-        self.token_endpoint.endpoint_context.sdb.revoke_session(
-            token=_token)
+        self.token_endpoint.endpoint_context.sdb.revoke_session(token=_token)
 
         _req = self.introspection_endpoint.parse_request(
             {

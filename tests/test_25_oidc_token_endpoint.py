@@ -4,6 +4,9 @@ import os
 import pytest
 from cryptojwt import JWT
 from cryptojwt.key_jar import build_keyjar
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RefreshAccessTokenRequest
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
@@ -19,9 +22,6 @@ from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import RefreshAccessTokenRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -241,8 +241,9 @@ class TestEndpoint(object):
         _jwt = JWT(CLIENT_KEYJAR, iss=AUTH_REQ["client_id"], sign_alg="RS256")
         _jwt.with_jti = True
         _assertion = _jwt.pack({"aud": [_context.endpoint["token"].full_path]})
-        _token_request.update({"client_assertion": _assertion,
-                               "client_assertion_type": JWT_BEARER})
+        _token_request.update(
+            {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
+        )
         _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
 
         _context.sdb.update(session_id, user="diana")
@@ -252,4 +253,3 @@ class TestEndpoint(object):
         # 2nd time used
         with pytest.raises(UnAuthorizedClient):
             self.endpoint.parse_request(_token_request)
-

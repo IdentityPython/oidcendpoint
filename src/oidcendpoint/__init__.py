@@ -2,7 +2,7 @@ import string
 
 # Since SystemRandom is not available on all systems
 try:
-    import random.SystemRandom as rnd
+    from random import SystemRandom as rnd
 except ImportError:
     import random as rnd
 

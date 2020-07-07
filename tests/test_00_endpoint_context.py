@@ -4,6 +4,7 @@ from copy import copy
 import pytest
 import yaml
 from cryptojwt.key_jar import build_keyjar
+
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.add_on.pkce import add_pkce_support
@@ -30,8 +31,7 @@ conf = {
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
     "capabilities": {},
-    "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS, "read_only":
-        True},
+    "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS, "read_only": True},
     "id_token": {"class": IDToken, "kwargs": {}},
     "endpoint": {
         "provider_config": {

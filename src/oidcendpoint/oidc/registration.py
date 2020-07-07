@@ -134,7 +134,7 @@ class Registration(Endpoint):
                             raise CapabilitiesMisMatch(_pref)
                     else:
                         if not set(request[_pref]).issubset(
-                                set(_context.provider_info[_prov])
+                            set(_context.provider_info[_prov])
                         ):
                             raise CapabilitiesMisMatch(_pref)
 
@@ -156,8 +156,8 @@ class Registration(Endpoint):
                     err = ClientRegistrationErrorResponse(
                         error="invalid_configuration_parameter",
                         error_description="post_logout_redirect_uris "
-                                          "contains "
-                                          "fragment",
+                        "contains "
+                        "fragment",
                     )
                     return err
                 plruri.append(split_uri(uri))
@@ -174,9 +174,10 @@ class Registration(Endpoint):
 
         if "sector_identifier_uri" in request:
             try:
-                _cinfo["si_redirects"], _cinfo[
-                    "sector_id"
-                ] = self._verify_sector_identifier(request)
+                (
+                    _cinfo["si_redirects"],
+                    _cinfo["sector_id"],
+                ) = self._verify_sector_identifier(request)
             except InvalidSectorIdentifier as err:
                 return ResponseMessage(
                     error="invalid_configuration_parameter", error_description=str(err)
@@ -290,8 +291,9 @@ class Registration(Endpoint):
         """
         si_url = request["sector_identifier_uri"]
         try:
-            res = self.endpoint_context.httpc.get(si_url,
-                                                  **self.endpoint_context.httpc_params)
+            res = self.endpoint_context.httpc.get(
+                si_url, **self.endpoint_context.httpc_params
+            )
             logger.debug("sector_identifier_uri => %s", sanitize(res.text))
         except Exception as err:
             logger.error(err)
@@ -336,7 +338,7 @@ class Registration(Endpoint):
         return utc_time_sans_frac() + _expiration_time
 
     def add_client_secret(self, cinfo, client_id, context):
-        client_secret = secret(context.get('seed'), client_id)
+        client_secret = secret(context.get("seed"), client_id)
         cinfo["client_secret"] = client_secret
         _eat = self.client_secret_expiration_time()
         if _eat:
@@ -435,7 +437,7 @@ class Registration(Endpoint):
         else:
             _cookie = new_cookie(
                 self.endpoint_context,
-                cookie_name="oidc_op_rp",
+                cookie_name=self.endpoint_context.cookie_name["register"],
                 client_id=reg_resp["client_id"],
             )
 

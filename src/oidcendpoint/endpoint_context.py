@@ -4,15 +4,15 @@ import os
 import requests
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
-from oidcmsg.oidc import IdToken
 from oidcmsg.context import OidcContext
+from oidcmsg.oidc import IdToken
 
 from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.id_token import IDToken
-from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import SCOPE2CLAIMS
 from oidcendpoint.scopes import STANDARD_CLAIMS
+from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import Scopes
 from oidcendpoint.session import create_session_db
 from oidcendpoint.sso_db import SSODb
@@ -87,16 +87,16 @@ def get_token_handlers(conf):
 
 class EndpointContext(OidcContext):
     def __init__(
-            self,
-            conf,
-            keyjar=None,
-            cwd="",
-            cookie_dealer=None,
-            httpc=None,
-            cookie_name=None,
-            jwks_uri_path=None,
+        self,
+        conf,
+        keyjar=None,
+        cwd="",
+        cookie_dealer=None,
+        httpc=None,
+        cookie_name=None,
+        jwks_uri_path=None,
     ):
-        OidcContext.__init__(self, conf, keyjar, entity_id=conf.get('issuer', ''))
+        OidcContext.__init__(self, conf, keyjar, entity_id=conf.get("issuer", ""))
         self.conf = conf
 
         # For my Dev environment
@@ -109,20 +109,23 @@ class EndpointContext(OidcContext):
 
         self.add_boxes(
             {
-                'state': 'state_db', 'client': 'cdb', 'jti': 'jti_db',
-                'registration_access_token': 'registration_access_token',
-                'sso': 'sso_db', 'session': 'session_db'
+                "state": "state_db",
+                "client": "cdb",
+                "jti": "jti_db",
+                "registration_access_token": "registration_access_token",
+                "sso": "sso_db",
+                "session": "session_db",
             },
-            self.db_conf
+            self.db_conf,
         )
 
         self.cwd = cwd
 
         # Those that use seed wants bytes but I can only store str.
         try:
-            self.set('seed', conf["seed"])
+            self.set("seed", conf["seed"])
         except KeyError:
-            self.set('seed', rndstr(32))
+            self.set("seed", rndstr(32))
 
         # Default values, to be changed below depending on configuration
         self.endpoint = {}
@@ -222,7 +225,7 @@ class EndpointContext(OidcContext):
 
         self.provider_info = self.create_providerinfo(_cap)
 
-        _token_endp = self.endpoint.get('token')
+        _token_endp = self.endpoint.get("token")
         if _token_endp:
             _token_endp.allow_refresh = allow_refresh_token(self)
 
@@ -248,17 +251,17 @@ class EndpointContext(OidcContext):
         self.set_claims_handler()
 
         # If pushed authorization is supported
-        if 'pushed_authorization_request_endpoint' in self.provider_info:
+        if "pushed_authorization_request_endpoint" in self.provider_info:
             self.par_db = None
-            self.add_boxes({'par': 'par_db'}, self.db_conf)
+            self.add_boxes({"par": "par_db"}, self.db_conf)
 
         # If device authentication is supported
-        if 'device_authorization_supported' in self.provider_info:
+        if "device_authorization_supported" in self.provider_info:
             self.dev_auth_db = None
-            self.add_boxes({'dev_auth': 'dev_auth_db'}, self.db_conf)
+            self.add_boxes({"dev_auth": "dev_auth_db"}, self.db_conf)
 
     def set_scopes_handler(self):
-        _spec = self.conf.get('scopes_handler')
+        _spec = self.conf.get("scopes_handler")
         if _spec:
             _kwargs = _spec.get("kwargs", {})
             _cls = importer(_spec["class"])(**_kwargs)
@@ -267,7 +270,7 @@ class EndpointContext(OidcContext):
             self.scopes_handler = Scopes()
 
     def set_claims_handler(self):
-        _spec = self.conf.get('claims_handler')
+        _spec = self.conf.get("claims_handler")
         if _spec:
             _kwargs = _spec.get("kwargs", {})
             _cls = importer(_spec["class"])(**_kwargs)
@@ -361,9 +364,7 @@ class EndpointContext(OidcContext):
 
     def do_endpoints(self):
         self.endpoint = build_endpoints(
-            self.conf["endpoint"],
-            endpoint_context=self,
-            issuer=self.conf["issuer"],
+            self.conf["endpoint"], endpoint_context=self, issuer=self.conf["issuer"],
         )
 
         _cap = self.conf.get("capabilities", {})
@@ -408,9 +409,9 @@ class EndpointContext(OidcContext):
             _provider_info["jwks_uri"] = self.jwks_uri
 
         _provider_info.update(self.idtoken.provider_info)
-        if 'scopes_supported' not in _provider_info:
-            _provider_info['scopes_supported'] = [s for s in self.scope2claims.keys()]
-        if 'claims_supported' not in _provider_info:
+        if "scopes_supported" not in _provider_info:
+            _provider_info["scopes_supported"] = [s for s in self.scope2claims.keys()]
+        if "claims_supported" not in _provider_info:
             _provider_info["claims_supported"] = STANDARD_CLAIMS[:]
 
         return _provider_info

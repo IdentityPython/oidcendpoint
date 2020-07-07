@@ -88,11 +88,7 @@ ENDPOINT_CONTEXT_CONFIG = {
             "class": ProviderConfiguration,
             "kwargs": {},
         },
-        "registration": {
-            "path": "registration",
-            "class": Registration,
-            "kwargs": {},
-        },
+        "registration": {"path": "registration", "class": Registration, "kwargs": {},},
         "authorization": {
             "path": "authorization",
             "class": Authorization,
@@ -114,11 +110,7 @@ ENDPOINT_CONTEXT_CONFIG = {
             "path": "userinfo",
             "class": userinfo.UserInfo,
             "kwargs": {
-                "claim_types_supported": [
-                    "normal",
-                    "aggregated",
-                    "distributed",
-                ],
+                "claim_types_supported": ["normal", "aggregated", "distributed",],
                 "client_authn_method": ["bearer_header"],
             },
         },
@@ -152,52 +144,52 @@ ENDPOINT_CONTEXT_CONFIG = {
             },
         }
     },
-    'db_conf': {
-        'abstract_storage_cls': 'oidcmsg.storage.extension.LabeledAbstractStorage',
-        'keyjar': {
-            'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-            'fdir': 'db/keyjar',
-            'key_conv': 'oidcmsg.storage.converter.QPKey',
-            'value_conv': 'cryptojwt.serialize.item.KeyIssuer',
-            'label': 'keyjar'
+    "db_conf": {
+        "abstract_storage_cls": "oidcmsg.storage.extension.LabeledAbstractStorage",
+        "keyjar": {
+            "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+            "fdir": "db/keyjar",
+            "key_conv": "oidcmsg.storage.converter.QPKey",
+            "value_conv": "cryptojwt.serialize.item.KeyIssuer",
+            "label": "keyjar",
         },
-        'default': {
-            'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-            'fdir': 'db',
-            'key_conv': 'oidcmsg.storage.converter.QPKey',
-            'value_conv': 'oidcmsg.storage.converter.JSON'
+        "default": {
+            "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+            "fdir": "db",
+            "key_conv": "oidcmsg.storage.converter.QPKey",
+            "value_conv": "oidcmsg.storage.converter.JSON",
         },
-        'sso': {
-            'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-            'fdir': 'db/sso',
-            'key_conv': 'oidcmsg.storage.converter.QPKey',
-            'value_conv': 'oidcmsg.storage.converter.JSON'
+        "sso": {
+            "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+            "fdir": "db/sso",
+            "key_conv": "oidcmsg.storage.converter.QPKey",
+            "value_conv": "oidcmsg.storage.converter.JSON",
         },
-        'session': {
-            'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-            'fdir': 'db/session',
-            'key_conv': 'oidcmsg.storage.converter.QPKey',
-            'value_conv': 'oidcmsg.storage.converter.JSON'
+        "session": {
+            "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+            "fdir": "db/session",
+            "key_conv": "oidcmsg.storage.converter.QPKey",
+            "value_conv": "oidcmsg.storage.converter.JSON",
         },
-        'client': {
-            'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-            'fdir': 'db/client',
-            'key_conv': 'oidcmsg.storage.converter.QPKey',
-            'value_conv': 'oidcmsg.storage.converter.JSON'
+        "client": {
+            "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+            "fdir": "db/client",
+            "key_conv": "oidcmsg.storage.converter.QPKey",
+            "value_conv": "oidcmsg.storage.converter.JSON",
         },
-        'registration_access_token': {
-            'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-            'fdir': 'db/rat',
-            'key_conv': 'oidcmsg.storage.converter.QPKey',
-            'value_conv': 'oidcmsg.storage.converter.JSON'
+        "registration_access_token": {
+            "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+            "fdir": "db/rat",
+            "key_conv": "oidcmsg.storage.converter.QPKey",
+            "value_conv": "oidcmsg.storage.converter.JSON",
         },
-        'jti': {
-            'handler': 'oidcmsg.storage.abfile.AbstractFileSystem',
-            'fdir': 'db/jti',
-            'key_conv': 'oidcmsg.storage.converter.QPKey',
-            'value_conv': 'oidcmsg.storage.converter.JSON'
-        }
-    }
+        "jti": {
+            "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
+            "fdir": "db/jti",
+            "key_conv": "oidcmsg.storage.converter.QPKey",
+            "value_conv": "oidcmsg.storage.converter.JSON",
+        },
+    },
 }
 
 
@@ -206,7 +198,7 @@ class TestEndpoint(object):
     def create_endpoint(self):
 
         try:
-            shutil.rmtree('db')
+            shutil.rmtree("db")
         except FileNotFoundError:
             pass
 
@@ -224,30 +216,34 @@ class TestEndpoint(object):
 
     def test_init(self):
         assert self.endpoint1
-        assert set(self.endpoint1.endpoint_context.provider_info["claims_supported"]) == {
-            'address',
-            'birthdate',
-            'email',
-            'email_verified',
+        assert set(
+            self.endpoint1.endpoint_context.provider_info["claims_supported"]
+        ) == {
+            "address",
+            "birthdate",
+            "email",
+            "email_verified",
             "eduperson_scoped_affiliation",
-            'family_name',
-            'gender',
-            'given_name',
-            'locale',
-            'middle_name',
-            'name',
-            'nickname',
-            'phone_number',
-            'phone_number_verified',
-            'picture',
-            'preferred_username',
-            'profile',
-            'sub',
-            'updated_at',
-            'website',
-            'zoneinfo'}
-        assert set(self.endpoint1.endpoint_context.provider_info["claims_supported"]) == set(
-            self.endpoint2.endpoint_context.provider_info["claims_supported"])
+            "family_name",
+            "gender",
+            "given_name",
+            "locale",
+            "middle_name",
+            "name",
+            "nickname",
+            "phone_number",
+            "phone_number_verified",
+            "picture",
+            "preferred_username",
+            "profile",
+            "sub",
+            "updated_at",
+            "website",
+            "zoneinfo",
+        }
+        assert set(
+            self.endpoint1.endpoint_context.provider_info["claims_supported"]
+        ) == set(self.endpoint2.endpoint_context.provider_info["claims_supported"])
 
     def test_parse(self):
         session_id = setup_session(

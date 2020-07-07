@@ -1,7 +1,6 @@
 import io
 import json
 import os
-from http.cookies import SimpleCookie
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
@@ -21,7 +20,6 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
-from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import join_query
@@ -47,10 +45,13 @@ from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session import SessionInfo
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
+from oidcendpoint.user_authn.authn_context import UNSPECIFIED
 from oidcendpoint.user_authn.authn_context import init_method
 from oidcendpoint.user_authn.user import NoAuthn
 from oidcendpoint.user_authn.user import UserAuthnMethod
+from oidcendpoint.user_authn.user import UserPassJinja2
 from oidcendpoint.user_info import UserInfo
+from oidcendpoint.util import JSONDictDB
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -75,7 +76,7 @@ CAPABILITIES = {
         "implicit",
         "urn:ietf:params:oauth:grant-type:jwt-bearer",
         "refresh_token",
-    ]
+    ],
 }
 
 CLAIMS = {"id_token": {"given_name": {"essential": True}, "nickname": None}}
@@ -90,6 +91,14 @@ AUTH_REQ = AuthorizationRequest(
 
 AUTH_REQ_DICT = AUTH_REQ.to_dict()
 
+AUTH_REQ_2 = AuthorizationRequest(
+    client_id="client3",
+    redirect_uri="https://127.0.0.1:8090/authz_cb/bobcat",
+    scope=["openid"],
+    state="STATE2",
+    response_type="code",
+)
+
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -98,46 +107,6 @@ def full_path(local_file):
 
 
 USERINFO_db = json.loads(open(full_path("users.json")).read())
-
-
-class SimpleCookieDealer(object):
-    def __init__(self, name=""):
-        self.name = name
-
-    def create_cookie(self, value, typ, **kwargs):
-        cookie = SimpleCookie()
-        timestamp = str(utc_time_sans_frac())
-
-        _payload = "::".join([value, timestamp, typ])
-
-        bytes_load = _payload.encode("utf-8")
-        bytes_timestamp = timestamp.encode("utf-8")
-
-        cookie_payload = [bytes_load, bytes_timestamp]
-        cookie[self.name] = (b"|".join(cookie_payload)).decode("utf-8")
-        try:
-            ttl = kwargs["ttl"]
-        except KeyError:
-            pass
-        else:
-            cookie[self.name]["expires"] = in_a_while(seconds=ttl)
-
-        return cookie
-
-    @staticmethod
-    def get_cookie_value(cookie=None, cookie_name=None):
-        if cookie is None or cookie_name is None:
-            return None
-        else:
-            try:
-                info, timestamp = cookie[cookie_name].split("|")
-            except (TypeError, AssertionError):
-                return None
-            else:
-                value = info.split("::")
-                if timestamp == value[1]:
-                    return value
-        return None
 
 
 client_yaml = """
@@ -155,7 +124,7 @@ oidc_clients:
         - 'id_token'
         - 'code id_token token'
   client2:
-    client_secret: "spraket"
+    client_secret: "spraket_sr.se"
     redirect_uris:
       - ['https://app1.example.net/foo', '']
       - ['https://app2.example.net/bar', '']
@@ -724,8 +693,13 @@ class TestEndpoint(object):
             "return_uri": "https://example.com/cb",
         }
         info = self.endpoint.response_mode(request, **info)
-        assert set(info.keys()) == {"response_args", "return_uri", "response_msg",
-                                    "content_type", "response_placement"}
+        assert set(info.keys()) == {
+            "response_args",
+            "return_uri",
+            "response_msg",
+            "content_type",
+            "response_placement",
+        }
         assert info["response_msg"] == FORM_POST.format(
             action="https://example.com/cb",
             inputs='<input type="hidden" name="foo" value="bar"/>',
@@ -737,7 +711,7 @@ class TestEndpoint(object):
         _pr_resp = self.endpoint.parse_request(_req)
         _resp = self.endpoint.process_request(_pr_resp)
         msg = self.endpoint.do_response(**_resp)
-        assert ('Content-type', 'text/html') in msg["http_headers"]
+        assert ("Content-type", "text/html") in msg["http_headers"]
         assert "response_placement" in msg
 
     def test_response_mode_fragment(self):
@@ -881,3 +855,81 @@ def test_join_query():
     test_uri = ("https://rp.example.com/cb?", "foo=bar", "state=low")
     for i in test_uri:
         assert i in uri
+
+
+class TestUserAuthn(object):
+    @pytest.fixture(autouse=True)
+    def create_endpoint_context(self):
+        conf = {
+            "issuer": "https://example.com/",
+            "password": "mycket hemligt",
+            "token_expires_in": 600,
+            "grant_expires_in": 300,
+            "refresh_token_expires_in": 86400,
+            "verify_ssl": False,
+            "endpoint": {},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "authentication": {
+                "user": {
+                    "acr": INTERNETPROTOCOLPASSWORD,
+                    "class": UserPassJinja2,
+                    "verify_endpoint": "verify/user",
+                    "kwargs": {
+                        "template": "user_pass.jinja2",
+                        "sym_key": "24AA/LR6HighEnergy",
+                        "db": {
+                            "class": JSONDictDB,
+                            "kwargs": {"json_path": full_path("passwd.json")},
+                        },
+                        "page_header": "Testing log in",
+                        "submit_btn": "Get me in!",
+                        "user_label": "Nickname",
+                        "passwd_label": "Secret sauce",
+                    },
+                },
+                "anon": {
+                    "acr": UNSPECIFIED,
+                    "class": NoAuthn,
+                    "kwargs": {"user": "diana"},
+                },
+            },
+            "cookie_dealer": {
+                "class": "oidcendpoint.cookie.CookieDealer",
+                "kwargs": {
+                    "sign_key": "ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch",
+                    "default_values": {
+                        "name": "oidc_xx",
+                        "domain": "example.com",
+                        "path": "/",
+                        "max_age": 3600,
+                    },
+                },
+            },
+            "template_dir": "template",
+        }
+        self.endpoint_context = EndpointContext(conf)
+
+    def test_authenticated_as_without_cookie(self):
+        authn_item = self.endpoint_context.authn_broker.pick(INTERNETPROTOCOLPASSWORD)
+        method = authn_item[0]["method"]
+
+        _info, _time_stamp = method.authenticated_as(None)
+        assert _info is None
+
+    def test_authenticated_as_with_cookie(self):
+        authn_item = self.endpoint_context.authn_broker.pick(INTERNETPROTOCOLPASSWORD)
+        method = authn_item[0]["method"]
+
+        authn_req = {"state": "state_identifier", "client_id": "client 12345"}
+        _cookie = new_cookie(
+            self.endpoint_context,
+            sub="diana",
+            sid="session_identifier",
+            state=authn_req["state"],
+            client_id=authn_req["client_id"],
+            cookie_name=self.endpoint_context.cookie_name["session"],
+        )
+
+        _info, _time_stamp = method.authenticated_as(_cookie)
+        _info = cookie_value(_info["uid"])
+        assert _info["sub"] == "diana"

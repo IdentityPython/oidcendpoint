@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.discovery import Discovery
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD

@@ -5,21 +5,16 @@ import logging
 import sys
 import time
 import warnings
-from urllib.parse import parse_qs
 from urllib.parse import unquote
-from urllib.parse import urlencode
-from urllib.parse import urlsplit
-from urllib.parse import urlunsplit
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT
 
 from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication, OnlyForTestingWarning
+from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
-from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import InvalidCookieSign
-from oidcendpoint.exception import NoSuchAuthentication
+from oidcendpoint.exception import OnlyForTestingWarning
 from oidcendpoint.exception import ToOld
 from oidcendpoint.util import instantiate
 
@@ -78,7 +73,9 @@ class UserAuthnMethod(object):
             logger.debug("kwargs: %s" % sanitize(kwargs))
 
             try:
-                val = self.cookie_dealer.get_cookie_value(cookie)
+                val = self.cookie_dealer.get_cookie_value(
+                    cookie, cookie_name=self.endpoint_context.cookie_name["session"]
+                )
             except (InvalidCookieSign, AssertionError) as err:
                 logger.warning(err)
                 val = None
@@ -99,9 +96,7 @@ class UserAuthnMethod(object):
                     _now = int(time.time())
                     if _now > (int(_ts) + int(kwargs["max_age"])):
                         logger.debug("Authentication too old")
-                        raise ToOld(
-                            "%d > (%d + %d)" % (_now, int(_ts), int(kwargs["max_age"]))
-                        )
+                        raise ToOld("%d > (%d + %d)" % (_now, int(_ts), int(kwargs["max_age"])))
 
             return {"uid": uid}, _ts
 
@@ -155,13 +150,13 @@ class UserPassJinja2(UserAuthnMethod):
     url_endpoint = "/verify/user_pass_jinja"
 
     def __init__(
-        self,
-        db,
-        template_handler,
-        template="user_pass.jinja2",
-        endpoint_context=None,
-        verify_endpoint="",
-        **kwargs
+            self,
+            db,
+            template_handler,
+            template="user_pass.jinja2",
+            endpoint_context=None,
+            verify_endpoint="",
+            **kwargs
     ):
 
         super(UserPassJinja2, self).__init__(endpoint_context=endpoint_context)

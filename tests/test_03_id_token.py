@@ -72,10 +72,7 @@ conf = {
             "kwargs": {"user": "diana"},
         }
     },
-    "userinfo": {
-        "class": "oidcendpoint.user_info.UserInfo",
-        "kwargs": {"db": USERS},
-    },
+    "userinfo": {"class": "oidcendpoint.user_info.UserInfo", "kwargs": {"db": USERS},},
     "client_authn": verify_client,
     "template_dir": "template",
     "id_token": {"class": IDToken, "kwargs": {"foo": "bar"}},
@@ -93,7 +90,9 @@ class TestEndpoint(object):
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
         }
-        self.endpoint_context.keyjar.add_symmetric('client_1', 'hemligtochintekort', ['sig', 'enc'])
+        self.endpoint_context.keyjar.add_symmetric(
+            "client_1", "hemligtochintekort", ["sig", "enc"]
+        )
 
     def test_id_token_payload_0(self):
         session_info = {"authn_req": AREQN, "sub": "1234567890"}
@@ -180,8 +179,9 @@ class TestEndpoint(object):
         assert info["lifetime"] == 300
 
     def test_sign_encrypt_id_token(self):
-        client_info = RegistrationResponse(id_token_signed_response_alg="RS512",
-                                           client_id="client_1")
+        client_info = RegistrationResponse(
+            id_token_signed_response_alg="RS512", client_id="client_1"
+        )
         session_info = {
             "authn_req": AREQN,
             "sub": "sub",
@@ -191,7 +191,9 @@ class TestEndpoint(object):
         self.endpoint_context.jwx_def["signing_alg"] = {"id_token": "RS384"}
         self.endpoint_context.cdb["client_1"] = client_info.to_dict()
 
-        _token = self.endpoint_context.idtoken.sign_encrypt(session_info, "client_1", sign=True)
+        _token = self.endpoint_context.idtoken.sign_encrypt(
+            session_info, "client_1", sign=True
+        )
         assert _token
 
         _jws = jws.factory(_token)
@@ -264,10 +266,10 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
-        self.endpoint_context.idtoken.kwargs['available_claims'] = {
+        self.endpoint_context.idtoken.kwargs["available_claims"] = {
             "nickname": {"essential": True}
         }
         req = {"client_id": "client_1"}
@@ -287,7 +289,7 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
         req = {"client_id": "client_1"}
@@ -307,13 +309,11 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
         self.endpoint_context.idtoken.enable_claims_per_client = True
-        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
-            "address": None
-        }
+        self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
         req = {"client_id": "client_1"}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
@@ -332,13 +332,11 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
-        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
-            "address": None
-        }
-        self.endpoint_context.idtoken.kwargs['available_claims'] = {
+        self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
+        self.endpoint_context.idtoken.kwargs["available_claims"] = {
             "nickname": {"essential": True}
         }
         self.endpoint_context.idtoken.enable_claims_per_client = True
@@ -361,12 +359,10 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
-        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
-            "address": None
-        }
+        self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
         req = {"client_id": "client_1"}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token

@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from oidcendpoint.cookie import cookie_value
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
@@ -63,7 +64,7 @@ class TestUserAuthn(object):
                 "kwargs": {
                     "sign_key": "ghsNKDDLshZTPn974nOsIGhedULrsqnsGoBFBLwUKuJhE2ch",
                     "default_values": {
-                        "name": "oidc_op",
+                        "name": "oidc_xx",
                         "domain": "example.com",
                         "path": "/",
                         "max_age": 3600,
@@ -85,8 +86,16 @@ class TestUserAuthn(object):
         authn_item = self.endpoint_context.authn_broker.pick(INTERNETPROTOCOLPASSWORD)
         method = authn_item[0]["method"]
 
-        cookie = new_cookie(self.endpoint_context, uid="diana")
+        authn_req = {"state": "state_identifier", "client_id": "client 12345"}
+        _cookie = new_cookie(
+            self.endpoint_context,
+            sub="diana",
+            sid="session_identifier",
+            state=authn_req["state"],
+            client_id=authn_req["client_id"],
+            cookie_name=self.endpoint_context.cookie_name["session"],
+        )
 
-        _info, _time_stamp = method.authenticated_as(cookie)
+        _info, _time_stamp = method.authenticated_as(_cookie)
         _info = cookie_value(_info["uid"])
-        assert _info["uid"] == "diana"
+        assert _info["sub"] == "diana"

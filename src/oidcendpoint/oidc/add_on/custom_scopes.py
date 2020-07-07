@@ -17,11 +17,11 @@ def add_custom_scopes(endpoint, **kwargs):
     _endpoint.endpoint_context.scope2claims = _scopes2claims
 
     pi = _endpoint.endpoint_context.provider_info
-    _scopes = set(pi.get('scopes_supported', []))
+    _scopes = set(pi.get("scopes_supported", []))
     _scopes.update(set(kwargs.keys()))
-    pi['scopes_supported'] = list(_scopes)
+    pi["scopes_supported"] = list(_scopes)
 
-    _claims = set(pi.get('claims_supported', []))
+    _claims = set(pi.get("claims_supported", []))
     for vals in kwargs.values():
         _claims.update(set(vals))
-    pi['claims_supported'] = list(_claims)
+    pi["claims_supported"] = list(_claims)

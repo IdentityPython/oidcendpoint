@@ -6,17 +6,17 @@ from cryptojwt import JWT
 from cryptojwt.jws.exception import JWSException
 
 from oidcendpoint.exception import ToOld
-from oidcendpoint.token_handler import Token
-from oidcendpoint.token_handler import is_expired
-from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.scopes import convert_scopes2claims
+from oidcendpoint.token_handler import Token
+from oidcendpoint.token_handler import UnknownToken
+from oidcendpoint.token_handler import is_expired
 
 
 class JWTToken(Token):
     init_args = {
-        'add_claims_by_scope': False,
-        'enable_claims_per_client': False,
-        "add_claims": {}
+        "add_claims_by_scope": False,
+        "enable_claims_per_client": False,
+        "add_claims": {},
     }
 
     def __init__(
@@ -34,7 +34,9 @@ class JWTToken(Token):
         Token.__init__(self, typ, **kwargs)
         self.token_type = token_type
         self.lifetime = lifetime
-        self.args = {(k,v) for k, v in kwargs.items() if k not in self.init_args.keys()}
+        self.args = {
+            (k, v) for k, v in kwargs.items() if k not in self.init_args.keys()
+        }
 
         self.key_jar = keyjar or ec.keyjar
         self.issuer = issuer or ec.issuer
@@ -45,8 +47,8 @@ class JWTToken(Token):
         self.alg = alg
         self.scope_claims_map = kwargs.get("scope_claims_map", ec.scope2claims)
 
-        self.add_claims = self.init_args['add_claims']
-        self.add_claims_by_scope = self.init_args['add_claims_by_scope']
+        self.add_claims = self.init_args["add_claims"]
+        self.add_claims_by_scope = self.init_args["add_claims_by_scope"]
         self.enable_claims_per_client = self.init_args["enable_claims_per_client"]
 
         for param, default in self.init_args.items():
@@ -62,8 +64,13 @@ class JWTToken(Token):
                 pass
 
     def __call__(
-        self, sid: str, uinfo: Dict, sinfo: Dict, aud: Optional[Any],
-        client_id: Optional[str], **kwargs
+        self,
+        sid: str,
+        uinfo: Dict,
+        sinfo: Dict,
+        aud: Optional[Any],
+        client_id: Optional[str],
+        **kwargs
     ):
         """
         Return a token.
@@ -80,15 +87,20 @@ class JWTToken(Token):
         if self.add_claims:
             self.do_add_claims(payload, uinfo, self.add_claims)
         if self.add_claims_by_scope:
-            _allowed_claims = self.cntx.claims_handler.allowed_claims(self.cntx, client_id)
+            _allowed_claims = self.cntx.claims_handler.allowed_claims(
+                self.cntx, client_id
+            )
             self.do_add_claims(
                 payload,
                 uinfo,
-                convert_scopes2claims(sinfo["authn_req"]["scope"], _allowed_claims,
-                                      map=self.scope_claims_map).keys(),
+                convert_scopes2claims(
+                    sinfo["authn_req"]["scope"],
+                    _allowed_claims,
+                    map=self.scope_claims_map,
+                ).keys(),
             )
         # Add claims if is access token
-        if self.type == 'T' and self.enable_claims_per_client:
+        if self.type == "T" and self.enable_claims_per_client:
             client = self.cdb.get(client_id, {})
             client_claims = client.get("access_token_claims")
             if client_claims:

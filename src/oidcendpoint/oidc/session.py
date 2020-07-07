@@ -81,9 +81,9 @@ class Session(Endpoint):
     }
 
     def __init__(self, endpoint_context, **kwargs):
-        _csi = kwargs.get('check_session_iframe')
+        _csi = kwargs.get("check_session_iframe")
         if _csi and not _csi.startswith("http"):
-            kwargs['check_session_iframe'] = add_path(endpoint_context.issuer, _csi)
+            kwargs["check_session_iframe"] = add_path(endpoint_context.issuer, _csi)
         Endpoint.__init__(self, endpoint_context, **kwargs)
 
     def do_back_channel_logout(self, cinfo, sub, sid):
@@ -383,10 +383,10 @@ class Session(Endpoint):
                 pass
             else:
                 if (
-                        _ith.jws_header["alg"]
-                        not in self.endpoint_context.provider_info[
-                    "id_token_signing_alg_values_supported"
-                ]
+                    _ith.jws_header["alg"]
+                    not in self.endpoint_context.provider_info[
+                        "id_token_signing_alg_values_supported"
+                    ]
                 ):
                     raise JWSException("Unsupported signing algorithm")
 
