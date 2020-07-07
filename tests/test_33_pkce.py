@@ -1,12 +1,8 @@
 import io
 import json
 import os
+from secrets import choice
 import string
-
-try:
-    from random import SystemRandom as rnd
-except ImportError:
-    import random as rnd
 
 import pytest
 import yaml
@@ -111,7 +107,7 @@ oidc_clients:
 
 
 def unreserved(size=64):
-    return "".join(rnd.choice(BASECH) for _ in range(size))
+    return "".join(choice(BASECH) for _ in range(size))
 
 
 def _code_challenge():

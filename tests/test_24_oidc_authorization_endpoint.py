@@ -25,6 +25,8 @@ from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import CookieDealer
+from oidcendpoint.cookie import cookie_value
+from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
