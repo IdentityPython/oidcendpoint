@@ -398,10 +398,10 @@ class Endpoint(object):
             if content_type is None:
                 if self.response_placement == "body":
                     if self.response_format == "json":
-                        content_type = "application/json"
+                        content_type = "application/json; charset=utf-8"
                         resp = _response.to_json()
                     elif self.request_format in ["jws", "jwe", "jose"]:
-                        content_type = "application/jose"
+                        content_type = "application/jose; charset=utf-8"
                         resp = _response
                     else:
                         content_type = "application/x-www-form-urlencoded"

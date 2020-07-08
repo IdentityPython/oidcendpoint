@@ -100,4 +100,4 @@ class TestEndpoint(object):
             "updated_at",
             "birthdate",
         }
-        assert ("Content-type", "application/json") in msg["http_headers"]
+        assert ("Content-type", "application/json; charset=utf-8") in msg["http_headers"]

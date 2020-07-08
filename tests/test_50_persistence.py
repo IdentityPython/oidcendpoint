@@ -313,8 +313,8 @@ class TestEndpoint(object):
             authn_event={
                 "authn_info": "loa1",
                 "uid": "diana",
-                "authn_time": utc_time_sans_frac() - 7200,
-                "valid_until": utc_time_sans_frac() - 3600,
+                "authn_time": utc_time_sans_frac(),
+                "valid_until": utc_time_sans_frac() + 3600,
             },
         )
         _dic = self.endpoint2.endpoint_context.sdb.upgrade_to_token(key=session_id)

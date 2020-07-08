@@ -259,7 +259,7 @@ class TestEndpoint:
         assert isinstance(msg_info, dict)
         assert set(msg_info.keys()) == {"response", "http_headers"}
         assert msg_info["http_headers"] == [
-            ("Content-type", "application/json"),
+            ("Content-type", "application/json; charset=utf-8"),
             ("Pragma", "no-cache"),
             ("Cache-Control", "no-store"),
         ]
