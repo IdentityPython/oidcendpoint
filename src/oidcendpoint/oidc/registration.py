@@ -107,6 +107,16 @@ def comb_uri(args):
 
         args[param] = val
 
+    request_uris = args.get('request_uris')
+    if request_uris:
+        val = []
+        for base,frag in request_uris:
+            if frag:
+                val.append('{}#{}'.format(base, frag))
+            else:
+                val.append(base)
+        args['request_uris'] = val
+
 
 class Registration(Endpoint):
     request_cls = RegistrationRequest
@@ -155,9 +165,7 @@ class Registration(Endpoint):
                 if urlparse(uri).fragment:
                     err = ClientRegistrationErrorResponse(
                         error="invalid_configuration_parameter",
-                        error_description="post_logout_redirect_uris "
-                        "contains "
-                        "fragment",
+                        error_description="post_logout_redirect_uris contains fragment",
                     )
                     return err
                 plruri.append(split_uri(uri))
@@ -171,6 +179,23 @@ class Registration(Endpoint):
                 return ClientRegistrationErrorResponse(
                     error="invalid_redirect_uri", error_description=str(e)
                 )
+
+        if "request_uris" in request:
+            _uris = []
+            for uri in request["request_uris"]:
+                _up = urlparse(uri)
+                if _up.query:
+                    err = ClientRegistrationErrorResponse(
+                        error="invalid_configuration_parameter",
+                        error_description="request_uris contains query part",
+                    )
+                    return err
+                if _up.fragment:
+                    # store base and fragment
+                    _uris.append(uri.split('#'))
+                else:
+                    _uris.append([uri, ''])
+            _cinfo["request_uris"] = _uris
 
         if "sector_identifier_uri" in request:
             try:
@@ -274,7 +299,7 @@ class Registration(Endpoint):
             else:
                 base, query = split_uri(uri)
                 if query:
-                    verified_redirect_uris.append((base, parse_qs(query)))
+                    verified_redirect_uris.append((base, query))
                 else:
                     verified_redirect_uris.append((base, {}))
 
@@ -350,6 +375,7 @@ class Registration(Endpoint):
         try:
             request.verify()
         except (MessageException, ValueError) as err:
+            logger.error('request.verify() on %s', request)
             return ResponseMessage(
                 error="invalid_configuration_request", error_description="%s" % err
             )
@@ -428,6 +454,7 @@ class Registration(Endpoint):
         try:
             reg_resp = self.client_registration_setup(request, new_id, set_secret)
         except Exception as err:
+            logger.error('client_registration_setup: %s', request)
             return ResponseMessage(
                 error="invalid_configuration_request", error_description="%s" % err
             )

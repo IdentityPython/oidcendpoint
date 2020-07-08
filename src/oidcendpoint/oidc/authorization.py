@@ -251,35 +251,41 @@ class Authorization(Endpoint):
             if _registered:
                 # Before matching remove a possible fragment
                 _p = _request_uri.split("#")
-                if _p[0] not in _registered:
+                # ignore registered fragments for now.
+                if _p[0] not in [l[0] for l in _registered]:
                     raise ValueError("A request_uri outside the registered")
+
             # Fetch the request
             _resp = endpoint_context.httpc.get(
                 _request_uri, **endpoint_context.httpc_params
             )
             if _resp.status_code == 200:
-                args = {"keyjar": endpoint_context.keyjar}
-                request = AuthorizationRequest().from_jwt(_resp.text, **args)
+                args = {"keyjar": endpoint_context.keyjar, "issuer": client_id}
+                _ver_request = AuthorizationRequest().from_jwt(_resp.text, **args)
                 self.allowed_request_algorithms(
                     client_id,
                     endpoint_context,
-                    request.jws_header.get("alg", "RS256"),
+                    _ver_request.jws_header.get("alg", "RS256"),
                     "sign",
                 )
-                if request.jwe_header is not None:
+                if _ver_request.jwe_header is not None:
                     self.allowed_request_algorithms(
                         client_id,
                         endpoint_context,
-                        request.jws_header.get("alg"),
+                        _ver_request.jws_header.get("alg"),
                         "enc_alg",
                     )
                     self.allowed_request_algorithms(
                         client_id,
                         endpoint_context,
-                        request.jws_header.get("enc"),
+                        _ver_request.jws_header.get("enc"),
                         "enc_enc",
                     )
-                request[verified_claim_name("request")] = request
+                # The protected info overwrites the non-protected
+                for k,v in _ver_request.items():
+                    request[k] = v
+
+                request[verified_claim_name("request")] = _ver_request
             else:
                 raise ServiceError("Got a %s response", _resp.status)
 
