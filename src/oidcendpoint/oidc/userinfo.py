@@ -110,10 +110,11 @@ class UserInfo(Endpoint):
         if session["authn_event"]["valid_until"] > time_sans_frac():
             pass
         else:
-            if "offline_access" in session["authn_req"]["scope"]:
-                pass
-            else:
-                allowed = False
+            allowed = False
+
+            # This has to be made more fine grained.
+            # if "offline_access" in session["authn_req"]["scope"]:
+            #     pass
 
         if allowed:
             # Scope can translate to userinfo_claims
@@ -121,7 +122,7 @@ class UserInfo(Endpoint):
         else:
             info = {
                 "error": "invalid_request",
-                "error_description": "Offline access not granted",
+                "error_description": "Access not granted",
             }
 
         return {"response_args": info, "client_id": session["authn_req"]["client_id"]}
