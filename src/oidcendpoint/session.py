@@ -163,7 +163,7 @@ class SessionDB(object):
         self._db.set(sid, _info)
 
     def __delitem__(self, key):
-        self._db.delete(key)
+        del self._db[key]
 
     def keys(self):
         return self._db.keys()
