@@ -3,6 +3,7 @@ from oidcmsg.message import SINGLE_REQUIRED_STRING
 from oidcmsg.message import Message
 from oidcmsg.time_util import time_sans_frac
 
+DEFAULT_AUTHN_EXPIRES_IN = 3600
 
 class AuthnEvent(Message):
     c_param = {
@@ -46,9 +47,7 @@ def create_authn_event(uid, salt, authn_info=None, **kwargs):
     try:
         args["valid_until"] = kwargs["valid_until"]
     except KeyError:
-        try:
-            args["valid_until"] = args["authn_time"] + kwargs["expires_in"]
-        except KeyError:
-            args["valid_until"] = args["authn_time"] + 3600
+        _expires_in = kwargs.get("expires_in", DEFAULT_AUTHN_EXPIRES_IN)
+        args["valid_until"] = args["authn_time"] + _expires_in
 
     return AuthnEvent(**args)

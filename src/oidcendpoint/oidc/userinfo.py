@@ -3,10 +3,10 @@ import logging
 
 from cryptojwt.exception import MissingValue
 from cryptojwt.jwt import JWT
+from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg import oidc
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.userinfo import collect_user_info
@@ -107,9 +107,12 @@ class UserInfo(Endpoint):
 
         allowed = True
         # if the authenticate is still active or offline_access is granted.
-        if session["authn_event"]["valid_until"] > time_sans_frac():
+        if session["authn_event"]["valid_until"] > utc_time_sans_frac():
             pass
         else:
+            logger.debug("authentication not valid: {} > {}".format(
+                session["authn_event"]["valid_until"], utc_time_sans_frac()
+            ))
             allowed = False
 
             # This has to be made more fine grained.

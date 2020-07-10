@@ -1,10 +1,10 @@
 import json
 import logging
-import time
 
 from cryptojwt import BadSyntax
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
+from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
@@ -282,7 +282,7 @@ class Authorization(Endpoint):
                         "enc_enc",
                     )
                 # The protected info overwrites the non-protected
-                for k,v in _ver_request.items():
+                for k, v in _ver_request.items():
                     request[k] = v
 
                 request[verified_claim_name("request")] = _ver_request
@@ -435,11 +435,11 @@ class Authorization(Endpoint):
                 if "req_user" in kwargs:
                     sids = self.endpoint_context.sdb.get_sids_by_sub(kwargs["req_user"])
                     if (
-                        sids
-                        and user
-                        != self.endpoint_context.sdb.get_authentication_event(
-                            sids[-1]
-                        ).uid
+                            sids
+                            and user
+                            != self.endpoint_context.sdb.get_authentication_event(
+                        sids[-1]
+                    ).uid
                     ):
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
@@ -451,16 +451,11 @@ class Authorization(Endpoint):
                         else:
                             return {"function": authn, "args": authn_args}
 
+        authn_event = None
         if session:
             authn_event = session.get('authn_event')
-            if authn_event is None:
-                authn_event = create_authn_event(
-                    identity["uid"],
-                    identity.get("salt", ""),
-                    authn_info=authn_class_ref,
-                    time_stamp=_ts,
-                )
-        else:
+
+        if authn_event is None:
             authn_event = create_authn_event(
                 identity["uid"],
                 identity.get("salt", ""),
@@ -468,9 +463,9 @@ class Authorization(Endpoint):
                 time_stamp=_ts,
             )
 
-        if "valid_until" in authn_event:
-            vu = time.time() + authn.kwargs.get("expires_in", 0.0)
-            authn_event["valid_until"] = vu
+        _exp_in = authn.kwargs.get("expires_in")
+        if _exp_in and "valid_until" in authn_event:
+            authn_event["valid_until"] = utc_time_sans_frac() + _exp_in
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
