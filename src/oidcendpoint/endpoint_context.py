@@ -90,11 +90,15 @@ class EndpointContext(OidcContext):
         self,
         conf,
         keyjar=None,
+        client_db=None,
+        session_db=None,
+        sso_db=None,
         cwd="",
         cookie_dealer=None,
         httpc=None,
         cookie_name=None,
         jwks_uri_path=None,
+        jti_db=None,
     ):
         OidcContext.__init__(self, conf, keyjar, entity_id=conf.get("issuer", ""))
         self.conf = conf
@@ -120,7 +124,6 @@ class EndpointContext(OidcContext):
         )
 
         self.cwd = cwd
-
         # Those that use seed wants bytes but I can only store str.
         try:
             self.set("seed", conf["seed"])
