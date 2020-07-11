@@ -14,6 +14,7 @@ from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint import token_handler
 from oidcendpoint.authn_event import AuthnEvent
+from oidcendpoint.exception import MultipleCodeUsage
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.token_handler import WrongTokenType
@@ -149,6 +150,11 @@ class SessionDB(object):
                 if any(item == val for val in _si.values()):
                     _si["sid"] = sid
                     return _si
+                else:
+                    _handler, _res = self.handler.get_handler(item)
+                    if _handler.type == 'A':  # access grant
+                        if _si['code_is_used']:
+                            raise MultipleCodeUsage('Reused code')
         else:
             _si = SessionInfo(**_info)
             _si["sid"] = item
@@ -449,6 +455,8 @@ class SessionDB(object):
         if not session_info:
             session_info = self[sid]
         session_info.pop(token_type, None)
+        if token_type == 'code':
+            session_info['code_is_used'] = True
         self[sid] = session_info
 
     def revoke_all_tokens(self, token):
