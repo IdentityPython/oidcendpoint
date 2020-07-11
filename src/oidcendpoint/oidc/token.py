@@ -10,6 +10,7 @@ from oidcmsg.oidc import TokenErrorResponse
 from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import MultipleCodeUsage
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.userinfo import by_schema
 
@@ -133,13 +134,18 @@ class AccessToken(Endpoint):
                 sinfo = self.endpoint_context.sdb[request["code"]]
             except KeyError:
                 logger.error("Code not present in SessionDB")
-                return self.error_cls(error="unauthorized_client")
+                return self.error_cls(error="access_denied")
+            except MultipleCodeUsage:
+                logger.error("Access Code reused")
+                # Remove any access tokens issued
+                self.endpoint_context.sdb.revoke_all_tokens(request["code"])
+                return self.error_cls(error="invalid_grant")
             else:
                 state = sinfo["authn_req"]["state"]
 
             if state != request["state"]:
                 logger.error("State value mismatch")
-                return self.error_cls(error="unauthorized_client")
+                return self.error_cls(error="invalid_request")
 
         if "client_id" not in request:  # Optional for access token request
             request["client_id"] = client_id
