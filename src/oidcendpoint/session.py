@@ -294,7 +294,7 @@ class SessionDB(object):
     def is_valid(self, typ, item):
         try:
             return typ in self[item]
-        except KeyError:
+        except (KeyError, MultipleCodeUsage):
             return False
 
     def get_sids_by_sub(self, sub):

@@ -11,6 +11,7 @@ from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import MultipleCodeUsage
 from oidcendpoint.exception import ProcessError
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
@@ -195,11 +196,8 @@ class TestEndpoint(object):
         _resp = self.endpoint.process_request(request=_req)
 
         # 2nd time used
-        _req = self.endpoint.parse_request(_token_request)
-        _resp = self.endpoint.process_request(request=_req)
-
-        assert _resp
-        assert set(_resp.keys()) == {"error"}
+        with pytest.raises(MultipleCodeUsage):
+            self.endpoint.parse_request(_token_request)
 
     def test_do_response(self):
         session_id = setup_session(
