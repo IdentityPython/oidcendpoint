@@ -302,6 +302,25 @@ class TestEndpoint:
         assert _resp_args["active"]
         assert _resp_args["scope"] == "openid"
 
+    def test_code(self):
+        _context = self.introspection_endpoint.endpoint_context
+
+        session_id = setup_session(
+            _context, AUTH_REQ, uid="A", acr=INTERNETPROTOCOLPASSWORD,
+        )
+        code = _context.sdb[session_id]["code"]
+
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": code,
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        _resp_args = _resp["response_args"]
+        assert _resp_args["active"] is False
+
     def test_introspection_claims(self):
         self.introspection_endpoint.enable_claims_per_client = True
         _context = self.introspection_endpoint.endpoint_context
