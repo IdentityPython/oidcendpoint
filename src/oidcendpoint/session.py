@@ -203,7 +203,6 @@ class SessionDB(object):
 
         if areq:
             _info["authn_req"] = areq
-            self.map_kv2sid(areq["state"], "state", sid)
         if authn_event:
             _info["authn_event"] = authn_event
 

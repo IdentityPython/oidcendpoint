@@ -123,11 +123,8 @@ class Session(Endpoint):
         _sdb = self.endpoint_context.sdb
         _sso_db = self.endpoint_context.sdb.sso_db
         for sid in usids:
-            _state = _sdb[sid]["authn_req"]["state"]
             # remove session information
             del _sdb[sid]
-            # remove all states connected to this session id
-            _sdb.delete_kv2sid(_state, "state")
             _sso_db.remove_session_id(sid)
 
     def logout_all_clients(self, sid, client_id):
