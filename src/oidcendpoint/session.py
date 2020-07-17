@@ -166,7 +166,7 @@ class SessionDB(object):
             _info = instance.to_dict()
         else:
             _info = instance
-        self._db.set(sid, _info)
+        self._db[sid] = _info
 
     def __delitem__(self, key):
         del self._db[key]
@@ -243,7 +243,7 @@ class SessionDB(object):
             _dic[label].append(value)
         else:
             _dic[label] = [value]
-        self._db.set(key, _dic)
+        self._db[key] = _dic
 
     def get(self, key, seckey):
         _dic = self._db.get(key, {})

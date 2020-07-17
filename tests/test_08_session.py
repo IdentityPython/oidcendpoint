@@ -2,10 +2,10 @@ import os
 import shutil
 import time
 
-import pytest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
-from oidcmsg.storage import AbstractStorage
+from oidcmsg.storage.init import storage_factory
+import pytest
 
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
@@ -101,7 +101,7 @@ class TestSessionDB(object):
         _token_handler = token_handler.factory(None, **_th_args)
         userinfo = UserInfo(db_file=full_path("users.json"))
         self.sdb = SessionDB(
-            AbstractStorage(SESSION_DB_CONF),
+            storage_factory(SESSION_DB_CONF),
             _token_handler,
             SSODb(SSO_DB_CONF),
             userinfo,
@@ -363,8 +363,8 @@ class TestSessionDB(object):
 
         info = self.sdb[sid]
         assert (
-            info["sub"]
-            == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
+                info["sub"]
+                == "d657bddf3d30970aa681663978ea84e26553ead03cb6fe8fcfa6523f2bcd0ad2"
         )
 
         self.sdb.do_sub(
@@ -376,8 +376,8 @@ class TestSessionDB(object):
         )
         info2 = self.sdb[sid]
         assert (
-            info2["sub"]
-            == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
+                info2["sub"]
+                == "1442ceb13a822e802f85832ce93a8fda011e32a3363834dd1db3f9aa211065bd"
         )
 
         self.sdb.do_sub(
@@ -390,8 +390,8 @@ class TestSessionDB(object):
 
         info2 = self.sdb[sid]
         assert (
-            info2["sub"]
-            == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
+                info2["sub"]
+                == "56e0a53d41086e7b22d78d52ee461655e9b090d50a0663d16136ea49a56c9bec"
         )
 
     def test_match_session(self):

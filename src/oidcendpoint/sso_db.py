@@ -1,14 +1,14 @@
 import logging
 
-from oidcmsg.storage.extension import LabeledAbstractStorage
+from oidcmsg.storage.init import storage_factory
 
 logger = logging.getLogger(__name__)
 
 
 class DictDatabase:
-    def __init__(self, db_conf=None, db_label="", db=None):
+    def __init__(self, db_conf=None, db=None):
         if db_conf:
-            self._db = LabeledAbstractStorage(db_conf, db_label)
+            self._db = storage_factory(db_conf)
         else:
             self._db = db
 
@@ -20,7 +20,7 @@ class DictDatabase:
             _dic[sec_key].append(value)
         else:
             _dic[sec_key] = [value]
-        self._db.set(key, _dic)
+        self._db[key] = _dic
 
     def get(self, key, sec_key):
         _dic = self._db.get(key, {})
@@ -33,7 +33,7 @@ class DictDatabase:
         if _dic == {}:
             del self._db[key]
         else:
-            self._db.set(key, _dic)
+            self._db[key] = _dic
 
     def remove(self, key, sec_key, value):
         _dic = self._db.get(key, {})
@@ -45,10 +45,10 @@ class DictDatabase:
 
         if _values:
             _dic[sec_key] = _values
-            self._db.set(key, _dic)
+            self._db[key] = _dic
         else:
             del _dic[sec_key]
-            self._db.set(key, _dic)
+            self._db[key] = _dic
 
 
 class SSODb(DictDatabase):

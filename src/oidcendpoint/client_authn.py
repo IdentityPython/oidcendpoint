@@ -228,7 +228,7 @@ class JWSAuthnMethod(ClientAuthnMethod):
             if _key in self.endpoint_context.jti_db:
                 raise MultipleUsage("Have seen this token once before")
             else:
-                self.endpoint_context.jti_db.set(_key, utc_time_sans_frac())
+                self.endpoint_context.jti_db[_key] = utc_time_sans_frac()
 
         request[verified_claim_name("client_assertion")] = ca_jwt
         client_id = kwargs.get("client_id") or ca_jwt["iss"]
