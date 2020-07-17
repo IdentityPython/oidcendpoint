@@ -14,7 +14,8 @@ class DictDatabase:
 
     def set(self, key, sec_key, value):
         logger.debug("SSODb set {} - {}: {}".format(key, sec_key, value))
-        # Try loading the key
+        # Try loading the key, that's a good place to put a debugger to
+        #  import pdb; pdb.set_trace()
         _dic = self._db.get(key, {})
         if sec_key in _dic:
             _dic[sec_key].append(value)
@@ -25,11 +26,14 @@ class DictDatabase:
     def get(self, key, sec_key):
         _dic = self._db.get(key, {})
         logger.debug("SSODb get {} - {}: {}".format(key, sec_key, _dic))
-        return _dic.get(sec_key, None)
+        return _dic.get(sec_key, [])
 
     def delete(self, key, sec_key):
         _dic = self._db.get(key, {})
-        del _dic[sec_key]
+        try:
+            del _dic[sec_key]
+        except KeyError as e:
+            logger.warn('SSODb.delete _dic[{}] not found'.format(sec_key))
         if _dic == {}:
             del self._db[key]
         else:
