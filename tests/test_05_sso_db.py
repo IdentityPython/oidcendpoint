@@ -30,7 +30,7 @@ class TestSSODB(object):
         assert self.sso_db.get_sids_by_uid("Lizz") == ["session id 1"]
 
     def test_missing_map(self):
-        assert self.sso_db.get_sids_by_uid("Lizz") is None
+        assert self.sso_db.get_sids_by_uid("Lizz") == []
 
     def test_multiple_map_sid2uid(self):
         self.sso_db.map_sid2uid("session id 1", "Lizz")
@@ -64,14 +64,14 @@ class TestSSODB(object):
 
         self.sso_db.remove_uid("Lizz")
         assert self.sso_db.get_uid_by_sid("session id 1") is None
-        assert self.sso_db.get_sids_by_uid("Lizz") is None
+        assert self.sso_db.get_sids_by_uid("Lizz") == []
 
     def test_map_sid2sub(self):
         self.sso_db.map_sid2sub("session id 1", "abcdefgh")
         assert self.sso_db.get_sids_by_sub("abcdefgh") == ["session id 1"]
 
     def test_missing_sid2sub_map(self):
-        assert self.sso_db.get_sids_by_sub("abcdefgh") is None
+        assert self.sso_db.get_sids_by_sub("abcdefgh") == []
 
     def test_multiple_map_sid2sub(self):
         self.sso_db.map_sid2sub("session id 1", "abcdefgh")
@@ -107,7 +107,7 @@ class TestSSODB(object):
 
         self.sso_db.remove_sub("abcdefgh")
         assert self.sso_db.get_sub_by_sid("session id 1") is None
-        assert self.sso_db.get_sids_by_sub("abcdefgh") is None
+        assert self.sso_db.get_sids_by_sub("abcdefgh") == []
         # have not touched the others
         assert self.sso_db.get_sub_by_sid("session id 2") == "012346789"
         assert self.sso_db.get_sids_by_sub("012346789") == ["session id 2"]
