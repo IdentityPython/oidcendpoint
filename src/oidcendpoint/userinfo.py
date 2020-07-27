@@ -3,7 +3,7 @@ import logging
 from oidcmsg.oidc import Claims
 
 from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication
+from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.scopes import convert_scopes2claims
 
 logger = logging.getLogger(__name__)
@@ -157,6 +157,9 @@ def collect_user_info(
             logger.debug("userinfo_claim: %s" % sanitize(userinfo_claims.to_dict()))
         else:
             userinfo_claims = None
+            logger.warning(("Client {} doesn't have any claims "
+                            "belonging to one or more scopes.").format(authn_req["client_id"]))
+            raise ImproperlyConfigured("Some additional scopes doesn't have any claims.")
 
     logger.debug("Session info: %s" % sanitize(session))
 
