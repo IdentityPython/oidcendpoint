@@ -625,35 +625,41 @@ class Authorization(Endpoint):
                     as_bytes(json.dumps({"authn_time": authn_event["authn_time"]}))
                 )
 
-                session_cookie = ec.cookie_dealer.create_cookie(
-                    as_unicode(_state),
-                    typ="session",
-                    cookie_name=ec.cookie_name["session_management"],
-                    same_site="None",
-                    http_only=False,
-                )
+                opbs_value = ''
+                if hasattr(ec.cookie_dealer, 'create_cookie'):
+                    session_cookie = ec.cookie_dealer.create_cookie(
+                        as_unicode(_state),
+                        typ="session",
+                        cookie_name=ec.cookie_name["session_management"],
+                        same_site="None",
+                        http_only=False,
+                    )
 
-                opbs = session_cookie[ec.cookie_name["session_management"]]
+                    opbs = session_cookie[ec.cookie_name["session_management"]]
+                    opbs_value = opbs.value
+                else:
+                    logger.debug("Failed to set Cookie, that's not configured in main configuration.")
 
                 logger.debug(
                     "compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
                     request["client_id"],
                     resp_info["return_uri"],
-                    opbs.value,
+                    opbs_value,
                     salt,
                 )
 
                 _session_state = compute_session_state(
-                    opbs.value, salt, request["client_id"], resp_info["return_uri"]
+                    opbs_value, salt, request["client_id"], resp_info["return_uri"]
                 )
 
-                if "cookie" in resp_info:
-                    if isinstance(resp_info["cookie"], list):
-                        resp_info["cookie"].append(session_cookie)
+                if opbs_value:
+                    if "cookie" in resp_info:
+                        if isinstance(resp_info["cookie"], list):
+                            resp_info["cookie"].append(session_cookie)
+                        else:
+                            append_cookie(resp_info["cookie"], session_cookie)
                     else:
-                        append_cookie(resp_info["cookie"], session_cookie)
-                else:
-                    resp_info["cookie"] = session_cookie
+                        resp_info["cookie"] = session_cookie
 
                 resp_info["response_args"]["session_state"] = _session_state
 
