@@ -7,7 +7,7 @@ from cryptojwt.jws.jws import SIGNER_ALGS
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.message import Message
-from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oauth2 import ResponseMessage, AuthorizationErrorResponse
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
@@ -312,6 +312,9 @@ class Endpoint(object):
             request = meth(
                 request, client_id, endpoint_context=self.endpoint_context, **kwargs
             )
+            if isinstance(request, AuthorizationErrorResponse):
+                LOGGER.error(request.to_json())
+                raise UnAuthorizedClient(request.to_dict())
         return request
 
     def do_pre_construct(self, response_args, request, **kwargs):
