@@ -157,6 +157,9 @@ def collect_user_info(
             logger.debug("userinfo_claim: %s" % sanitize(userinfo_claims.to_dict()))
         else:
             userinfo_claims = None
+            logger.warning('Client {} UnAllowed to access to Userinfo endpoint')
+            raise FailedAuthentication("UnAllowed to access to Userinfo endpoint: "
+                                       "invalid scope.")
 
     logger.debug("Session info: %s" % sanitize(session))
 
