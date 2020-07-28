@@ -33,6 +33,7 @@ from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.login_hint import LoginHint2Acrs
 from oidcendpoint.oidc import userinfo
@@ -115,11 +116,11 @@ client_yaml = """
 oidc_clients:
   client_1:
     "client_secret": 'hemligtkodord'
-    "redirect_uris": 
+    "redirect_uris":
         - ['https://example.com/cb', '']
     "client_salt": "salted"
     'token_endpoint_auth_method': 'client_secret_post'
-    'response_types': 
+    'response_types':
         - 'code'
         - 'token'
         - 'code id_token'
@@ -314,20 +315,26 @@ class TestEndpoint(object):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req["response_type"] = "id_token token"
         _orig_req["nonce"] = "rnd_nonce"
-        _pr_resp = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(_pr_resp)
-        msg = self.endpoint.do_response(response_msg=_resp)
-        assert isinstance(msg, dict)
-        assert msg["response"]["error"] == "invalid_request"
+        try:
+            _pr_resp = self.endpoint.parse_request(_orig_req)
+        except UnAuthorizedClient as e:
+            msg = e.args[0]
+            assert isinstance(msg, dict)
+            assert msg["error"] == "invalid_request"
+        else:
+            raise Exception('Should be UnAuthorized: {}'.format(msg))
 
     def test_do_response_code_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req["response_type"] = "code token"
-        _pr_resp = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(_pr_resp)
-        msg = self.endpoint.do_response(response_msg=_resp)
-        assert isinstance(msg, dict)
-        assert msg["response"]["error"] == "invalid_request"
+        try:
+            _pr_resp = self.endpoint.parse_request(_orig_req)
+        except UnAuthorizedClient as e:
+            msg = e.args[0]
+            assert isinstance(msg, dict)
+            assert msg["error"] == "invalid_request"
+        else:
+            raise Exception('Should be UnAuthorized: {}'.format(msg))
 
     def test_do_response_code_id_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
