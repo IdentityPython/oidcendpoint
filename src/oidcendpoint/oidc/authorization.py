@@ -37,6 +37,7 @@ from oidcendpoint.exception import ServiceError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
 
@@ -682,6 +683,17 @@ class Authorization(Endpoint):
         _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
         logger.debug("client {}: {}".format(_cid, cinfo))
+
+        client_allowed_scopes = cinfo.get('allowed_scopes') or \
+                                self.endpoint_context.conf['capabilities']['scopes_supported']
+
+        # this prevents that authz would be released for unavailable scopes
+        for scope in request_info['scope']:
+            if scope not in client_allowed_scopes:
+                _msg = '{} requested an unauthorized scope ({})'
+                logger.warning(_msg.format(cinfo['client_id'],
+                                           scope))
+                raise UnAuthorizedClientScope()
 
         cookie = kwargs.get("cookie", "")
         if cookie:
