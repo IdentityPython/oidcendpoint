@@ -238,7 +238,7 @@ class Session(Endpoint):
             )
         except IndexError:
             raise InvalidRequest("Cookie error")
-        except KeyError:
+        except (KeyError, AttributeError):
             part = None
 
         if part:
