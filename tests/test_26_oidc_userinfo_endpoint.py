@@ -218,7 +218,7 @@ class TestEndpoint(object):
             {}, auth="Bearer invalid"
         )
 
-        assert _req == {
+        assert _req.to_dict() == {
             "error": "invalid_token", "error_description": "Unknown token"
         }
 
