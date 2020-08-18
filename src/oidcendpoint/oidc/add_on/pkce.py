@@ -67,7 +67,7 @@ def verify_code_challenge(code_verifier, code_challenge, code_challenge_method="
         LOGGER.error("PKCE Code Challenge check failed")
         return TokenErrorResponse(
             error="invalid_grant",
-            error_description="PCKE check failed"
+            error_description="PKCE check failed"
         )
 
     LOGGER.debug("PKCE Code Challenge check succeeded")
