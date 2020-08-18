@@ -315,26 +315,16 @@ class TestEndpoint(object):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req["response_type"] = "id_token token"
         _orig_req["nonce"] = "rnd_nonce"
-        try:
-            _pr_resp = self.endpoint.parse_request(_orig_req)
-        except UnAuthorizedClient as e:
-            msg = e.args[0]
-            assert isinstance(msg, dict)
-            assert msg["error"] == "invalid_request"
-        else:
-            raise Exception('Should be UnAuthorized: {}'.format(msg))
+        _pr_resp = self.endpoint.parse_request(_orig_req)
+        assert isinstance(_pr_resp, AuthorizationErrorResponse)
+        assert _pr_resp["error"] == "invalid_request"
 
     def test_do_response_code_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req["response_type"] = "code token"
-        try:
-            _pr_resp = self.endpoint.parse_request(_orig_req)
-        except UnAuthorizedClient as e:
-            msg = e.args[0]
-            assert isinstance(msg, dict)
-            assert msg["error"] == "invalid_request"
-        else:
-            raise Exception('Should be UnAuthorized: {}'.format(msg))
+        _pr_resp = self.endpoint.parse_request(_orig_req)
+        assert isinstance(_pr_resp, AuthorizationErrorResponse)
+        assert _pr_resp["error"] == "invalid_request"
 
     def test_do_response_code_id_token(self):
         _orig_req = AUTH_REQ_DICT.copy()
