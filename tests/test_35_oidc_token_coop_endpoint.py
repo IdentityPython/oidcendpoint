@@ -83,63 +83,67 @@ def full_path(local_file):
 USERINFO = UserInfo(json.loads(open(full_path("users.json")).read()))
 
 
+@pytest.fixture
+def conf():
+    return {
+        "issuer": "https://example.com/",
+        "password": "mycket hemligt",
+        "token_expires_in": 600,
+        "grant_expires_in": 300,
+        "refresh_token_expires_in": 86400,
+        "verify_ssl": False,
+        "capabilities": CAPABILITIES,
+        "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+        "endpoint": {
+            "provider_config": {
+                "path": ".well-known/openid-configuration",
+                "class": ProviderConfiguration,
+                "kwargs": {},
+            },
+            "registration": {
+                "path": "registration",
+                "class": Registration,
+                "kwargs": {},
+            },
+            "authorization": {
+                "path": "authorization",
+                "class": Authorization,
+                "kwargs": {},
+            },
+            "token": {
+                "path": "token",
+                "class": TokenCoop,
+                "kwargs": {
+                    "client_authn_method": [
+                        "client_secret_basic",
+                        "client_secret_post",
+                        "client_secret_jwt",
+                        "private_key_jwt",
+                    ]
+                },
+            },
+            "userinfo": {
+                "path": "userinfo",
+                "class": userinfo.UserInfo,
+                "kwargs": {"db_file": "users.json"},
+            },
+        },
+        "authentication": {
+            "anon": {
+                "acr": INTERNETPROTOCOLPASSWORD,
+                "class": "oidcendpoint.user_authn.user.NoAuthn",
+                "kwargs": {"user": "diana"},
+            }
+        },
+        "userinfo": {"class": UserInfo, "kwargs": {"db": {}}},
+        "client_authn": verify_client,
+        "template_dir": "template",
+    }
+
+
 class TestEndpoint(object):
     @pytest.fixture(autouse=True)
-    def create_endpoint(self):
-        conf = {
-            "issuer": "https://example.com/",
-            "password": "mycket hemligt",
-            "token_expires_in": 600,
-            "grant_expires_in": 300,
-            "refresh_token_expires_in": 86400,
-            "verify_ssl": False,
-            "capabilities": CAPABILITIES,
-            "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
-            "endpoint": {
-                "provider_config": {
-                    "path": ".well-known/openid-configuration",
-                    "class": ProviderConfiguration,
-                    "kwargs": {},
-                },
-                "registration": {
-                    "path": "registration",
-                    "class": Registration,
-                    "kwargs": {},
-                },
-                "authorization": {
-                    "path": "authorization",
-                    "class": Authorization,
-                    "kwargs": {},
-                },
-                "token": {
-                    "path": "token",
-                    "class": TokenCoop,
-                    "kwargs": {
-                        "client_authn_method": [
-                            "client_secret_basic",
-                            "client_secret_post",
-                            "client_secret_jwt",
-                            "private_key_jwt",
-                        ]
-                    },
-                },
-                "userinfo": {
-                    "path": "userinfo",
-                    "class": userinfo.UserInfo,
-                    "kwargs": {"db_file": "users.json"},
-                },
-            },
-            "authentication": {
-                "anon": {
-                    "acr": INTERNETPROTOCOLPASSWORD,
-                    "class": "oidcendpoint.user_authn.user.NoAuthn",
-                    "kwargs": {"user": "diana"},
-                }
-            },
-            "userinfo": {"class": UserInfo, "kwargs": {"db": {}}},
-            "client_authn": verify_client,
-            "template_dir": "template",
-        }
+    def create_endpoint(self, conf):
         endpoint_context = EndpointContext(conf)
         endpoint_context.cdb["client_1"] = {
             "client_secret": "hemligt",
@@ -304,6 +308,43 @@ class TestEndpoint(object):
         }
         msg = self.endpoint.do_response(request=_req, **_resp)
         assert isinstance(msg, dict)
+
+    def test_new_refresh_token(self, conf):
+        conf["endpoint"]["token"]["kwargs"]["new_refresh_token"] = True
+        _cntx = EndpointContext(conf)
+        _cntx.cdb["client_1"] = {
+            "client_secret": "hemligt",
+            "redirect_uris": [("https://example.com/cb", None)],
+            "client_salt": "salted",
+            "endpoint_auth_method": "client_secret_post",
+            "response_types": ["code", "token", "code id_token", "id_token"],
+        }
+        endpoint = _cntx.endpoint["token"]
+
+        areq = AUTH_REQ.copy()
+        areq["scope"] = ["openid", "offline_access"]
+        session_id = setup_session(
+            _cntx, areq, uid="user", acr=INTERNETPROTOCOLPASSWORD
+        )
+        _cntx.sdb.update(session_id, user="diana")
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = _cntx.sdb[session_id]["code"]
+        _req = endpoint.parse_request(_token_request)
+        _resp = endpoint.process_request(request=_req)
+        first_refresh_token = _resp["response_args"]["refresh_token"]
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = first_refresh_token
+        _req = endpoint.parse_request(_request.to_json())
+        _resp = endpoint.process_request(request=_req)
+        second_refresh_token = _resp["response_args"]["refresh_token"]
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = second_refresh_token
+        _req = endpoint.parse_request(_request.to_json())
+        _resp = endpoint.process_request(request=_req)
+
+        assert first_refresh_token != second_refresh_token
 
     def test_do_refresh_access_token_not_allowed(self):
         areq = AUTH_REQ.copy()
