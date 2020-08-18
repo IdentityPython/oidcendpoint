@@ -312,9 +312,6 @@ class Endpoint(object):
             request = meth(
                 request, client_id, endpoint_context=self.endpoint_context, **kwargs
             )
-            if isinstance(request, AuthorizationErrorResponse):
-                LOGGER.error(request.to_json())
-                raise UnAuthorizedClient(request.to_dict())
         return request
 
     def do_pre_construct(self, response_args, request, **kwargs):

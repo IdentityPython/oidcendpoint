@@ -2,8 +2,8 @@ import hashlib
 import logging
 
 from cryptojwt.utils import b64e
-
-from oidcendpoint.exception import ProcessError
+from oidcmsg.oauth2 import AuthorizationErrorResponse
+from oidcmsg.oidc import TokenErrorResponse
 
 LOGGER = logging.getLogger(__name__)
 
@@ -19,22 +19,34 @@ def post_authn_parse(request, client_id, endpoint_context, **kwargs):
     :param kwargs:
     :return:
     """
+    if isinstance(request, AuthorizationErrorResponse):
+        return request
+
     if endpoint_context.args["pkce"]["essential"] is True:
-        if not "code_challenge" in request:
-            raise ValueError("Missing required code_challenge")
-        if not "code_challenge_method" in request:
+        if "code_challenge" not in request:
+            return AuthorizationErrorResponse(
+                error="invalid_request",
+                error_description="Missing required code_challenge"
+            )
+        if "code_challenge_method" not in request:
             if "plain" not in endpoint_context.args["pkce"]["code_challenge_method"]:
-                raise ValueError("No support for code_challenge_method=plain")
+                return AuthorizationErrorResponse(
+                    error="invalid_request",
+                    error_description="No support for code_challenge_method=plain"
+                )
 
             request["code_challenge_method"] = "plain"
     else:  # May or may not
         if "code_challenge" in request:
-            if not "code_challenge_method" in request:
+            if "code_challenge_method" not in request:
                 if (
                     "plain"
                     not in endpoint_context.args["pkce"]["code_challenge_method"]
                 ):
-                    raise ValueError("No support for code_challenge_method=plain")
+                    return AuthorizationErrorResponse(
+                        error="invalid_request",
+                        error_description="No support for code_challenge_method=plain"
+                    )
 
                 request["code_challenge_method"] = "plain"
     return request
@@ -53,7 +65,10 @@ def verify_code_challenge(code_verifier, code_challenge, code_challenge_method="
     _cc = b64e(_h)
     if _cc.decode("ascii") != code_challenge:
         LOGGER.error("PKCE Code Challenge check failed")
-        raise ProcessError("PCKE check failed")
+        return TokenErrorResponse(
+            error="invalid_grant",
+            error_description="PCKE check failed"
+        )
 
     LOGGER.debug("PKCE Code Challenge check succeeded")
 
@@ -65,11 +80,17 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
     :param token_request:
     :return:
     """
+    if isinstance(request, AuthorizationErrorResponse):
+        return request
+
     if "code_verifier" in request:
         try:
             _info = endpoint_context.sdb[request["code"]]
         except KeyError:
-            raise ProcessError("Unknown access grant")
+            return TokenErrorResponse(
+                error="invalid_grant",
+                error_description="Unknown access grant"
+            )
 
         _authn_req = _info["authn_req"]
         if "code_challenge" in _authn_req:
@@ -82,7 +103,10 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
                 request["code_verifier"], _info["authn_req"]["code_challenge"], _method
             )
         else:
-            raise ProcessError("Missing code_challenge in authorization request")
+            return TokenErrorResponse(
+                error="invalid_grant",
+                error_description="Missing code_challenge in authorization request"
+            )
 
     return request
 
