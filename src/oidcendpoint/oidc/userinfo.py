@@ -148,7 +148,9 @@ class UserInfo(Endpoint):
                 request, auth, endpoint="userinfo", **kwargs
             )
         except ValueError as e:
-            return dict(error="invalid_token", error_description=e.args[0])
+            return self.error_cls(
+                error="invalid_token", error_description=e.args[0]
+            )
 
         if isinstance(auth_info, ResponseMessage):
             return auth_info
