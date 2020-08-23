@@ -309,6 +309,8 @@ class Endpoint(object):
 
     def do_post_parse_request(self, request, client_id="", **kwargs):
         for meth in self.post_parse_request:
+            if isinstance(request, self.error_cls):
+                break
             request = meth(
                 request, client_id, endpoint_context=self.endpoint_context, **kwargs
             )

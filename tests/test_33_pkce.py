@@ -273,11 +273,10 @@ class TestEndpoint(object):
         _authn_req = AUTH_REQ.copy()
 
         _pr_resp = self.authn_endpoint.parse_request(_authn_req.to_dict())
-        resp = self.authn_endpoint.process_request(_pr_resp)
 
-        assert isinstance(resp, AuthorizationErrorResponse)
-        assert resp["error"] == "invalid_request"
-        assert resp["error_description"] == "Missing required code_challenge"
+        assert isinstance(_pr_resp, AuthorizationErrorResponse)
+        assert _pr_resp["error"] == "invalid_request"
+        assert _pr_resp["error_description"] == "Missing required code_challenge"
 
     def test_not_essential(self, conf):
         conf["add_on"]["pkce"]["kwargs"]["essential"] = False
@@ -303,11 +302,10 @@ class TestEndpoint(object):
         _authn_req["code_challenge_method"] = "doupa"
 
         _pr_resp = self.authn_endpoint.parse_request(_authn_req.to_dict())
-        resp = self.authn_endpoint.process_request(_pr_resp)
 
-        assert isinstance(resp, AuthorizationErrorResponse)
-        assert resp["error"] == "invalid_request"
-        assert resp[
+        assert isinstance(_pr_resp, AuthorizationErrorResponse)
+        assert _pr_resp["error"] == "invalid_request"
+        assert _pr_resp[
             "error_description"
         ] == "Unsupported code_challenge_method={}".format(
             _authn_req["code_challenge_method"]
@@ -324,11 +322,10 @@ class TestEndpoint(object):
         _authn_req["code_challenge_method"] = _cc_info["code_challenge_method"]
 
         _pr_resp = authn_endpoint.parse_request(_authn_req.to_dict())
-        resp = authn_endpoint.process_request(_pr_resp)
 
-        assert isinstance(resp, AuthorizationErrorResponse)
-        assert resp["error"] == "invalid_request"
-        assert resp[
+        assert isinstance(_pr_resp, AuthorizationErrorResponse)
+        assert _pr_resp["error"] == "invalid_request"
+        assert _pr_resp[
             "error_description"
         ] == "Unsupported code_challenge_method={}".format(
             _authn_req["code_challenge_method"]
