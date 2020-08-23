@@ -39,7 +39,6 @@ from oidcendpoint.login_hint import LoginHint2Acrs
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.authorization import acr_claims
-from oidcendpoint.oidc.authorization import create_authn_response
 from oidcendpoint.oidc.authorization import get_uri
 from oidcendpoint.oidc.authorization import inputs
 from oidcendpoint.oidc.authorization import re_authenticate
@@ -558,7 +557,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "ES256",
         }
 
-        resp = create_authn_response(self.endpoint, request, "session_id")
+        resp = self.endpoint.create_authn_response(request, "session_id")
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
 
     def test_setup_auth(self):

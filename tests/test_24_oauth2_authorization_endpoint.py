@@ -19,7 +19,6 @@ from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.common.authorization import FORM_POST
-from oidcendpoint.common.authorization import create_authn_response
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
 from oidcendpoint.common.authorization import join_query
@@ -410,7 +409,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "ES256",
         }
 
-        resp = create_authn_response(self.endpoint, request, "session_id")
+        resp = self.endpoint.create_authn_response(request, "session_id")
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
 
     def test_setup_auth(self):

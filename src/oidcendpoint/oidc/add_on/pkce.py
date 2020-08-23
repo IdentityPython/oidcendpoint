@@ -34,9 +34,6 @@ def post_authn_parse(request, client_id, endpoint_context, **kwargs):
     :param kwargs:
     :return:
     """
-    if isinstance(request, AuthorizationErrorResponse):
-        return request
-
     if (
         endpoint_context.args["pkce"]["essential"]
         and "code_challenge" not in request
