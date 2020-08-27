@@ -163,7 +163,7 @@ class Registration(Endpoint):
             plruri = []
             for uri in request["post_logout_redirect_uris"]:
                 if urlparse(uri).fragment:
-                    err = ClientRegistrationErrorResponse(
+                    err = self.error_cls(
                         error="invalid_configuration_parameter",
                         error_description="post_logout_redirect_uris contains fragment",
                     )
@@ -176,7 +176,7 @@ class Registration(Endpoint):
                 ruri = self.verify_redirect_uris(request)
                 _cinfo["redirect_uris"] = ruri
             except InvalidRedirectURIError as e:
-                return ClientRegistrationErrorResponse(
+                return self.error_cls(
                     error="invalid_redirect_uri", error_description=str(e)
                 )
 
@@ -185,7 +185,7 @@ class Registration(Endpoint):
             for uri in request["request_uris"]:
                 _up = urlparse(uri)
                 if _up.query:
-                    err = ClientRegistrationErrorResponse(
+                    err = self.error_cls(
                         error="invalid_configuration_parameter",
                         error_description="request_uris contains query part",
                     )
@@ -427,11 +427,11 @@ class Registration(Endpoint):
             return _cinfo
 
         args = dict(
-            [(k, v) for k, v in _cinfo.items() if k in RegistrationResponse.c_param]
+            [(k, v) for k, v in _cinfo.items() if k in self.response_cls.c_param]
         )
 
         comb_uri(args)
-        response = RegistrationResponse(**args)
+        response = self.response_cls(**args)
 
         # Add the client_secret as a symmetric key to the key jar
         if client_secret:
