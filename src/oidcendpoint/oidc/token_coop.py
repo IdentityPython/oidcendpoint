@@ -226,18 +226,33 @@ class TokenCoop(Endpoint):
         # self.allow_refresh = False
         self.new_refresh_token = new_refresh_token
 
-        if "grant_types_support" in kwargs:
-            _supported = kwargs["grant_types_support"]
-            self.helper = {}
-            for key, spec in _supported.items():
-                _conf = spec.get("kwargs", {})
-                if isinstance(spec["class"], str):
-                    _instance = importer(spec["class"])(self, _conf)
-                else:
-                    _instance = spec["class"](self, _conf)
-                self.helper[key] = _instance
-        else:
+        self.configure_grant_types(kwargs.get("grant_types_supported"))
+
+    def configure_grant_types(self, grant_types_supported):
+        if grant_types_supported is None:
             self.helper = {k: v(self) for k, v in HELPER_BY_GRANT_TYPE.items()}
+            return
+
+        self.helper = {}
+        # TODO: do we want to allow any grant_type?
+        for grant_type, grant_type_options in grant_types_supported.items():
+            if (
+                    grant_type_options in ("default", None)
+                    and grant_type in HELPER_BY_GRANT_TYPE
+            ):
+                self.helper[grant_type] = HELPER_BY_GRANT_TYPE[grant_type]
+                continue
+            _conf = grant_type_options.get('kwargs', {})
+            try:
+                if isinstance(grant_type_options["class"], str):
+                    grant_class = importer(grant_type_options["class"])
+                else:
+                    grant_class = grant_type_options["class"]
+                self.helper[grant_type] = grant_class(self, _conf)
+            except KeyError:
+                raise ProcessError(
+                        "Grant type is invalid or missing a valid class to import."
+                )
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         sinfo = endpoint_context.sdb[token]
