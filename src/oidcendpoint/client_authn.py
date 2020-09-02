@@ -395,7 +395,8 @@ def verify_client(
                 raise UnknownClient("Unknown Client ID")
 
         if not valid_client_info(_cinfo):
-            logger.warning("Client registration has timed out")
+            logger.warning("Client registration has timed out or "
+                           "client secret is expired.")
             raise InvalidClient("Not valid client")
 
         # store what authn method was used
