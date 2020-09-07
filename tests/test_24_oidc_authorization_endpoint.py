@@ -115,11 +115,11 @@ client_yaml = """
 oidc_clients:
   client_1:
     "client_secret": 'hemligtkodord'
-    "redirect_uris": 
+    "redirect_uris":
         - ['https://example.com/cb', '']
     "client_salt": "salted"
     'token_endpoint_auth_method': 'client_secret_post'
-    'response_types': 
+    'response_types':
         - 'code'
         - 'token'
         - 'code id_token'

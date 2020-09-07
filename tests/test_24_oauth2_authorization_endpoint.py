@@ -31,6 +31,7 @@ from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.session import SessionInfo
@@ -116,11 +117,11 @@ client_yaml = """
 clients:
   client_1:
     "client_secret": 'hemligtkodord'
-    "redirect_uris": 
+    "redirect_uris":
         - ['https://example.com/cb', '']
     "client_salt": "salted"
     'token_endpoint_auth_method': 'client_secret_post'
-    'response_types': 
+    'response_types':
         - 'code'
         - 'token'
   client2:
@@ -462,6 +463,38 @@ class TestEndpoint(object):
         assert set(res.keys()) == {"function", "args"}
 
         item["method"].file = ""
+
+    def test_setup_auth_invalid_scope(self):
+        request = AuthorizationRequest(
+            client_id="client_id",
+            redirect_uri="https://rp.example.com/cb",
+            response_type=["id_token"],
+            state="state",
+            nonce="nonce",
+            scope="openid THAT-BLOODY_SCOPE",
+        )
+        redirect_uri = request["redirect_uri"]
+        cinfo = {
+            "client_id": "client_id",
+            "redirect_uris": [("https://rp.example.com/cb", {})],
+            "id_token_signed_response_alg": "RS256",
+        }
+
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb["client_id"] = cinfo
+
+        kaka = self.endpoint.endpoint_context.cookie_dealer.create_cookie(
+            "value", "sso")
+
+        # force to 400 Http Error message if the release scope policy is heavy!
+        self.endpoint.endpoint_context.conf['capabilities']['deny_unknown_scopes'] = True
+        excp = None
+        try:
+            res = self.endpoint.process_request(request)
+        except UnAuthorizedClientScope as e:
+            excp = e
+        assert excp
+        assert isinstance(excp, UnAuthorizedClientScope)
 
     def test_setup_auth_user(self):
         request = AuthorizationRequest(
