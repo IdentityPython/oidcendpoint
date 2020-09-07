@@ -19,7 +19,6 @@ from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.common.authorization import FORM_POST
-from oidcendpoint.common.authorization import create_authn_response
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
 from oidcendpoint.common.authorization import join_query
@@ -32,6 +31,7 @@ from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.exception import UnAuthorizedClientScope
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.session import SessionInfo
@@ -240,13 +240,14 @@ class TestEndpoint(object):
         assert "code" in _query
 
     def test_do_response_code_token(self):
+        """UnAuthorized Client
+        """
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req["response_type"] = "code token"
+        msg = ''
         _pr_resp = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(_pr_resp)
-        msg = self.endpoint.do_response(response_msg=_resp)
-        assert isinstance(msg, dict)
-        assert msg["response"]["error"] == "invalid_request"
+        assert isinstance(_pr_resp, AuthorizationErrorResponse)
+        assert _pr_resp["error"] == "invalid_request"
 
     def test_verify_uri_unknown_client(self):
         request = {"redirect_uri": "https://rp.example.com/cb"}
@@ -409,7 +410,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "ES256",
         }
 
-        resp = create_authn_response(self.endpoint, request, "session_id")
+        resp = self.endpoint.create_authn_response(request, "session_id")
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
 
     def test_setup_auth(self):

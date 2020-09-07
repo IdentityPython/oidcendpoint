@@ -119,7 +119,7 @@ class TokenCoop(Endpoint):
                 _idtoken = _context.idtoken.make(req, _info, _authn_req)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
-                resp = TokenErrorResponse(
+                resp = self.error_cls(
                     error="invalid_request",
                     error_description="Could not sign/encrypt id_token",
                 )
