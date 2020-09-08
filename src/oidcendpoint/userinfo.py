@@ -22,6 +22,7 @@ def id_token_claims(session, provider_info):
 
 def update_claims(session, about, provider_info, old_claims=None):
     """
+    Gather claims from the claims parameter in the auth request.
 
     :param session:
     :param about: userinfo or id_token

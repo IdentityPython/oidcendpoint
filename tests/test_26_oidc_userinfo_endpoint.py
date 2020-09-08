@@ -151,7 +151,8 @@ class TestEndpoint(object):
                             "email_verified",
                             "sub",
                             "eduperson_scoped_affiliation",
-                        ]
+                        ],
+                        "foobar": []
                     },
                 }
             },
@@ -355,3 +356,45 @@ class TestEndpoint(object):
             "email_verified",
             "eduperson_scoped_affiliation",
         }
+
+    def test_custom_scope_2(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req["scope"] = ["openid", "foobar"]
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            _auth_req,
+            uid="userID",
+            authn_event={
+                "authn_info": "loa1",
+                "uid": "diana",
+                "authn_time": utc_time_sans_frac(),
+                "valid_until": utc_time_sans_frac() + 3600,
+            },
+        )
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(_dic["access_token"])
+        )
+        args = self.endpoint.process_request(_req)
+        assert set(args["response_args"].keys()) == {"sub"}
+
+    def test_unknown_scope(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req["scope"] = ["openid", "fubar"]
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            _auth_req,
+            uid="userID",
+            authn_event={
+                "authn_info": "loa1",
+                "uid": "diana",
+                "authn_time": utc_time_sans_frac(),
+                "valid_until": utc_time_sans_frac() + 3600,
+            },
+        )
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(_dic["access_token"])
+        )
+        args = self.endpoint.process_request(_req)
+        assert set(args["response_args"].keys()) == {"sub"}

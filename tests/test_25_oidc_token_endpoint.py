@@ -11,7 +11,6 @@ from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
