@@ -5,6 +5,7 @@ from oidcmsg.time_util import time_sans_frac
 
 DEFAULT_AUTHN_EXPIRES_IN = 3600
 
+
 class AuthnEvent(Message):
     c_param = {
         "uid": SINGLE_REQUIRED_STRING,

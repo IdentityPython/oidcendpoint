@@ -435,11 +435,11 @@ class Authorization(Endpoint):
                 if "req_user" in kwargs:
                     sids = self.endpoint_context.sdb.get_sids_by_sub(kwargs["req_user"])
                     if (
-                            sids
-                            and user
-                            != self.endpoint_context.sdb.get_authentication_event(
-                        sids[-1]
-                    ).uid
+                        sids
+                        and user
+                        != self.endpoint_context.sdb.get_authentication_event(
+                            sids[-1]
+                        ).uid
                     ):
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
@@ -453,7 +453,7 @@ class Authorization(Endpoint):
 
         authn_event = None
         if session:
-            authn_event = session.get('authn_event')
+            authn_event = session.get("authn_event")
 
         if authn_event is None:
             authn_event = create_authn_event(
@@ -625,8 +625,8 @@ class Authorization(Endpoint):
                     as_bytes(json.dumps({"authn_time": authn_event["authn_time"]}))
                 )
 
-                opbs_value = ''
-                if hasattr(ec.cookie_dealer, 'create_cookie'):
+                opbs_value = ""
+                if hasattr(ec.cookie_dealer, "create_cookie"):
                     session_cookie = ec.cookie_dealer.create_cookie(
                         as_unicode(_state),
                         typ="session",
@@ -638,7 +638,9 @@ class Authorization(Endpoint):
                     opbs = session_cookie[ec.cookie_name["session_management"]]
                     opbs_value = opbs.value
                 else:
-                    logger.debug("Failed to set Cookie, that's not configured in main configuration.")
+                    logger.debug(
+                        "Failed to set Cookie, that's not configured in main configuration."
+                    )
 
                 logger.debug(
                     "compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",

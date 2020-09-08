@@ -2,12 +2,12 @@ import json
 import os
 import time
 
-import pytest
 from cryptojwt.jws import jws
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RegistrationResponse
+import pytest
 
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
@@ -72,7 +72,7 @@ conf = {
             "kwargs": {"user": "diana"},
         }
     },
-    "userinfo": {"class": "oidcendpoint.user_info.UserInfo", "kwargs": {"db": USERS},},
+    "userinfo": {"class": "oidcendpoint.user_info.UserInfo", "kwargs": {"db": USERS}, },
     "client_authn": verify_client,
     "template_dir": "template",
     "id_token": {"class": IDToken, "kwargs": {"foo": "bar"}},
@@ -272,7 +272,7 @@ class TestEndpoint(object):
         self.endpoint_context.idtoken.kwargs["available_claims"] = {
             "nickname": {"essential": True}
         }
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -282,7 +282,7 @@ class TestEndpoint(object):
         res = _jwt.unpack(_token)
         assert "nickname" in res
 
-    def test_no_available_claims(self):
+    def test_default_available_claims(self):
         session_info = {
             "authn_req": AREQN,
             "sub": "sub",
@@ -292,7 +292,7 @@ class TestEndpoint(object):
                 "uid": "diana",
             },
         }
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ["openid"]}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -314,7 +314,7 @@ class TestEndpoint(object):
         }
         self.endpoint_context.idtoken.enable_claims_per_client = True
         self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -340,7 +340,7 @@ class TestEndpoint(object):
             "nickname": {"essential": True}
         }
         self.endpoint_context.idtoken.enable_claims_per_client = True
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -363,7 +363,7 @@ class TestEndpoint(object):
             },
         }
         self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
