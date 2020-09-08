@@ -110,9 +110,11 @@ class UserInfo(Endpoint):
         if session["authn_event"]["valid_until"] > utc_time_sans_frac():
             pass
         else:
-            logger.debug("authentication not valid: {} > {}".format(
-                session["authn_event"]["valid_until"], utc_time_sans_frac()
-            ))
+            logger.debug(
+                "authentication not valid: {} > {}".format(
+                    session["authn_event"]["valid_until"], utc_time_sans_frac()
+                )
+            )
             allowed = False
 
             # This has to be made more fine grained.

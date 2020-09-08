@@ -96,7 +96,9 @@ class UserAuthnMethod(object):
                     _now = int(time.time())
                     if _now > (int(_ts) + int(kwargs["max_age"])):
                         logger.debug("Authentication too old")
-                        raise ToOld("%d > (%d + %d)" % (_now, int(_ts), int(kwargs["max_age"])))
+                        raise ToOld(
+                            "%d > (%d + %d)" % (_now, int(_ts), int(kwargs["max_age"]))
+                        )
 
             return {"uid": uid}, _ts
 
@@ -150,13 +152,13 @@ class UserPassJinja2(UserAuthnMethod):
     url_endpoint = "/verify/user_pass_jinja"
 
     def __init__(
-            self,
-            db,
-            template_handler,
-            template="user_pass.jinja2",
-            endpoint_context=None,
-            verify_endpoint="",
-            **kwargs
+        self,
+        db,
+        template_handler,
+        template="user_pass.jinja2",
+        endpoint_context=None,
+        verify_endpoint="",
+        **kwargs
     ):
 
         super(UserPassJinja2, self).__init__(endpoint_context=endpoint_context)

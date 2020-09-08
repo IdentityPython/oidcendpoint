@@ -33,7 +33,7 @@ class DictDatabase:
         try:
             del _dic[sec_key]
         except KeyError as e:
-            logger.warn('SSODb.delete _dic[{}] not found'.format(sec_key))
+            logger.warn("SSODb.delete _dic[{}] not found".format(sec_key))
         if _dic == {}:
             del self._db[key]
         else:

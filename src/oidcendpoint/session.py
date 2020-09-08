@@ -152,9 +152,9 @@ class SessionDB(object):
                     return _si
                 else:
                     _handler, _res = self.handler.get_handler(item)
-                    if _handler.type == 'A':  # access grant
-                        if _si['code_is_used']:
-                            raise MultipleCodeUsage('Reused code')
+                    if _handler.type == "A":  # access grant
+                        if _si["code_is_used"]:
+                            raise MultipleCodeUsage("Reused code")
         else:
             _si = SessionInfo(**_info)
             _si["sid"] = item
@@ -455,8 +455,8 @@ class SessionDB(object):
         if not session_info:
             session_info = self[sid]
         session_info.pop(token_type, None)
-        if token_type == 'code':
-            session_info['code_is_used'] = True
+        if token_type == "code":
+            session_info["code_is_used"] = True
         self[sid] = session_info
 
     def revoke_all_tokens(self, token):

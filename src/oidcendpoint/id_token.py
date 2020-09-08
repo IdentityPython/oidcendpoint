@@ -2,10 +2,10 @@ import logging
 
 from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
-from oidcendpoint.scopes import convert_scopes2claims
 
 from oidcendpoint.endpoint import construct_endpoint_info
 from oidcendpoint.scopes import available_claims
+from oidcendpoint.scopes import convert_scopes2claims
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
 
@@ -52,7 +52,7 @@ def include_session_id(endpoint_context, client_id, where):
 
 
 def get_sign_and_encrypt_algorithms(
-        endpoint_context, client_info, payload_type, sign=False, encrypt=False
+    endpoint_context, client_info, payload_type, sign=False, encrypt=False
 ):
     args = {"sign": sign, "encrypt": encrypt}
     if sign:
@@ -121,16 +121,16 @@ class IDToken(object):
         )
 
     def payload(
-            self,
-            session,
-            acr="",
-            alg="RS256",
-            code=None,
-            access_token=None,
-            user_info=None,
-            auth_time=0,
-            lifetime=None,
-            extra_claims=None,
+        self,
+        session,
+        acr="",
+        alg="RS256",
+        code=None,
+        access_token=None,
+        user_info=None,
+        auth_time=0,
+        lifetime=None,
+        extra_claims=None,
     ):
         """
 
@@ -191,16 +191,16 @@ class IDToken(object):
         return {"payload": _args, "lifetime": lifetime}
 
     def sign_encrypt(
-            self,
-            session_info,
-            client_id,
-            code=None,
-            access_token=None,
-            user_info=None,
-            sign=True,
-            encrypt=False,
-            lifetime=None,
-            extra_claims=None,
+        self,
+        session_info,
+        client_id,
+        code=None,
+        access_token=None,
+        user_info=None,
+        sign=True,
+        encrypt=False,
+        lifetime=None,
+        extra_claims=None,
     ):
         """
         Signed and or encrypt a IDToken
@@ -248,10 +248,10 @@ class IDToken(object):
 
         if authn_req:
             _client_id = authn_req["client_id"]
-            _scopes = authn_req['scope']
+            _scopes = authn_req["scope"]
         else:
             _client_id = req["client_id"]
-            _scopes = req['scope']
+            _scopes = req["scope"]
 
         _cinfo = _context.cdb[_client_id]
         idtoken_claims = self.kwargs.get("available_claims")
