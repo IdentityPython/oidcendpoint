@@ -192,18 +192,13 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
     :return: User information or None
     """
     if def_itc:
-        itc = def_itc
+        _itc = def_itc
     else:
-        itc = {}
+        _itc = {}
 
-    itc.update(id_token_claims(session, provider_info=endpoint_context.provider_info))
+    _itc.update(id_token_claims(session, provider_info=endpoint_context.provider_info))
 
-    if not itc:
+    if not _itc:
         return None
-
-    _claims = by_schema(endpoint_context.id_token_schema, **itc)
-
-    if _claims:
-        return collect_user_info(endpoint_context, session, _claims)
     else:
-        return None
+        return collect_user_info(endpoint_context, session, _itc)
