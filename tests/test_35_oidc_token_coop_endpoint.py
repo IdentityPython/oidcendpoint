@@ -331,18 +331,22 @@ class TestEndpoint(object):
         _token_request["code"] = _cntx.sdb[session_id]["code"]
         _req = endpoint.parse_request(_token_request)
         _resp = endpoint.process_request(request=_req)
+        assert "refresh_token" in _resp["response_args"]
         first_refresh_token = _resp["response_args"]["refresh_token"]
 
         _request = REFRESH_TOKEN_REQ.copy()
         _request["refresh_token"] = first_refresh_token
         _req = endpoint.parse_request(_request.to_json())
         _resp = endpoint.process_request(request=_req)
+        assert "refresh_token" in _resp["response_args"]
         second_refresh_token = _resp["response_args"]["refresh_token"]
 
         _request = REFRESH_TOKEN_REQ.copy()
         _request["refresh_token"] = second_refresh_token
         _req = endpoint.parse_request(_request.to_json())
         _resp = endpoint.process_request(request=_req)
+        assert "access_token" in _resp["response_args"]
+        assert "refresh_token" in _resp["response_args"]
 
         assert first_refresh_token != second_refresh_token
 
