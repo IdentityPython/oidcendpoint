@@ -12,7 +12,6 @@ from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import MultipleCodeUsage
-from oidcendpoint.exception import ProcessError
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
@@ -368,5 +367,8 @@ class TestEndpoint(object):
 
         _request = REFRESH_TOKEN_REQ.copy()
         _request["refresh_token"] = _resp["response_args"]["refresh_token"]
-        with pytest.raises(ProcessError):
-            self.endpoint.parse_request(_request.to_json())
+        _resp = self.endpoint.parse_request(_request.to_json())
+        assert "error" in _resp
+        assert "error_description" in _resp
+        assert _resp["error"] == "invalid_request"
+        assert _resp["error_description"] == "Unsupported grant_type: refresh_token"

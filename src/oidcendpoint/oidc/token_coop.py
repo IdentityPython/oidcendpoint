@@ -263,7 +263,10 @@ class TokenCoop(Endpoint):
         if _helper:
             return _helper.post_parse_request(request, client_id, **kwargs)
         else:
-            raise ProcessError("No support for grant_type: {}", request["grant_type"])
+            return self.error_cls(
+                error="invalid_request",
+                error_description=f"Unsupported grant_type: {request['grant_type']}"
+            )
 
     def process_request(self, request=None, **kwargs):
         """
@@ -281,9 +284,7 @@ class TokenCoop(Endpoint):
             else:
                 return self.error_cls(
                     error="invalid_request",
-                    error_description="Unsupported grant_type {}".format(
-                        request["grant_type"]
-                    ),
+                    error_description=f"Unsupported grant_type: {request['grant_type']}"
                 )
         except JWEException as err:
             return self.error_cls(error="invalid_request", error_description="%s" % err)
