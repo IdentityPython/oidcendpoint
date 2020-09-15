@@ -17,7 +17,7 @@ from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token_coop import AccessToken
+from oidcendpoint.oidc.token_coop import AccessToken, RefreshToken
 from oidcendpoint.oidc.token_coop import TokenCoop
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -43,12 +43,6 @@ RESPONSE_TYPES_SUPPORTED = [
 
 CAPABILITIES = {
     "subject_types_supported": ["public", "pairwise"],
-    "grant_types_supported": [
-        "authorization_code",
-        "implicit",
-        "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "refresh_token",
-    ],
 }
 
 AUTH_REQ = AuthorizationRequest(
@@ -119,7 +113,7 @@ def conf():
                         "client_secret_post",
                         "client_secret_jwt",
                         "private_key_jwt",
-                    ]
+                    ],
                 },
             },
             "userinfo": {
@@ -157,6 +151,62 @@ class TestEndpoint(object):
 
     def test_init(self):
         assert self.endpoint
+
+    @pytest.mark.parametrize("grant_types_supported", [
+        {
+            "authorization_code": {
+                "class": AccessToken
+            },
+            "refresh_token": {
+                "class": RefreshToken,
+            },
+        },
+        {},  # Empty dict should work with the default grant types
+        {
+            "authorization_code": {
+                "class": "oidcendpoint.oidc.token_coop.AccessToken"
+            },
+        },
+        {
+            "authorization_code": {
+                "class": "oidcendpoint.oidc.token_coop.AccessToken",
+                "kwargs": {},
+            },
+        },
+        {
+            "authorization_code": "default",
+            "refresh_token": None,  # This represents a key w/o value in the YAML conf
+        },
+    ])
+    def test_init_with_grant_types_supported(self, conf, grant_types_supported):
+        token_conf = conf["endpoint"]["token"]
+        token_conf["kwargs"]["grant_types_supported"] = grant_types_supported
+        endpoint_context = EndpointContext(conf)
+        assert endpoint_context
+
+    @pytest.mark.parametrize("grant_types_supported", [
+        {
+            "authorization_code": AccessToken,
+            "refresh_token": {
+                "class": RefreshToken,
+            },
+        },
+        {
+            "authorization_code": {
+                "class": "oidcendpoint.UnknownModule"
+            },
+        },
+        {
+            "authorization_code": {
+                "kwargs": {},
+            },
+        },
+    ])
+    def test_errors_in_grant_types_supported(self, conf, grant_types_supported):
+        token_conf = conf["endpoint"]["token"]
+        token_conf["kwargs"]["grant_types_supported"] = grant_types_supported
+        with pytest.raises(Exception):
+            EndpointContext(conf)
 
     def test_parse(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ, uid="user")
@@ -241,7 +291,7 @@ class TestEndpoint(object):
 
         _context.sdb.update(session_id, user="diana")
         _req = self.endpoint.parse_request(_token_request)
-        _resp = self.endpoint.process_request(request=_req)
+        self.endpoint.process_request(request=_req)
 
         # 2nd time used
         with pytest.raises(UnAuthorizedClient):
