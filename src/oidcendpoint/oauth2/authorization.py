@@ -31,6 +31,7 @@ from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ServiceError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
+from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
@@ -57,6 +58,21 @@ ALG_PARAMS = {
 
 def re_authenticate(request, authn):
     return False
+
+
+def check_unknown_scopes_policy(request_info, cinfo, endpoint_context):
+    op_capabilities = endpoint_context.conf['capabilities']
+    client_allowed_scopes = cinfo.get('allowed_scopes') or \
+                            op_capabilities['scopes_supported']
+
+    # this prevents that authz would be released for unavailable scopes
+    for scope in request_info['scope']:
+        if op_capabilities.get('deny_unknown_scopes') and \
+           scope not in client_allowed_scopes:
+            _msg = '{} requested an unauthorized scope ({})'
+            logger.warning(_msg.format(cinfo['client_id'],
+                                       scope))
+            raise UnAuthorizedClientScope()
 
 
 class Authorization(Endpoint):
@@ -587,6 +603,11 @@ class Authorization(Endpoint):
 
         _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
+
+        logger.debug("client {}: {}".format(_cid, cinfo))
+
+        # this apply the default optionally deny_unknown_scopes policy
+        check_unknown_scopes_policy(request_info, cinfo, self.endpoint_context)
 
         cookie = kwargs.get("cookie", "")
         if cookie:

@@ -34,6 +34,7 @@ from oidcendpoint.exception import ServiceError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.oauth2.authorization import check_unknown_scopes_policy
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
 
@@ -679,6 +680,9 @@ class Authorization(Endpoint):
         _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
         logger.debug("client {}: {}".format(_cid, cinfo))
+
+        # this apply the default optionally deny_unknown_scopes policy
+        check_unknown_scopes_policy(request_info, cinfo, self.endpoint_context)
 
         cookie = kwargs.get("cookie", "")
         if cookie:
