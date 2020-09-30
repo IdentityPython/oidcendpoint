@@ -26,7 +26,7 @@ KEYDEFS = [
 
 ISSUER = "https://example.com/"
 
-KEYJAR = init_key_jar(key_defs=KEYDEFS, owner=ISSUER)
+KEYJAR = init_key_jar(key_defs=KEYDEFS, issuer_id=ISSUER)
 KEYJAR.import_jwks(KEYJAR.export_jwks(True, ISSUER), "")
 
 RESPONSE_TYPES_SUPPORTED = [
@@ -54,7 +54,6 @@ CAPABILITIES = {
         "authorization_code",
         "implicit",
         "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "refresh_token",
     ],
     "claim_types_supported": ["normal", "aggregated", "distributed"],
     "claims_parameter_supported": True,
@@ -98,7 +97,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
             "token_handler_args": {
                 "jwks_def": {
                     "private_path": "private/token_jwks.json",
@@ -120,7 +119,7 @@ class TestEndpoint(object):
                         ],
                         "add_claim_by_scope": True,
                         "aud": ["https://example.org/appl"],
-                    }
+                    },
                 },
             },
             "endpoint": {
@@ -196,12 +195,8 @@ class TestEndpoint(object):
     def test_client_claims(self, enable_claims_per_client):
         ec = self.endpoint.endpoint_context
         handler = ec.sdb.handler.handler["access_token"]
-        session_id = setup_session(
-            ec, AUTH_REQ, uid="diana"
-        )
-        ec.cdb["client_1"]['access_token_claims'] = {
-            "address": None
-        }
+        session_id = setup_session(ec, AUTH_REQ, uid="diana")
+        ec.cdb["client_1"]["access_token_claims"] = {"address": None}
         handler.enable_claims_per_client = enable_claims_per_client
         _dic = ec.sdb.upgrade_to_token(key=session_id)
 
@@ -220,6 +215,6 @@ class TestEndpoint(object):
         assert handler.is_expired(_dic["access_token"]) is False
 
         assert (
-                handler.is_expired(_dic["access_token"], utc_time_sans_frac() + 4000)
-                is True
+            handler.is_expired(_dic["access_token"], utc_time_sans_frac() + 4000)
+            is True
         )

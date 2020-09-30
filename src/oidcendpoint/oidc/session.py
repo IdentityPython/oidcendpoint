@@ -81,9 +81,9 @@ class Session(Endpoint):
     }
 
     def __init__(self, endpoint_context, **kwargs):
-        _csi = kwargs.get('check_session_iframe')
+        _csi = kwargs.get("check_session_iframe")
         if _csi and not _csi.startswith("http"):
-            kwargs['check_session_iframe'] = add_path(endpoint_context.issuer, _csi)
+            kwargs["check_session_iframe"] = add_path(endpoint_context.issuer, _csi)
         Endpoint.__init__(self, endpoint_context, **kwargs)
 
     def do_back_channel_logout(self, cinfo, sub, sid):
@@ -124,8 +124,10 @@ class Session(Endpoint):
         _sso_db = self.endpoint_context.sdb.sso_db
         for sid in usids:
             _state = _sdb[sid]["authn_req"]["state"]
+            # remove session information
             del _sdb[sid]
-            _sdb.delete_kv2sid("state", _state)
+            # remove all states connected to this session id
+            _sdb.delete_kv2sid(_state, "state")
             _sso_db.remove_session_id(sid)
 
     def logout_all_clients(self, sid, client_id):
@@ -236,7 +238,7 @@ class Session(Endpoint):
             )
         except IndexError:
             raise InvalidRequest("Cookie error")
-        except KeyError:
+        except (KeyError, AttributeError):
             part = None
 
         if part:
@@ -381,10 +383,10 @@ class Session(Endpoint):
                 pass
             else:
                 if (
-                        _ith.jws_header["alg"]
-                        not in self.endpoint_context.provider_info[
-                    "id_token_signing_alg_values_supported"
-                ]
+                    _ith.jws_header["alg"]
+                    not in self.endpoint_context.provider_info[
+                        "id_token_signing_alg_values_supported"
+                    ]
                 ):
                     raise JWSException("Unsupported signing algorithm")
 

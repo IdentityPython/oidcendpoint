@@ -9,7 +9,6 @@ from cryptojwt.exception import Invalid
 from cryptojwt.key_jar import init_key_jar
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
-from cryptojwt.exception import BadSyntax
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint import rndstr
@@ -77,7 +76,7 @@ class Token(object):
         self.lifetime = lifetime
         self.args = kwargs
 
-    def __call__(self, sid, *args, **kwargs):
+    def __call__(self, sid):
         """
         Return a token.
 
@@ -117,9 +116,7 @@ class Token(object):
 
 
 class DefaultToken(Token):
-    def __init__(
-        self, password, typ="", token_type="Bearer", **kwargs
-    ):
+    def __init__(self, password, typ="", token_type="Bearer", **kwargs):
         Token.__init__(self, typ, **kwargs)
         self.crypt = Crypt(password)
         self.token_type = token_type
@@ -215,12 +212,13 @@ class TokenHandler(object):
         return item in self.handler
 
     def info(self, item, order=None):
-        _handler, _item_info = self.get_handler(item, order)
+        _handler, item_info = self.get_handler(item, order)
+
         if _handler is None:
             logger.info("Unknown token format")
             raise KeyError(item)
         else:
-            return _item_info
+            return item_info
 
     def sid(self, token, order=None):
         return self.info(token, order)["sid"]
@@ -234,11 +232,11 @@ class TokenHandler(object):
 
         for typ in order:
             try:
-                item_info = self.handler[typ].info(token)
+                res = self.handler[typ].info(token)
             except (KeyError, WrongTokenType, InvalidToken, UnknownToken, Invalid):
                 pass
             else:
-                return self.handler[typ], item_info
+                return self.handler[typ], res
 
         return None, None
 
@@ -254,7 +252,7 @@ def init_token_handler(ec, spec, typ):
     else:
         cls = importer(_cls)
 
-    _kwargs = spec.get('kwargs')
+    _kwargs = spec.get("kwargs")
     if _kwargs is None:
         if cls != DefaultToken:
             warnings.warn(
@@ -308,6 +306,8 @@ def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
 
     if refresh:
         _add_passwd(kj, refresh, "refresh")
-        args["refresh_token_handler"] = init_token_handler(ec, refresh, TTYPE["refresh"])
+        args["refresh_token_handler"] = init_token_handler(
+            ec, refresh, TTYPE["refresh"]
+        )
 
     return TokenHandler(**args)

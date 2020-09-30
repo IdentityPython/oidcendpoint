@@ -3,6 +3,8 @@ import os
 
 import pytest
 from cryptojwt.jwk.hmac import SYMKey
+from oidcmsg.time_util import time_sans_frac
+
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
@@ -17,7 +19,6 @@ from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
 from oidcendpoint.user_authn.user import NoAuthn
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.time_util import time_sans_frac
 
 METHOD = {
     "diana": {
@@ -130,7 +131,7 @@ class TestAuthnBrokerEC:
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "id_token": {
                 "class": IDToken,
                 "kwargs": {

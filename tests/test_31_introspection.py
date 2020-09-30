@@ -101,7 +101,7 @@ class TestEndpoint:
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
             "token_handler_args": {
                 "jwks_def": {
                     # These keys are used for encrypting the access code, the
@@ -110,12 +110,9 @@ class TestEndpoint:
                     # Should these keys be stored somewhere?
                     "read_only": False,
                     "key_defs": [
-                        {"type": "oct", "bytes": 24, "use": ["enc"],
-                         "kid": "code"},
-                        {"type": "oct", "bytes": 24, "use": ["enc"],
-                         "kid": "refresh"},
-                        {"type": "oct", "bytes": 24, "use": ["enc"],
-                         "kid": "token"},
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "code"},
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "refresh"},
+                        {"type": "oct", "bytes": 24, "use": ["enc"], "kid": "token"},
                     ],
                 },
                 "code": {"lifetime": 600},
@@ -134,6 +131,7 @@ class TestEndpoint:
                     "kwargs": {
                         "release": ["username"],
                         "client_authn_method": ["client_secret_post"],
+                        "enable_claims_per_client": False,
                     },
                 },
                 "token": {
@@ -167,7 +165,7 @@ class TestEndpoint:
         if jwt_token:
             conf["token_handler_args"]["token"] = {
                 "class": "oidcendpoint.jwt_token.JWTToken",
-                "kwargs": {}
+                "kwargs": {},
             }
         endpoint_context = EndpointContext(conf)
         endpoint_context.cdb["client_1"] = {
@@ -176,6 +174,7 @@ class TestEndpoint:
             "client_salt": "salted",
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
+            "introspection_claims": ["nickname", "eduperson_scoped_affiliation"],
         }
         endpoint_context.keyjar.import_jwks_as_json(
             endpoint_context.keyjar.export_jwks_as_json(private=True),
@@ -188,10 +187,7 @@ class TestEndpoint:
         _context = self.introspection_endpoint.endpoint_context
 
         session_id = setup_session(
-            _context,
-            AUTH_REQ,
-            uid=uid,
-            acr=INTERNETPROTOCOLPASSWORD,
+            _context, AUTH_REQ, uid=uid, acr=INTERNETPROTOCOLPASSWORD,
         )
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request["code"] = _context.sdb[session_id]["code"]
@@ -263,7 +259,7 @@ class TestEndpoint:
         assert isinstance(msg_info, dict)
         assert set(msg_info.keys()) == {"response", "http_headers"}
         assert msg_info["http_headers"] == [
-            ("Content-type", "application/json"),
+            ("Content-type", "application/json; charset=utf-8"),
             ("Pragma", "no-cache"),
             ("Cache-Control", "no-store"),
         ]
@@ -306,13 +302,51 @@ class TestEndpoint:
         assert _resp_args["active"]
         assert _resp_args["scope"] == "openid"
 
+    def test_code(self):
+        _context = self.introspection_endpoint.endpoint_context
+
+        session_id = setup_session(
+            _context, AUTH_REQ, uid="A", acr=INTERNETPROTOCOLPASSWORD,
+        )
+        code = _context.sdb[session_id]["code"]
+
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": code,
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        _resp_args = _resp["response_args"]
+        assert _resp_args["active"] is False
+
+    def test_introspection_claims(self):
+        self.introspection_endpoint.enable_claims_per_client = True
+        _context = self.introspection_endpoint.endpoint_context
+        _token = self._create_at("diana", lifetime=6000, with_jti=True)
+        _req = self.introspection_endpoint.parse_request(
+            {
+                "token": _token,
+                "client_id": "client_1",
+                "client_secret": _context.cdb["client_1"]["client_secret"],
+            }
+        )
+        _resp = self.introspection_endpoint.process_request(_req)
+        _resp_args = _resp["response_args"]
+        assert "nickname" in _resp_args
+        assert _resp_args["nickname"] == "Dina"
+        assert "eduperson_scoped_affiliation" in _resp_args
+        assert _resp_args["eduperson_scoped_affiliation"] == ["staff@example.org"]
+        assert "family_name" not in _resp_args
+
     def test_jwt_unknown_key(self):
         _keyjar = build_keyjar(KEYDEFS)
 
         _jwt = JWT(
             _keyjar,
             iss=self.introspection_endpoint.endpoint_context.issuer,
-            lifetime=3600
+            lifetime=3600,
         )
 
         _jwt.with_jti = True
@@ -337,7 +371,7 @@ class TestEndpoint:
         _context = self.introspection_endpoint.endpoint_context
         _token = self._create_at("diana", lifetime=6000, with_jti=True)
         _info = self.token_endpoint.endpoint_context.sdb[_token]
-        _info['expires_at'] = utc_time_sans_frac() - 1000
+        _info["expires_at"] = utc_time_sans_frac() - 1000
         self.token_endpoint.endpoint_context.sdb[_token] = _info
 
         _req = self.introspection_endpoint.parse_request(
@@ -354,8 +388,7 @@ class TestEndpoint:
         _token = self._create_at("diana", lifetime=6000, with_jti=True)
         _context = self.introspection_endpoint.endpoint_context
 
-        self.token_endpoint.endpoint_context.sdb.revoke_session(
-            token=_token)
+        self.token_endpoint.endpoint_context.sdb.revoke_session(token=_token)
 
         _req = self.introspection_endpoint.parse_request(
             {

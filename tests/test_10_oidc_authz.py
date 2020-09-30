@@ -3,6 +3,7 @@ import os
 
 import pytest
 from cryptojwt.key_jar import build_keyjar
+
 from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.authz import Implicit
 from oidcendpoint.authz import factory
@@ -82,7 +83,7 @@ class TestAuthz(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
             "endpoint": {
                 "provider_config": {
                     "path": "{}/.well-known/openid-configuration",

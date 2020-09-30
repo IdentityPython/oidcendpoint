@@ -2,10 +2,13 @@ import json
 import os
 import time
 
-import pytest
 from cryptojwt.jws import jws
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
+from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.oidc import RegistrationResponse
+import pytest
+
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -15,8 +18,6 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.oidc import RegistrationResponse
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -49,7 +50,7 @@ conf = {
     "grant_expires_in": 300,
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
-    "jwks": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+    "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
     "jwks_uri": "https://example.com/jwks.json",
     "endpoint": {
         "authorization_endpoint": {
@@ -71,10 +72,7 @@ conf = {
             "kwargs": {"user": "diana"},
         }
     },
-    "userinfo": {
-        "class": "oidcendpoint.user_info.UserInfo",
-        "kwargs": {"db": USERS},
-    },
+    "userinfo": {"class": "oidcendpoint.user_info.UserInfo", "kwargs": {"db": USERS}, },
     "client_authn": verify_client,
     "template_dir": "template",
     "id_token": {"class": IDToken, "kwargs": {"foo": "bar"}},
@@ -86,12 +84,15 @@ class TestEndpoint(object):
     def create_idtoken(self):
         self.endpoint_context = EndpointContext(conf)
         self.endpoint_context.cdb["client_1"] = {
-            "client_secret": "hemligt",
+            "client_secret": "hemligtochintekort",
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
         }
+        self.endpoint_context.keyjar.add_symmetric(
+            "client_1", "hemligtochintekort", ["sig", "enc"]
+        )
 
     def test_id_token_payload_0(self):
         session_info = {"authn_req": AREQN, "sub": "1234567890"}
@@ -265,13 +266,13 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
-        self.endpoint_context.idtoken.kwargs['available_claims'] = {
+        self.endpoint_context.idtoken.kwargs["available_claims"] = {
             "nickname": {"essential": True}
         }
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -281,17 +282,17 @@ class TestEndpoint(object):
         res = _jwt.unpack(_token)
         assert "nickname" in res
 
-    def test_no_available_claims(self):
+    def test_default_available_claims(self):
         session_info = {
             "authn_req": AREQN,
             "sub": "sub",
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ["openid"]}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -308,14 +309,12 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
         self.endpoint_context.idtoken.enable_claims_per_client = True
-        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
-            "address": None
-        }
-        req = {"client_id": "client_1"}
+        self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -333,17 +332,15 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
-        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
-            "address": None
-        }
-        self.endpoint_context.idtoken.kwargs['available_claims'] = {
+        self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
+        self.endpoint_context.idtoken.kwargs["available_claims"] = {
             "nickname": {"essential": True}
         }
         self.endpoint_context.idtoken.enable_claims_per_client = True
-        req = {"client_id": "client_1"}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()
@@ -362,13 +359,11 @@ class TestEndpoint(object):
             "authn_event": {
                 "authn_info": "loa2",
                 "authn_time": time.time(),
-                "uid": "diana"
+                "uid": "diana",
             },
         }
-        self.endpoint_context.cdb["client_1"]['id_token_claims'] = {
-            "address": None
-        }
-        req = {"client_id": "client_1"}
+        self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
+        req = {"client_id": "client_1", "scope": ['openid']}
         _token = self.endpoint_context.idtoken.make(req, session_info)
         assert _token
         client_keyjar = KeyJar()

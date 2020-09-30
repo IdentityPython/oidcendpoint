@@ -4,6 +4,8 @@ from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
 
 from oidcendpoint.endpoint import construct_endpoint_info
+from oidcendpoint.scopes import available_claims
+from oidcendpoint.scopes import convert_scopes2claims
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import userinfo_in_id_token_claims
 
@@ -112,9 +114,7 @@ class IDToken(object):
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
-        self.enable_claims_per_client = kwargs.get(
-            'enable_claims_per_client', False
-        )
+        self.enable_claims_per_client = kwargs.get("enable_claims_per_client", False)
         self.scope_to_claims = None
         self.provider_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
@@ -248,19 +248,21 @@ class IDToken(object):
 
         if authn_req:
             _client_id = authn_req["client_id"]
+            _scopes = authn_req["scope"]
         else:
             _client_id = req["client_id"]
+            _scopes = req["scope"]
 
         _cinfo = _context.cdb[_client_id]
+        idtoken_claims = self.kwargs.get("available_claims")
+        if idtoken_claims is None:
+            idtoken_claims = convert_scopes2claims(_scopes, available_claims(_context))
 
-        idtoken_claims = dict(self.kwargs.get("available_claims", {}))
         if self.enable_claims_per_client:
             idtoken_claims.update(_cinfo.get("id_token_claims", {}))
         lifetime = self.kwargs.get("lifetime")
 
-        userinfo = userinfo_in_id_token_claims(
-            _context, sess_info, idtoken_claims
-        )
+        userinfo = userinfo_in_id_token_claims(_context, sess_info, idtoken_claims)
 
         if user_claims:
             info = collect_user_info(_context, sess_info)

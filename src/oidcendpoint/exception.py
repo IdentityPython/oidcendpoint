@@ -89,3 +89,7 @@ class InvalidRequest(OidcEndpointError):
 
 class CapabilitiesMisMatch(OidcEndpointError):
     pass
+
+
+class MultipleCodeUsage(OidcEndpointError):
+    pass

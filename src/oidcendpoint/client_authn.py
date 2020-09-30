@@ -88,6 +88,7 @@ class ClientSecretBasic(ClientAuthnMethod):
     Server, authenticate with the Authorization Server in accordance with
     Section 3.2.1 of OAuth 2.0 [RFC6749] using HTTP Basic authentication scheme.
     """
+
     tag = "client_secret_basic"
 
     def is_usable(self, request=None, authorization_info=None):
@@ -98,7 +99,10 @@ class ClientSecretBasic(ClientAuthnMethod):
     def verify(self, authorization_info, **kwargs):
         client_info = basic_authn(authorization_info)
 
-        if self.endpoint_context.cdb[client_info["id"]]["client_secret"] == client_info["secret"]:
+        if (
+            self.endpoint_context.cdb[client_info["id"]]["client_secret"]
+            == client_info["secret"]
+        ):
             return {"client_id": client_info["id"]}
         else:
             raise AuthnFailure()
@@ -111,6 +115,7 @@ class ClientSecretPost(ClientSecretBasic):
     Section 3.2.1 of OAuth 2.0 [RFC6749] by including the Client Credentials in
     the request body.
     """
+
     tag = "client_secret_post"
 
     def is_usable(self, request=None, authorization_info=None):
@@ -121,8 +126,10 @@ class ClientSecretPost(ClientSecretBasic):
         return False
 
     def verify(self, request, **kwargs):
-        if self.endpoint_context.cdb[request["client_id"]]["client_secret"] == request[
-            "client_secret"]:
+        if (
+            self.endpoint_context.cdb[request["client_id"]]["client_secret"]
+            == request["client_secret"]
+        ):
             return {"client_id": request["client_id"]}
         else:
             raise AuthnFailure("secrets doesn't match")
@@ -131,6 +138,7 @@ class ClientSecretPost(ClientSecretBasic):
 class BearerHeader(ClientSecretBasic):
     """
     """
+
     tag = "bearer_header"
 
     def is_usable(self, request=None, authorization_info=None):
@@ -146,6 +154,7 @@ class BearerBody(ClientSecretPost):
     """
     Same as Client Secret Post
     """
+
     tag = "bearer_body"
 
     def is_usable(self, request=None, authorization_info=None):
@@ -185,9 +194,10 @@ class JWSAuthnMethod(ClientAuthnMethod):
         if _sign_alg and _sign_alg.startswith("HS"):
             if key_type == "private_key":
                 raise AttributeError("Wrong key type")
-            keys = self.endpoint_context.keyjar.get("sig", 'oct', ca_jwt["iss"],
-                                                    ca_jwt.jws_header.get("kid"))
-            _secret = self.endpoint_context.cdb[ca_jwt["iss"]].get('client_secret')
+            keys = self.endpoint_context.keyjar.get(
+                "sig", "oct", ca_jwt["iss"], ca_jwt.jws_header.get("kid")
+            )
+            _secret = self.endpoint_context.cdb[ca_jwt["iss"]].get("client_secret")
             if _secret and keys[0].key != as_bytes(_secret):
                 raise AttributeError("Oct key used for signing not client_secret")
         else:
@@ -205,19 +215,20 @@ class JWSAuthnMethod(ClientAuthnMethod):
                 raise NotForMe("Not for me!")
         else:
             if set(ca_jwt["aud"]).intersection(
-                    self.endpoint_context.endpoint[_endpoint].allowed_target_uris()):
+                self.endpoint_context.endpoint[_endpoint].allowed_target_uris()
+            ):
                 pass
             else:
                 raise NotForMe("Not for me!")
 
         # If there is a jti use it to make sure one-time usage is true
-        _jti = ca_jwt.get('jti')
+        _jti = ca_jwt.get("jti")
         if _jti:
-            _key = "{}:{}".format(ca_jwt['iss'], _jti)
+            _key = "{}:{}".format(ca_jwt["iss"], _jti)
             if _key in self.endpoint_context.jti_db:
                 raise MultipleUsage("Have seen this token once before")
             else:
-                self.endpoint_context.jti_db.set(_key, utc_time_sans_frac())
+                self.endpoint_context.jti_db[_key] = utc_time_sans_frac()
 
         request[verified_claim_name("client_assertion")] = ca_jwt
         client_id = kwargs.get("client_id") or ca_jwt["iss"]
@@ -232,13 +243,13 @@ class ClientSecretJWT(JWSAuthnMethod):
     The HMAC (Hash-based Message Authentication Code) is calculated using the
     bytes of the UTF-8 representation of the client_secret as the shared key.
     """
+
     tag = "client_secret_jwt"
 
     def verify(self, request=None, **kwargs):
-        res = JWSAuthnMethod.verify(self, request, key_type="client_secret",
-                                    **kwargs)
+        res = JWSAuthnMethod.verify(self, request, key_type="client_secret", **kwargs)
         # Verify that a HS alg was used
-        res['method'] = self.tag
+        res["method"] = self.tag
         return res
 
 
@@ -246,14 +257,44 @@ class PrivateKeyJWT(JWSAuthnMethod):
     """
     Clients that have registered a public key sign a JWT using that key.
     """
+
     tag = "private_key_jwt"
 
     def verify(self, request=None, **kwargs):
-        res = JWSAuthnMethod.verify(self, request, key_type="private_key",
-                                    **kwargs)
-        # Verify that an RS or ES alg was used
-        res['method'] = self.tag
+        res = JWSAuthnMethod.verify(self, request, key_type="private_key", **kwargs)
+        # Verify that an RS or ES alg was used ?
+        res["method"] = self.tag
         return res
+
+
+class RequestParam(ClientAuthnMethod):
+    tag = "request_param"
+
+    def is_usable(self, request=None, authorization_info=None):
+        if request and "request" in request:
+            return True
+
+    def verify(self, request=None, **kwargs):
+        _jwt = JWT(self.endpoint_context.keyjar, msg_cls=JsonWebToken)
+        try:
+            _jwt = _jwt.unpack(request["request"])
+        except (Invalid, MissingKey, BadSignature) as err:
+            logger.info("%s" % sanitize(err))
+            raise AuthnFailure("Could not verify client_assertion.")
+
+        # If there is a jti use it to make sure one-time usage is true
+        _jti = _jwt.get("jti")
+        if _jti:
+            _key = "{}:{}".format(_jwt["iss"], _jti)
+            if _key in self.endpoint_context.jti_db:
+                raise MultipleUsage("Have seen this token once before")
+            else:
+                self.endpoint_context.jti_db.set(_key, utc_time_sans_frac())
+
+        request[verified_claim_name("client_assertion")] = _jwt
+        client_id = kwargs.get("client_id") or _jwt["iss"]
+
+        return {"client_id": client_id, "jwt": _jwt}
 
 
 CLIENT_AUTHN_METHOD = {
@@ -263,6 +304,7 @@ CLIENT_AUTHN_METHOD = {
     "bearer_body": BearerBody,
     "client_secret_jwt": ClientSecretJWT,
     "private_key_jwt": PrivateKeyJWT,
+    "request_param": RequestParam,
     "none": None,
 }
 
@@ -277,12 +319,13 @@ def valid_client_info(cinfo):
 
 
 def verify_client(
-        endpoint_context,
-        request,
-        authorization_info=None,
-        get_client_id_from_token=None,
-        endpoint=None,
-        also_known_as=None):
+    endpoint_context,
+    request,
+    authorization_info=None,
+    get_client_id_from_token=None,
+    endpoint=None,
+    also_known_as=None,
+):
     """
     Initiated Guessing !
 
@@ -314,10 +357,15 @@ def verify_client(
             continue
         if _method.is_usable(request, authorization_info):
             try:
-                auth_info = _method.verify(request=request, authorization_info=authorization_info,
-                                           endpoint=endpoint)
+                auth_info = _method.verify(
+                    request=request,
+                    authorization_info=authorization_info,
+                    endpoint=endpoint,
+                )
             except Exception as err:
-                logger.warning("Verifying auth using {} failed: {}".format(_method.tag, err))
+                logger.warning(
+                    "Verifying auth using {} failed: {}".format(_method.tag, err)
+                )
             else:
                 if "method" not in auth_info:
                     auth_info["method"] = _method.tag
@@ -355,7 +403,9 @@ def verify_client(
             _request_type = request.__class__.__name__
             _used_authn_method = endpoint_context.cdb[client_id].get("auth_method")
             if _used_authn_method:
-                endpoint_context.cdb[client_id]["auth_method"][_request_type] = auth_info["method"]
+                endpoint_context.cdb[client_id]["auth_method"][
+                    _request_type
+                ] = auth_info["method"]
             else:
                 endpoint_context.cdb[client_id]["auth_method"] = {
                     _request_type: auth_info["method"]
@@ -380,13 +430,19 @@ def client_auth_setup(auth_set, endpoint_context):
     res = []
 
     for item in auth_set:
-        if item is None or item.lower() == 'none':
+        if item is None or (isinstance(item, str) and item.lower() == "none"):
             res.append(None)
         else:
-            _cls = CLIENT_AUTHN_METHOD.get(item)
-            if _cls:
-                res.append(_cls(endpoint_context))
+            if isinstance(item, dict):
+                module = item.get("class")
+                kwargs = item.get("kwargs")
             else:
-                res.append(importer(item)(endpoint_context))
+                # For backwards compatibility
+                module = item
+                kwargs = {}
+            _cls = CLIENT_AUTHN_METHOD.get(module)
+            if not _cls:
+                _cls = importer(module)
+            res.append(_cls(endpoint_context, **kwargs))
 
     return res

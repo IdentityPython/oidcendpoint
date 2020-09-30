@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.discovery import Discovery
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -28,7 +29,7 @@ class TestEndpoint(object):
                     "kwargs": {"client_authn_method": None},
                 }
             },
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "authentication": {
                 "anon": {
                     "acr": INTERNETPROTOCOLPASSWORD,

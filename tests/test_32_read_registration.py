@@ -2,13 +2,14 @@
 import json
 
 import pytest
+from oidcmsg.oidc import RegistrationRequest
+
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.read_registration import RegistrationRead
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.oidc.userinfo import UserInfo
-from oidcmsg.oidc import RegistrationRequest
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -74,7 +75,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+            "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
             "endpoint": {
                 "registration": {
                     "path": "registration",
@@ -133,4 +134,4 @@ class TestEndpoint(object):
 
         _endp_response = self.registration_api_endpoint.do_response(_info)
         assert set(_endp_response.keys()) == {"response", "http_headers"}
-        assert ("Content-type", "application/json") in _endp_response["http_headers"]
+        assert ("Content-type", "application/json; charset=utf-8") in _endp_response["http_headers"]

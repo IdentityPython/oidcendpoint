@@ -2,23 +2,20 @@ import io
 import json
 import os
 import string
-
-try:
-    import random.SystemRandom as rnd
-except ImportError:
-    import random as rnd
+from secrets import choice
 
 import pytest
 import yaml
 from cryptojwt.utils import b64e
+from oidcmsg.oidc import AccessTokenRequest
+from oidcmsg.oidc import AuthorizationRequest
+
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.add_on.pkce import CC_METHOD
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import AccessToken
-from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AuthorizationRequest
 
 BASECH = string.ascii_letters + string.digits + "-._~"
 
@@ -110,7 +107,7 @@ oidc_clients:
 
 
 def unreserved(size=64):
-    return "".join(rnd.choice(BASECH) for _ in range(size))
+    return "".join(choice(BASECH) for _ in range(size))
 
 
 def _code_challenge():
@@ -148,7 +145,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
@@ -223,10 +220,12 @@ class TestEndpoint(object):
         _resp = self.authn_endpoint.process_request(_pr_resp)
 
         _token_request = TOKEN_REQ.copy()
-        sid = self.token_endpoint.endpoint_context.sdb.get_sid_by_kv(
-            "state", _authn_req["state"]
+        sids = self.token_endpoint.endpoint_context.sdb.get_sid_by_kv(
+            _authn_req["state"], "state"
         )
-        _token_request["code"] = self.token_endpoint.endpoint_context.sdb[sid]["code"]
+        _token_request["code"] = self.token_endpoint.endpoint_context.sdb[sids[0]][
+            "code"
+        ]
         _token_request["code_verifier"] = _cc_info["code_verifier"]
         _req = self.token_endpoint.parse_request(_token_request)
         assert _req

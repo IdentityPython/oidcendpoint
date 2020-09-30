@@ -9,14 +9,15 @@ import yaml
 from cryptojwt import JWT
 from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
+from oidcmsg.oauth2 import AuthorizationRequest
+from oidcmsg.oauth2 import JWTSecuredAuthorizationRequest
+from oidcmsg.time_util import in_a_while
+
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.user_info import UserInfo
-from oidcmsg.oauth2 import AuthorizationRequest
-from oidcmsg.oauth2 import JWTSecuredAuthorizationRequest
-from oidcmsg.time_util import in_a_while
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -126,7 +127,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "id_token": {
                 "class": IDToken,
                 "kwargs": {

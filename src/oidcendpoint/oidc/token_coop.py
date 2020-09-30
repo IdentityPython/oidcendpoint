@@ -41,7 +41,7 @@ class TokenCoop(Endpoint):
             self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
                 "client_authn_method"
             ]
-        self.allow_refresh = kwargs.get("allow_refresh", True)
+        self.allow_refresh = False
 
     def _refresh_access_token(self, req, **kwargs):
         _sdb = self.endpoint_context.sdb
@@ -73,7 +73,7 @@ class TokenCoop(Endpoint):
             _info = _sdb[_access_code]
         except KeyError:
             return self.error_cls(
-                error="invalid_request", error_description="Code is invalid"
+                error="invalid_grant", error_description="Code is invalid"
             )
 
         _authn_req = _info["authn_req"]
@@ -81,7 +81,7 @@ class TokenCoop(Endpoint):
         # assert that the code is valid
         if _context.sdb.is_session_revoked(_access_code):
             return self.error_cls(
-                error="invalid_request", error_description="Session is revoked"
+                error="invalid_grant", error_description="Session is revoked"
             )
 
         # If redirect_uri was in the initial authorization request
@@ -126,7 +126,7 @@ class TokenCoop(Endpoint):
                 return resp
 
             _sdb.update_by_token(_access_code, id_token=_idtoken)
-            _info = _sdb[_info['sid']]
+            _info = _sdb[_info["sid"]]
 
         return by_schema(AccessTokenResponse, **_info)
 
@@ -201,7 +201,9 @@ class TokenCoop(Endpoint):
             return self._access_token_post_parse_request(request, client_id, **kwargs)
         else:  # request["grant_type"] == "refresh_token":
             if self.allow_refresh:
-                return self._refresh_token_post_parse_request(request, client_id, **kwargs)
+                return self._refresh_token_post_parse_request(
+                    request, client_id, **kwargs
+                )
             else:
                 raise ProcessError("Refresh Token not allowed")
 
@@ -238,7 +240,9 @@ class TokenCoop(Endpoint):
 
         _access_token = response_args["access_token"]
         _cookie = new_cookie(
-            self.endpoint_context, sub=self.endpoint_context.sdb[_access_token]["sub"]
+            self.endpoint_context,
+            sub=self.endpoint_context.sdb[_access_token]["sub"],
+            cookie_name=self.endpoint_context.cookie_name["session"],
         )
 
         _headers = [("Content-type", "application/json")]

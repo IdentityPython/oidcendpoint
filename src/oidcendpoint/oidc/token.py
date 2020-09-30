@@ -10,6 +10,7 @@ from oidcmsg.oidc import TokenErrorResponse
 from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.exception import MultipleCodeUsage
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.userinfo import by_schema
 
@@ -58,7 +59,7 @@ class AccessToken(Endpoint):
             _info = _sdb[_access_code]
         except KeyError:
             return self.error_cls(
-                error="invalid_request", error_description="Code is invalid"
+                error="invalid_grant", error_description="Code is invalid"
             )
 
         _authn_req = _info["authn_req"]
@@ -66,7 +67,7 @@ class AccessToken(Endpoint):
         # assert that the code is valid
         if _context.sdb.is_session_revoked(_access_code):
             return self.error_cls(
-                error="invalid_request", error_description="Session is revoked"
+                error="invalid_grant", error_description="Session is revoked"
             )
 
         # If redirect_uri was in the initial authorization request
@@ -111,7 +112,7 @@ class AccessToken(Endpoint):
                 return resp
 
             _sdb.update_by_token(_access_code, id_token=_idtoken)
-            _info = _sdb[_info['sid']]
+            _info = _sdb[_info["sid"]]
 
         return by_schema(AccessTokenResponse, **_info)
 
@@ -133,13 +134,18 @@ class AccessToken(Endpoint):
                 sinfo = self.endpoint_context.sdb[request["code"]]
             except KeyError:
                 logger.error("Code not present in SessionDB")
-                return self.error_cls(error="unauthorized_client")
+                return self.error_cls(error="access_denied")
+            except MultipleCodeUsage:
+                logger.error("Access Code reused")
+                # Remove any access tokens issued
+                self.endpoint_context.sdb.revoke_all_tokens(request["code"])
+                return self.error_cls(error="invalid_grant")
             else:
                 state = sinfo["authn_req"]["state"]
 
             if state != request["state"]:
                 logger.error("State value mismatch")
-                return self.error_cls(error="unauthorized_client")
+                return self.error_cls(error="invalid_request")
 
         if "client_id" not in request:  # Optional for access token request
             request["client_id"] = client_id
@@ -167,7 +173,9 @@ class AccessToken(Endpoint):
 
         _access_token = response_args["access_token"]
         _cookie = new_cookie(
-            self.endpoint_context, sub=self.endpoint_context.sdb[_access_token]["sub"]
+            self.endpoint_context,
+            sub=self.endpoint_context.sdb[_access_token]["sub"],
+            cookie_name=self.endpoint_context.cookie_name["session"],
         )
         _headers = [("Content-type", "application/json")]
         resp = {"response_args": response_args, "http_headers": _headers}

@@ -83,7 +83,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
             "id_token": {"class": IDToken, "kwargs": {}},
             "endpoint": {
                 "provider_config": {
@@ -150,9 +150,9 @@ class TestEndpoint(object):
                             "email",
                             "email_verified",
                             "sub",
-                            "iss",
                             "eduperson_scoped_affiliation",
-                        ]
+                        ],
+                        "foobar": []
                     },
                 }
             },
@@ -169,27 +169,31 @@ class TestEndpoint(object):
 
     def test_init(self):
         assert self.endpoint
-        assert set(self.endpoint.endpoint_context.provider_info["claims_supported"]) == {
-            'address',
-            'birthdate',
-            'email',
-            'email_verified',
-            'family_name',
-            'gender',
-            'given_name',
-            'locale',
-            'middle_name',
-            'name',
-            'nickname',
-            'phone_number',
-            'phone_number_verified',
-            'picture',
-            'preferred_username',
-            'profile',
-            'sub',
-            'updated_at',
-            'website',
-            'zoneinfo'}
+        assert set(
+            self.endpoint.endpoint_context.provider_info["claims_supported"]
+        ) == {
+            "address",
+            "birthdate",
+            "email",
+            "email_verified",
+            "eduperson_scoped_affiliation",
+            "family_name",
+            "gender",
+            "given_name",
+            "locale",
+            "middle_name",
+            "name",
+            "nickname",
+            "phone_number",
+            "phone_number_verified",
+            "picture",
+            "preferred_username",
+            "profile",
+            "sub",
+            "updated_at",
+            "website",
+            "zoneinfo",
+        }
 
     def test_parse(self):
         session_id = setup_session(
@@ -209,6 +213,15 @@ class TestEndpoint(object):
         )
 
         assert set(_req.keys()) == {"client_id", "access_token"}
+
+    def test_parse_invalid_token(self):
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer invalid"
+        )
+
+        assert _req == {
+            "error": "invalid_token", "error_description": "Unknown token"
+        }
 
     def test_process_request(self):
         session_id = setup_session(
@@ -258,8 +271,8 @@ class TestEndpoint(object):
             authn_event={
                 "authn_info": "loa1",
                 "uid": "diana",
-                "authn_time": utc_time_sans_frac() - 7200,
-                "valid_until": utc_time_sans_frac() - 3600,
+                "authn_time": utc_time_sans_frac() ,
+                "valid_until": utc_time_sans_frac() + 3600,
             },
         )
         _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
@@ -343,3 +356,45 @@ class TestEndpoint(object):
             "email_verified",
             "eduperson_scoped_affiliation",
         }
+
+    def test_custom_scope_2(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req["scope"] = ["openid", "foobar"]
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            _auth_req,
+            uid="userID",
+            authn_event={
+                "authn_info": "loa1",
+                "uid": "diana",
+                "authn_time": utc_time_sans_frac(),
+                "valid_until": utc_time_sans_frac() + 3600,
+            },
+        )
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(_dic["access_token"])
+        )
+        args = self.endpoint.process_request(_req)
+        assert set(args["response_args"].keys()) == {"sub"}
+
+    def test_unknown_scope(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req["scope"] = ["openid", "fubar"]
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            _auth_req,
+            uid="userID",
+            authn_event={
+                "authn_info": "loa1",
+                "uid": "diana",
+                "authn_time": utc_time_sans_frac(),
+                "valid_until": utc_time_sans_frac() + 3600,
+            },
+        )
+        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(_dic["access_token"])
+        )
+        args = self.endpoint.process_request(_req)
+        assert set(args["response_args"].keys()) == {"sub"}

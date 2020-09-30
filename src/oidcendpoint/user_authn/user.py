@@ -5,21 +5,16 @@ import logging
 import sys
 import time
 import warnings
-from urllib.parse import parse_qs
 from urllib.parse import unquote
-from urllib.parse import urlencode
-from urllib.parse import urlsplit
-from urllib.parse import urlunsplit
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT
 
 from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication, OnlyForTestingWarning
+from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
-from oidcendpoint.exception import InstantiationError
 from oidcendpoint.exception import InvalidCookieSign
-from oidcendpoint.exception import NoSuchAuthentication
+from oidcendpoint.exception import OnlyForTestingWarning
 from oidcendpoint.exception import ToOld
 from oidcendpoint.util import instantiate
 
@@ -78,8 +73,10 @@ class UserAuthnMethod(object):
             logger.debug("kwargs: %s" % sanitize(kwargs))
 
             try:
-                val = self.cookie_dealer.get_cookie_value(cookie)
-            except (InvalidCookieSign, AssertionError) as err:
+                val = self.cookie_dealer.get_cookie_value(
+                    cookie, cookie_name=self.endpoint_context.cookie_name["session"]
+                )
+            except (InvalidCookieSign, AssertionError, AttributeError) as err:
                 logger.warning(err)
                 val = None
 

@@ -3,6 +3,8 @@ import json
 
 import pytest
 import responses
+from oidcmsg.oidc import RegistrationRequest
+from oidcmsg.oidc import RegistrationResponse
 
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -11,8 +13,6 @@ from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.registration import match_sp_sep
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.oidc.userinfo import UserInfo
-from oidcmsg.oidc import RegistrationRequest
-from oidcmsg.oidc import RegistrationResponse
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -76,7 +76,7 @@ class TestEndpoint(object):
                     "refresh_token",
                 ],
             },
-            "jwks": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+            "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
             "id_token": {"class": IDToken},
             "endpoint": {
                 "registration": {
@@ -209,9 +209,13 @@ class TestEndpoint(object):
         _msg["sector_identifier_uri"] = _url
 
         with responses.RequestsMock() as rsps:
-            rsps.add("GET", _url,
-                     body=json.dumps(["https://example.com", "https://example.org"]),
-                     adding_headers={"Content-Type": "application/json"}, status=200)
+            rsps.add(
+                "GET",
+                _url,
+                body=json.dumps(["https://example.com", "https://example.org"]),
+                adding_headers={"Content-Type": "application/json"},
+                status=200,
+            )
 
             _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
             _resp = self.endpoint.process_request(request=_req)

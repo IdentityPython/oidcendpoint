@@ -22,6 +22,7 @@ def id_token_claims(session, provider_info):
 
 def update_claims(session, about, provider_info, old_claims=None):
     """
+    Gather claims from the claims parameter in the auth request.
 
     :param session:
     :param about: userinfo or id_token
@@ -46,7 +47,11 @@ def update_claims(session, about, provider_info, old_claims=None):
         else:
             if _claims:
                 # Deal only with supported claims
-                _unsup = [c for c in _claims.keys() if c not in provider_info["claims_supported"]]
+                _unsup = [
+                    c
+                    for c in _claims.keys()
+                    if c not in provider_info["claims_supported"]
+                ]
                 for _c in _unsup:
                     del _claims[_c]
 
@@ -108,7 +113,7 @@ def by_schema(cls, **kwa):
 
 
 def collect_user_info(
-        endpoint_context, session, userinfo_claims=None, scope_to_claims=None
+    endpoint_context, session, userinfo_claims=None, scope_to_claims=None
 ):
     """
     Collect information about a user.
@@ -123,12 +128,17 @@ def collect_user_info(
     if scope_to_claims is None:
         scope_to_claims = endpoint_context.scope2claims
 
-    _allowed = endpoint_context.scopes_handler.allowed_scopes(authn_req['client_id'],
-                                                              endpoint_context)
+    _allowed = endpoint_context.scopes_handler.allowed_scopes(
+        authn_req["client_id"], endpoint_context
+    )
     supported_scopes = [s for s in authn_req["scope"] if s in _allowed]
-
     if userinfo_claims is None:
-        uic = convert_scopes2claims(supported_scopes, map=scope_to_claims)
+        _allowed_claims = endpoint_context.claims_handler.allowed_claims(
+            authn_req["client_id"], endpoint_context
+        )
+        uic = convert_scopes2claims(
+            supported_scopes, _allowed_claims, map=scope_to_claims
+        )
 
         # Get only keys allowed by user and update the dict if such info
         # is stored in session
@@ -136,9 +146,12 @@ def collect_user_info(
         if perm_set:
             uic = {key: uic[key] for key in uic if key in perm_set}
 
-        uic = update_claims(session, "userinfo",
-                            provider_info=endpoint_context.provider_info,
-                            old_claims=uic)
+        uic = update_claims(
+            session,
+            "userinfo",
+            provider_info=endpoint_context.provider_info,
+            old_claims=uic,
+        )
 
         if uic:
             userinfo_claims = Claims(**uic)
@@ -179,18 +192,13 @@ def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
     :return: User information or None
     """
     if def_itc:
-        itc = def_itc
+        _itc = def_itc
     else:
-        itc = {}
+        _itc = {}
 
-    itc.update(id_token_claims(session, provider_info=endpoint_context.provider_info))
+    _itc.update(id_token_claims(session, provider_info=endpoint_context.provider_info))
 
-    if not itc:
+    if not _itc:
         return None
-
-    _claims = by_schema(endpoint_context.id_token_schema, **itc)
-
-    if _claims:
-        return collect_user_info(endpoint_context, session, _claims)
     else:
-        return None
+        return collect_user_info(endpoint_context, session, _itc)

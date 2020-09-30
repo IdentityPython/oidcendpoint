@@ -1,10 +1,10 @@
 import json
 import logging
-import time
 
 from cryptojwt import BadSyntax
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
+from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
@@ -20,8 +20,8 @@ from oidcmsg.oidc import verified_claim_name
 from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import FORM_POST
+from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import authn_args_gather
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
@@ -137,7 +137,7 @@ def proposed_user(request):
 def acr_claims(request):
     acrdef = None
 
-    _claims = request.get('claims')
+    _claims = request.get("claims")
     if isinstance(_claims, str):
         _claims = Claims().from_json(_claims)
 
@@ -203,7 +203,7 @@ class Authorization(Endpoint):
         "request_object_encryption_alg_values_supported": None,
         "request_object_encryption_enc_values_supported": None,
         "grant_types_supported": ["authorization_code", "implicit"],
-        "claim_types_supported": ["normal", "aggregated", "distributed"]
+        "claim_types_supported": ["normal", "aggregated", "distributed"],
     }
 
     def __init__(self, endpoint_context, **kwargs):
@@ -212,9 +212,6 @@ class Authorization(Endpoint):
         self.post_parse_request.append(self._do_request_uri)
         self.post_parse_request.append(self._post_parse_request)
         self.allowed_request_algorithms = AllowedAlgorithms(ALG_PARAMS)
-        # These has to be done elsewhere. To make sure things happen in order
-        # self.scopes_supported = available_scopes(endpoint_context)
-        # self.claims_supported = available_claims(endpoint_context)
 
     def filter_request(self, endpoint_context, req):
         return req
@@ -254,34 +251,41 @@ class Authorization(Endpoint):
             if _registered:
                 # Before matching remove a possible fragment
                 _p = _request_uri.split("#")
-                if _p[0] not in _registered:
+                # ignore registered fragments for now.
+                if _p[0] not in [l[0] for l in _registered]:
                     raise ValueError("A request_uri outside the registered")
+
             # Fetch the request
-            _resp = endpoint_context.httpc.get(_request_uri,
-                                               **endpoint_context.httpc_params)
+            _resp = endpoint_context.httpc.get(
+                _request_uri, **endpoint_context.httpc_params
+            )
             if _resp.status_code == 200:
-                args = {"keyjar": endpoint_context.keyjar}
-                request = AuthorizationRequest().from_jwt(_resp.text, **args)
+                args = {"keyjar": endpoint_context.keyjar, "issuer": client_id}
+                _ver_request = AuthorizationRequest().from_jwt(_resp.text, **args)
                 self.allowed_request_algorithms(
                     client_id,
                     endpoint_context,
-                    request.jws_header.get("alg", "RS256"),
+                    _ver_request.jws_header.get("alg", "RS256"),
                     "sign",
                 )
-                if request.jwe_header is not None:
+                if _ver_request.jwe_header is not None:
                     self.allowed_request_algorithms(
                         client_id,
                         endpoint_context,
-                        request.jws_header.get("alg"),
+                        _ver_request.jws_header.get("alg"),
                         "enc_alg",
                     )
                     self.allowed_request_algorithms(
                         client_id,
                         endpoint_context,
-                        request.jws_header.get("enc"),
+                        _ver_request.jws_header.get("enc"),
                         "enc_enc",
                     )
-                request[verified_claim_name("request")] = request
+                # The protected info overwrites the non-protected
+                for k, v in _ver_request.items():
+                    request[k] = v
+
+                request[verified_claim_name("request")] = _ver_request
             else:
                 raise ServiceError("Got a %s response", _resp.status)
 
@@ -370,6 +374,7 @@ class Authorization(Endpoint):
 
         authn = res["method"]
         authn_class_ref = res["acr"]
+        session = None
 
         try:
             _auth_info = kwargs.get("authn", "")
@@ -406,7 +411,9 @@ class Authorization(Endpoint):
         # To authenticate or Not
         if identity is None:  # No!
             logger.info("No active authentication")
-            logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
+            logger.debug(
+                "Known clients: {}".format(list(self.endpoint_context.cdb.keys()))
+            )
 
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
@@ -428,11 +435,11 @@ class Authorization(Endpoint):
                 if "req_user" in kwargs:
                     sids = self.endpoint_context.sdb.get_sids_by_sub(kwargs["req_user"])
                     if (
-                            sids
-                            and user
-                            != self.endpoint_context.sdb.get_authentication_event(
-                        sids[-1]
-                    ).uid
+                        sids
+                        and user
+                        != self.endpoint_context.sdb.get_authentication_event(
+                            sids[-1]
+                        ).uid
                     ):
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
@@ -444,15 +451,21 @@ class Authorization(Endpoint):
                         else:
                             return {"function": authn, "args": authn_args}
 
-        authn_event = create_authn_event(
-            identity["uid"],
-            identity.get("salt", ""),
-            authn_info=authn_class_ref,
-            time_stamp=_ts,
-        )
-        if "valid_until" in authn_event:
-            vu = time.time() + authn.kwargs.get("expires_in", 0.0)
-            authn_event["valid_until"] = vu
+        authn_event = None
+        if session:
+            authn_event = session.get("authn_event")
+
+        if authn_event is None:
+            authn_event = create_authn_event(
+                identity["uid"],
+                identity.get("salt", ""),
+                authn_info=authn_class_ref,
+                time_stamp=_ts,
+            )
+
+        _exp_in = authn.kwargs.get("expires_in")
+        if _exp_in and "valid_until" in authn_event:
+            authn_event["valid_until"] = utc_time_sans_frac() + _exp_in
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
@@ -466,10 +479,13 @@ class Authorization(Endpoint):
                 inputs=inputs(kwargs["response_args"].to_dict()),
                 action=kwargs["return_uri"],
             )
-            kwargs.update({
-                "response_msg": msg,
-                "content_type": 'text/html',
-                "response_placement": "body"})
+            kwargs.update(
+                {
+                    "response_msg": msg,
+                    "content_type": "text/html",
+                    "response_placement": "body",
+                }
+            )
         elif resp_mode == "fragment":
             if "fragment_enc" in kwargs:
                 if not kwargs["fragment_enc"]:
@@ -556,7 +572,7 @@ class Authorization(Endpoint):
 
         _cookie = new_cookie(
             self.endpoint_context,
-            sub=user,
+            uid=user,
             sid=sid,
             state=request["state"],
             client_id=request["client_id"],
@@ -609,34 +625,43 @@ class Authorization(Endpoint):
                     as_bytes(json.dumps({"authn_time": authn_event["authn_time"]}))
                 )
 
-                session_cookie = ec.cookie_dealer.create_cookie(
-                    as_unicode(_state),
-                    typ="session",
-                    cookie_name=ec.cookie_name["session_management"],
-                    same_site="None", http_only=False
-                )
+                opbs_value = ""
+                if hasattr(ec.cookie_dealer, "create_cookie"):
+                    session_cookie = ec.cookie_dealer.create_cookie(
+                        as_unicode(_state),
+                        typ="session",
+                        cookie_name=ec.cookie_name["session_management"],
+                        same_site="None",
+                        http_only=False,
+                    )
 
-                opbs = session_cookie[ec.cookie_name["session_management"]]
+                    opbs = session_cookie[ec.cookie_name["session_management"]]
+                    opbs_value = opbs.value
+                else:
+                    logger.debug(
+                        "Failed to set Cookie, that's not configured in main configuration."
+                    )
 
                 logger.debug(
                     "compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
                     request["client_id"],
                     resp_info["return_uri"],
-                    opbs.value,
+                    opbs_value,
                     salt,
                 )
 
                 _session_state = compute_session_state(
-                    opbs.value, salt, request["client_id"], resp_info["return_uri"]
+                    opbs_value, salt, request["client_id"], resp_info["return_uri"]
                 )
 
-                if "cookie" in resp_info:
-                    if isinstance(resp_info["cookie"], list):
-                        resp_info["cookie"].append(session_cookie)
+                if opbs_value:
+                    if "cookie" in resp_info:
+                        if isinstance(resp_info["cookie"], list):
+                            resp_info["cookie"].append(session_cookie)
+                        else:
+                            append_cookie(resp_info["cookie"], session_cookie)
                     else:
-                        append_cookie(resp_info["cookie"], session_cookie)
-                else:
-                    resp_info["cookie"] = session_cookie
+                        resp_info["cookie"] = session_cookie
 
                 resp_info["response_args"]["session_state"] = _session_state
 

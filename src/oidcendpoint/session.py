@@ -1,25 +1,26 @@
 import hashlib
 import json
+import logging
 import time
 
 from oidcmsg.exception import MissingParameter
-from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_REQUIRED_STRING
+from oidcmsg.message import Message
 from oidcmsg.message import msg_ser
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint import token_handler
 from oidcendpoint.authn_event import AuthnEvent
-from oidcendpoint.in_memory_db import InMemoryDataBase
-from oidcendpoint.sso_db import KEY_FORMAT
-from oidcendpoint.sso_db import SSODb
+from oidcendpoint.exception import MultipleCodeUsage
 from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.token_handler import WrongTokenType
 from oidcendpoint.token_handler import is_expired
+
+logger = logging.getLogger(__name__)
 
 
 def authorization_request_deser(val, sformat="urlencoded"):
@@ -48,7 +49,7 @@ def authn_event_deser(val, sformat="urlencoded"):
 
 
 def setup_session(
-        endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
+    endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
 ):
     """
     Setting up a user session
@@ -121,8 +122,7 @@ def dict_match(a, b):
 
 
 class SessionDB(object):
-    def __init__(self, db, handler, sso_db=SSODb(), userinfo=None, sub_func=None):
-        # db must implement the InMemoryDataBase interface
+    def __init__(self, db, handler, sso_db, userinfo=None, sub_func=None):
         self._db = db
         self.handler = handler
         self.sso_db = sso_db
@@ -146,25 +146,30 @@ class SessionDB(object):
             sid = self.handler.sid(item)
             _info = self._db.get(sid)
             if _info:
-                _si = SessionInfo().from_json(_info)
+                _si = SessionInfo(**_info)
                 if any(item == val for val in _si.values()):
-                    _si['sid'] = sid
+                    _si["sid"] = sid
                     return _si
+                else:
+                    _handler, _res = self.handler.get_handler(item)
+                    if _handler.type == "A":  # access grant
+                        if _si["code_is_used"]:
+                            raise MultipleCodeUsage("Reused code")
         else:
-            _si = SessionInfo().from_json(_info)
-            _si['sid'] = item
+            _si = SessionInfo(**_info)
+            _si["sid"] = item
             return _si
         raise KeyError
 
     def __setitem__(self, sid, instance):
-        try:
-            _info = instance.to_json()
-        except ValueError:
-            _info = json.dumps(instance)
-        self._db.set(sid, _info)
+        if isinstance(instance, Message):
+            _info = instance.to_dict()
+        else:
+            _info = instance
+        self._db[sid] = _info
 
     def __delitem__(self, key):
-        self._db.delete(key)
+        del self._db[key]
 
     def keys(self):
         return self._db.keys()
@@ -198,7 +203,7 @@ class SessionDB(object):
 
         if areq:
             _info["authn_req"] = areq
-            self.map_kv2sid("state", areq["state"], sid)
+            self.map_kv2sid(areq["state"], "state", sid)
         if authn_event:
             _info["authn_event"] = authn_event
 
@@ -230,16 +235,29 @@ class SessionDB(object):
         _sid = self.handler.sid(token)
         return self.update(_sid, **kwargs)
 
-    def map_kv2sid(self, key, value, sid):
-        """ KEY_FORMAT = "__{}__{}" """
-        self._db.set(KEY_FORMAT.format(key, value), sid)
+    def set(self, label, key, value):
+        logger.debug("Session set {} - {}: {}".format(label, key, value))
+        # Try loading the key
+        _dic = self._db.get(key, {})
+        if label in _dic:
+            _dic[label].append(value)
+        else:
+            _dic[label] = [value]
+        self._db[key] = _dic
 
-    def delete_kv2sid(self, key, value):
-        self._db.delete(KEY_FORMAT.format(key, value))
+    def get(self, key, seckey):
+        _dic = self._db.get(key, {})
+        logger.debug("SSODb get {} - {}: {}".format(key, seckey, _dic))
+        return _dic.get(seckey, None)
 
-    def get_sid_by_kv(self, key, value):
-        """ KEY_FORMAT = "__{}__{}" """
-        return self._db.get(KEY_FORMAT.format(key, value))
+    def map_kv2sid(self, key, seckey, sid):
+        self.sso_db.set(key, seckey, sid)
+
+    def delete_kv2sid(self, key, seckey):
+        self.sso_db.delete(key, seckey)
+
+    def get_sid_by_kv(self, key, seckey):
+        return self.sso_db.get(key, seckey)
 
     def get_token(self, sid):
         _sess_info = self[sid]
@@ -250,7 +268,7 @@ class SessionDB(object):
             return _sess_info["access_token"]
 
     def do_sub(
-            self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
+        self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
     ):
         """
         Create and store a subject identifier
@@ -276,7 +294,7 @@ class SessionDB(object):
     def is_valid(self, typ, item):
         try:
             return typ in self[item]
-        except KeyError:
+        except (KeyError, MultipleCodeUsage):
             return False
 
     def get_sids_by_sub(self, sub):
@@ -309,18 +327,17 @@ class SessionDB(object):
         if client_id_aud:
             at_aud.append(client_id)
         return self.handler["access_token"](
-            sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud,
-            client_id=client_id
+            sid=sid, sinfo=session_info, uinfo=uinfo, aud=at_aud, client_id=client_id
         )
 
     def upgrade_to_token(
-            self,
-            grant=None,
-            issue_refresh=False,
-            id_token="",
-            oidreq=None,
-            key=None,
-            scope=None,
+        self,
+        grant=None,
+        issue_refresh=False,
+        id_token="",
+        oidreq=None,
+        key=None,
+        scope=None,
     ):
         """
 
@@ -360,8 +377,9 @@ class SessionDB(object):
 
         if self.handler["access_token"].lifetime:
             session_info["expires_in"] = self.handler["access_token"].lifetime
-            session_info["expires_at"] = self.handler[
-                                             "access_token"].lifetime + utc_time_sans_frac()
+            session_info["expires_at"] = (
+                self.handler["access_token"].lifetime + utc_time_sans_frac()
+            )
 
         if issue_refresh and "refresh_token" in self.handler:
             session_info = self.replace_refresh_token(key, session_info)
@@ -437,6 +455,8 @@ class SessionDB(object):
         if not session_info:
             session_info = self[sid]
         session_info.pop(token_type, None)
+        if token_type == "code":
+            session_info["code_is_used"] = True
         self[sid] = session_info
 
     def revoke_all_tokens(self, token):
@@ -536,7 +556,7 @@ class SessionDB(object):
         :return: session ID or None
         """
 
-        return self.get_sid_by_kv("code", req["code"])
+        return self.get_sid_by_kv(req["code"], "code")
 
     def get_authentication_event(self, sid):
         try:
@@ -550,6 +570,14 @@ class SessionDB(object):
 
 def create_session_db(ec, token_handler_args, db=None, sso_db=None, sub_func=None):
     _token_handler = token_handler.factory(ec, **token_handler_args)
-    db = db or InMemoryDataBase()
-    sso_db = sso_db or SSODb()
+    # if db is None:
+    #     db = InMemoryDataBase()
+    # else:
+    #     db = db
+    #
+    # if sso_db is None:
+    #     sso_db = SSODb()
+    # else:
+    #     sso_db = sso_db
+
     return SessionDB(db, _token_handler, sso_db, sub_func=sub_func)

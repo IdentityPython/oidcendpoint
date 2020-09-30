@@ -17,8 +17,8 @@ from oidcmsg.oidc import verified_claim_name
 from oidcendpoint import rndstr
 from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import FORM_POST
+from oidcendpoint.common.authorization import AllowedAlgorithms
 from oidcendpoint.common.authorization import authn_args_gather
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
@@ -190,8 +190,9 @@ class Authorization(Endpoint):
                 if _p[0] not in _registered:
                     raise ValueError("A request_uri outside the registered")
             # Fetch the request
-            _resp = endpoint_context.httpc.get(_request_uri,
-                                               **endpoint_context.httpc_params)
+            _resp = endpoint_context.httpc.get(
+                _request_uri, **endpoint_context.httpc_params
+            )
             if _resp.status_code == 200:
                 args = {"keyjar": endpoint_context.keyjar}
                 request = AuthorizationRequest().from_jwt(_resp.text, **args)
@@ -260,7 +261,7 @@ class Authorization(Endpoint):
         except (RedirectURIError, ParameterError, UnknownClient) as err:
             return AuthorizationErrorResponse(
                 error="invalid_request",
-                error_description="{}:{}".format(err.__class__.__name__, err),
+                error_description="{}: {}".format(err.__class__.__name__, err),
             )
         else:
             request["redirect_uri"] = redirect_uri
@@ -397,11 +398,13 @@ class Authorization(Endpoint):
                 inputs=inputs(kwargs["response_args"].to_dict()),
                 action=kwargs["return_uri"],
             )
-            kwargs.update({
-                "response_msg": msg,
-                "content_type": 'text/html',
-                "response_placement": "body"
-            })
+            kwargs.update(
+                {
+                    "response_msg": msg,
+                    "content_type": "text/html",
+                    "response_placement": "body",
+                }
+            )
         elif resp_mode == "fragment":
             if "fragment_enc" in kwargs:
                 if not kwargs["fragment_enc"]:

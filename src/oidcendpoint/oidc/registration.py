@@ -107,6 +107,16 @@ def comb_uri(args):
 
         args[param] = val
 
+    request_uris = args.get("request_uris")
+    if request_uris:
+        val = []
+        for base, frag in request_uris:
+            if frag:
+                val.append("{}#{}".format(base, frag))
+            else:
+                val.append(base)
+        args["request_uris"] = val
+
 
 class Registration(Endpoint):
     request_cls = RegistrationRequest
@@ -134,7 +144,7 @@ class Registration(Endpoint):
                             raise CapabilitiesMisMatch(_pref)
                     else:
                         if not set(request[_pref]).issubset(
-                                set(_context.provider_info[_prov])
+                            set(_context.provider_info[_prov])
                         ):
                             raise CapabilitiesMisMatch(_pref)
 
@@ -155,9 +165,7 @@ class Registration(Endpoint):
                 if urlparse(uri).fragment:
                     err = ClientRegistrationErrorResponse(
                         error="invalid_configuration_parameter",
-                        error_description="post_logout_redirect_uris "
-                                          "contains "
-                                          "fragment",
+                        error_description="post_logout_redirect_uris contains fragment",
                     )
                     return err
                 plruri.append(split_uri(uri))
@@ -172,11 +180,29 @@ class Registration(Endpoint):
                     error="invalid_redirect_uri", error_description=str(e)
                 )
 
+        if "request_uris" in request:
+            _uris = []
+            for uri in request["request_uris"]:
+                _up = urlparse(uri)
+                if _up.query:
+                    err = ClientRegistrationErrorResponse(
+                        error="invalid_configuration_parameter",
+                        error_description="request_uris contains query part",
+                    )
+                    return err
+                if _up.fragment:
+                    # store base and fragment
+                    _uris.append(uri.split("#"))
+                else:
+                    _uris.append([uri, ""])
+            _cinfo["request_uris"] = _uris
+
         if "sector_identifier_uri" in request:
             try:
-                _cinfo["si_redirects"], _cinfo[
-                    "sector_id"
-                ] = self._verify_sector_identifier(request)
+                (
+                    _cinfo["si_redirects"],
+                    _cinfo["sector_id"],
+                ) = self._verify_sector_identifier(request)
             except InvalidSectorIdentifier as err:
                 return ResponseMessage(
                     error="invalid_configuration_parameter", error_description=str(err)
@@ -273,7 +299,7 @@ class Registration(Endpoint):
             else:
                 base, query = split_uri(uri)
                 if query:
-                    verified_redirect_uris.append((base, parse_qs(query)))
+                    verified_redirect_uris.append((base, query))
                 else:
                     verified_redirect_uris.append((base, {}))
 
@@ -290,8 +316,9 @@ class Registration(Endpoint):
         """
         si_url = request["sector_identifier_uri"]
         try:
-            res = self.endpoint_context.httpc.get(si_url,
-                                                  **self.endpoint_context.httpc_params)
+            res = self.endpoint_context.httpc.get(
+                si_url, **self.endpoint_context.httpc_params
+            )
             logger.debug("sector_identifier_uri => %s", sanitize(res.text))
         except Exception as err:
             logger.error(err)
@@ -336,7 +363,7 @@ class Registration(Endpoint):
         return utc_time_sans_frac() + _expiration_time
 
     def add_client_secret(self, cinfo, client_id, context):
-        client_secret = secret(context.seed, client_id)
+        client_secret = secret(context.get("seed"), client_id)
         cinfo["client_secret"] = client_secret
         _eat = self.client_secret_expiration_time()
         if _eat:
@@ -348,6 +375,7 @@ class Registration(Endpoint):
         try:
             request.verify()
         except (MessageException, ValueError) as err:
+            logger.error("request.verify() on %s", request)
             return ResponseMessage(
                 error="invalid_configuration_request", error_description="%s" % err
             )
@@ -426,6 +454,7 @@ class Registration(Endpoint):
         try:
             reg_resp = self.client_registration_setup(request, new_id, set_secret)
         except Exception as err:
+            logger.error("client_registration_setup: %s", request)
             return ResponseMessage(
                 error="invalid_configuration_request", error_description="%s" % err
             )
@@ -435,7 +464,7 @@ class Registration(Endpoint):
         else:
             _cookie = new_cookie(
                 self.endpoint_context,
-                cookie_name="oidc_op_rp",
+                cookie_name=self.endpoint_context.cookie_name["register"],
                 client_id=reg_resp["client_id"],
             )
 

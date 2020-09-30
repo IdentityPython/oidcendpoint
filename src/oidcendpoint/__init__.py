@@ -1,13 +1,7 @@
 import string
+from secrets import choice
 
-# Since SystemRandom is not available on all systems
-try:
-    import random.SystemRandom as rnd
-except ImportError:
-    import random as rnd
-
-__version__ = "0.13.5"
-
+__version__ = "1.1.1"
 
 DEF_SIGN_ALG = {
     "id_token": "RS256",
@@ -38,4 +32,4 @@ def rndstr(size=16):
     :return: string
     """
     chars = string.ascii_letters + string.digits
-    return "".join(rnd.choice(chars) for i in range(size))
+    return "".join(choice(chars) for i in range(size))

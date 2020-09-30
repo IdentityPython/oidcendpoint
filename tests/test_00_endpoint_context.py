@@ -4,6 +4,7 @@ from copy import copy
 import pytest
 import yaml
 from cryptojwt.key_jar import build_keyjar
+
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.add_on.pkce import add_pkce_support
@@ -30,7 +31,7 @@ conf = {
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
     "capabilities": {},
-    "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS, "read_only": True},
+    "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS, "read_only": True},
     "id_token": {"class": IDToken, "kwargs": {}},
     "endpoint": {
         "provider_config": {
@@ -110,18 +111,14 @@ def test_capabilities_default():
 
 def test_capabilities_subset1():
     _cnf = copy(conf)
-    _cnf["endpoint"]["authorization_endpoint"]["kwargs"] = {
-        "response_types_supported": ["code"]
-    }
+    _cnf["capabilities"] = {"response_types_supported": ["code"]}
     endpoint_context = EndpointContext(_cnf)
     assert endpoint_context.provider_info["response_types_supported"] == ["code"]
 
 
 def test_capabilities_subset2():
     _cnf = copy(conf)
-    _cnf["endpoint"]["authorization_endpoint"]["kwargs"] = {
-        "response_types_supported": ["code", "id_token"]
-    }
+    _cnf["capabilities"] = {"response_types_supported": ["code", "id_token"]}
     endpoint_context = EndpointContext(_cnf)
     assert set(endpoint_context.provider_info["response_types_supported"]) == {
         "code",
@@ -131,9 +128,7 @@ def test_capabilities_subset2():
 
 def test_capabilities_bool():
     _cnf = copy(conf)
-    _cnf["endpoint"]["authorization_endpoint"]["kwargs"] = {
-        "request_uri_parameter_supported": False
-    }
+    _cnf["capabilities"] = {"request_uri_parameter_supported": False}
     endpoint_context = EndpointContext(_cnf)
     assert endpoint_context.provider_info["request_uri_parameter_supported"] is False
 

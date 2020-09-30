@@ -56,7 +56,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
-            "jwks": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
+            "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "endpoint": {
                 "provider_config": {
                     "path": ".well-known/openid-configuration",
@@ -79,9 +79,25 @@ class TestEndpoint(object):
         assert _msg["token_endpoint"] == "https://example.com/token"
         assert _msg["jwks_uri"] == "https://example.com/static/jwks.json"
         assert set(_msg["claims_supported"]) == {
-            'gender', 'zoneinfo', 'website', 'phone_number_verified', 'middle_name', 'family_name',
-            'nickname', 'email', 'preferred_username', 'profile', 'name', 'phone_number',
-            'given_name', 'email_verified', 'sub', 'locale', 'picture', 'address', 'updated_at',
-            'birthdate'
+            "gender",
+            "zoneinfo",
+            "website",
+            "phone_number_verified",
+            "middle_name",
+            "family_name",
+            "nickname",
+            "email",
+            "preferred_username",
+            "profile",
+            "name",
+            "phone_number",
+            "given_name",
+            "email_verified",
+            "sub",
+            "locale",
+            "picture",
+            "address",
+            "updated_at",
+            "birthdate",
         }
-        assert ("Content-type", "application/json") in msg["http_headers"]
+        assert ("Content-type", "application/json; charset=utf-8") in msg["http_headers"]

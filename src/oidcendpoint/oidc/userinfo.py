@@ -3,10 +3,10 @@ import logging
 
 from cryptojwt.exception import MissingValue
 from cryptojwt.jwt import JWT
+from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg import oidc
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.userinfo import collect_user_info
@@ -107,13 +107,19 @@ class UserInfo(Endpoint):
 
         allowed = True
         # if the authenticate is still active or offline_access is granted.
-        if session["authn_event"]["valid_until"] > time_sans_frac():
+        if session["authn_event"]["valid_until"] > utc_time_sans_frac():
             pass
         else:
-            if "offline_access" in session["authn_req"]["scope"]:
-                pass
-            else:
-                allowed = False
+            logger.debug(
+                "authentication not valid: {} > {}".format(
+                    session["authn_event"]["valid_until"], utc_time_sans_frac()
+                )
+            )
+            allowed = False
+
+            # This has to be made more fine grained.
+            # if "offline_access" in session["authn_req"]["scope"]:
+            #     pass
 
         if allowed:
             # Scope can translate to userinfo_claims
@@ -121,7 +127,7 @@ class UserInfo(Endpoint):
         else:
             info = {
                 "error": "invalid_request",
-                "error_description": "Offline access not granted",
+                "error_description": "Access not granted",
             }
 
         return {"response_args": info, "client_id": session["authn_req"]["client_id"]}
@@ -139,7 +145,13 @@ class UserInfo(Endpoint):
             request = {}
 
         # Verify that the client is allowed to do this
-        auth_info = self.client_authentication(request, auth, endpoint="userinfo", **kwargs)
+        try:
+            auth_info = self.client_authentication(
+                request, auth, endpoint="userinfo", **kwargs
+            )
+        except ValueError as e:
+            return dict(error="invalid_token", error_description=e.args[0])
+
         if isinstance(auth_info, ResponseMessage):
             return auth_info
         else:
