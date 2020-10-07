@@ -174,7 +174,7 @@ class TestEndpoint(object):
             },
         },
         {
-            "authorization_code": "default",
+            "authorization_code": True,  # Both True and None end up using the defaults
             "refresh_token": None,  # This represents a key w/o value in the YAML conf
         },
     ])

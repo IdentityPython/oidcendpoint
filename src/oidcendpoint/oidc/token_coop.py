@@ -1,5 +1,4 @@
 import logging
-from urllib.parse import urlparse
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
@@ -24,12 +23,7 @@ from oidcendpoint.userinfo import by_schema
 logger = logging.getLogger(__name__)
 
 
-def aud_and_scope(url):
-    p = urlparse(url)
-    return "{}://{}".format(p.scheme, p.netloc), p.path
-
-
-class EndpointHelper:
+class TokenEndpointHelper:
     def __init__(self, endpoint, config=None):
         self.endpoint = endpoint
         self.config = config
@@ -39,14 +33,14 @@ class EndpointHelper:
         This is done after general request parsing and before processing
         the request.
         """
-        raise NotImplemented()
+        raise NotImplementedError
 
     def process_request(self, req, **kwargs):
         """Acts on a process request."""
-        raise NotImplemented()
+        raise NotImplementedError
 
 
-class AccessToken(EndpointHelper):
+class AccessToken(TokenEndpointHelper):
     def post_parse_request(self, request, client_id="", **kwargs):
         """
         This is where clients come to get their access tokens
@@ -58,18 +52,9 @@ class AccessToken(EndpointHelper):
 
         request = AccessTokenRequest(**request.to_dict())
 
-        if "state" in request:
-            try:
-                sinfo = self.endpoint.endpoint_context.sdb[request["code"]]
-            except KeyError:
-                logger.error("Code not present in SessionDB")
-                return self.endpoint.error_cls(error="unauthorized_client")
-            else:
-                state = sinfo["authn_req"]["state"]
-
-            if state != request["state"]:
-                logger.error("State value mismatch")
-                return self.endpoint.error_cls(error="unauthorized_client")
+        error_cls = self._validate_state(request)
+        if error_cls is not None:
+            return error_cls
 
         if "client_id" not in request:  # Optional for access token request
             request["client_id"] = client_id
@@ -77,6 +62,22 @@ class AccessToken(EndpointHelper):
         logger.debug("%s: %s" % (request.__class__.__name__, sanitize(request)))
 
         return request
+
+    def _validate_state(self, request):
+        if "state" not in request:
+            return
+
+        try:
+            sinfo = self.endpoint.endpoint_context.sdb[request["code"]]
+        except KeyError:
+            logger.error("Code not present in SessionDB")
+            return self.endpoint.error_cls(error="unauthorized_client")
+        else:
+            state = sinfo["authn_req"]["state"]
+
+        if state != request["state"]:
+            logger.error("State value mismatch")
+            return self.endpoint.error_cls(error="unauthorized_client")
 
     def process_request(self, req, **kwargs):
         _context = self.endpoint.endpoint_context
@@ -153,7 +154,7 @@ class AccessToken(EndpointHelper):
         return by_schema(AccessTokenResponse, **_info)
 
 
-class RefreshToken(EndpointHelper):
+class RefreshToken(TokenEndpointHelper):
     def post_parse_request(self, request, client_id="", **kwargs):
         """
         This is where clients come to refresh their access tokens
@@ -237,22 +238,35 @@ class TokenCoop(Endpoint):
         # TODO: do we want to allow any grant_type?
         for grant_type, grant_type_options in grant_types_supported.items():
             if (
-                    grant_type_options in ("default", None)
-                    and grant_type in HELPER_BY_GRANT_TYPE
+                grant_type_options in (None, True)
+                and grant_type in HELPER_BY_GRANT_TYPE
             ):
                 self.helper[grant_type] = HELPER_BY_GRANT_TYPE[grant_type]
                 continue
-            _conf = grant_type_options.get('kwargs', {})
+            elif grant_type_options is False:
+                continue
+
             try:
-                if isinstance(grant_type_options["class"], str):
-                    grant_class = importer(grant_type_options["class"])
-                else:
-                    grant_class = grant_type_options["class"]
-                self.helper[grant_type] = grant_class(self, _conf)
+                grant_class = grant_type_options["class"]
             except KeyError:
                 raise ProcessError(
-                        "Grant type is invalid or missing a valid class to import."
+                    "Token Endpoint's grant types must be True, None or a dict with a"
+                    " 'class' key."
                 )
+            _conf = grant_type_options.get("kwargs", {})
+
+            if isinstance(grant_class, str):
+                try:
+                    grant_class = importer(grant_class)
+                except ValueError:
+                    raise ProcessError(
+                        f"Token Endpoint's grant type class {grant_class} can't"
+                        " be imported."
+                    )
+            try:
+                self.helper[grant_type] = grant_class(self, _conf)
+            except Exception as e:
+                raise ProcessError(f"Failed to initialize class {grant_class}: {e}")
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
         sinfo = endpoint_context.sdb[token]
