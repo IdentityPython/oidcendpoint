@@ -4,6 +4,7 @@ import os
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+from oidcendpoint.token_handler import UnknownToken
 import pytest
 import responses
 from cryptojwt.key_jar import build_keyjar
@@ -191,7 +192,7 @@ class TestEndpoint(object):
     def test_end_session_endpoint(self):
         # End session not allowed if no cookie and no id_token_hint is sent
         # (can't determine session)
-        with pytest.raises(ValueError):
+        with pytest.raises(UnknownToken):
             _ = self.session_endpoint.process_request("", cookie="FAIL")
 
     def _create_cookie(self, user, sid, state, client_id):
@@ -273,7 +274,7 @@ class TestEndpoint(object):
         self._code_auth("1234567")
         cookie = self._create_cookie("diana", "client_2", "abcdefg", "client_1")
 
-        with pytest.raises(ValueError):
+        with pytest.raises(UnknownToken):
             self.session_endpoint.process_request({"state": "abcde"}, cookie=cookie)
 
     def test_end_session_endpoint_with_cookie_wrong_user(self):
@@ -464,7 +465,7 @@ class TestEndpoint(object):
         assert _jwt["aud"] == ["client_1"]
         assert _jwt["sid"] == _sid
 
-        with pytest.raises(KeyError):
+        with pytest.raises(UnknownToken):
             _ = self.session_endpoint.endpoint_context.sdb[_sid]
 
     def test_logout_from_client_fc(self):
@@ -481,7 +482,7 @@ class TestEndpoint(object):
         _spec = res["flu"]["client_1"]
         assert _spec == '<iframe src="https://example.com/fc_logout">'
 
-        with pytest.raises(KeyError):
+        with pytest.raises(UnknownToken):
             _ = self.session_endpoint.endpoint_context.sdb[_sid]
 
     def test_logout_from_client(self):
@@ -514,7 +515,7 @@ class TestEndpoint(object):
         assert _jwt["iss"] == ISS
         assert _jwt["aud"] == ["client_1"]
 
-        with pytest.raises(KeyError):
+        with pytest.raises(UnknownToken):
             _ = self.session_endpoint.endpoint_context.sdb[_sid]
 
     def test_do_verified_logout(self):

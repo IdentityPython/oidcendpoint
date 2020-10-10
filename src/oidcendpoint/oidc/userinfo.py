@@ -4,6 +4,7 @@ import logging
 from cryptojwt.exception import MissingValue
 from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oidc
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
@@ -147,7 +148,7 @@ class UserInfo(Endpoint):
             auth_info = self.client_authentication(
                 request, auth, endpoint="userinfo", **kwargs
             )
-        except ValueError as e:
+        except (ValueError, UnknownToken) as e:
             return self.error_cls(
                 error="invalid_token", error_description=e.args[0]
             )
