@@ -7,6 +7,7 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oauth2
 from oidcmsg.exception import ParameterError
 from oidcmsg.oidc import AuthorizationResponse
@@ -260,6 +261,10 @@ class Authorization(Endpoint):
             _ts = 0
         except ToOld:
             logger.info("Too old authentication")
+            identity = None
+            _ts = 0
+        except UnknownToken:
+            logger.info("Unknown Token")
             identity = None
             _ts = 0
         else:

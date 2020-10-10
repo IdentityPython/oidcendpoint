@@ -216,7 +216,7 @@ class TokenHandler(object):
 
         if _handler is None:
             logger.info("Unknown token format")
-            raise KeyError(item)
+            raise UnknownToken(item)
         else:
             return item_info
 
