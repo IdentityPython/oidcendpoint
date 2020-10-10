@@ -2,6 +2,7 @@ import os
 import shutil
 import time
 
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
 from oidcmsg.storage.init import storage_factory
@@ -283,7 +284,7 @@ class TestSessionDB(object):
         self.sdb._db = {}
 
         rtoken = dict1["refresh_token"]
-        with pytest.raises(KeyError):
+        with pytest.raises(UnknownToken):
             self.sdb.refresh_token(rtoken, AREQ["client_id"])
 
     def test_is_valid(self):
