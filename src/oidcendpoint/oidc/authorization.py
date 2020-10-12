@@ -321,9 +321,13 @@ class Authorization(Endpoint):
                 else:
                     identity = json.loads(as_unicode(_id))
 
-                    session = self.endpoint_context.sdb[identity.get("sid")]
-                    if not session or "revoked" in session:
-                        identity = None
+                    try:
+                        session = self.endpoint_context.sdb[identity.get("sid")]
+                    except UnknownToken:
+                        identity= None
+                    else:
+                        if not session or "revoked" in session:
+                            identity = None
 
         authn_args = authn_args_gather(request, authn_class_ref, cinfo, **kwargs)
 
