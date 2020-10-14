@@ -9,6 +9,7 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
 from oidcmsg.oidc import Claims
@@ -308,6 +309,10 @@ class Authorization(Endpoint):
             logger.info("Too old authentication")
             identity = None
             _ts = 0
+        except UnknownToken:
+            logger.info("Unknown Token")
+            identity = None
+            _ts = 0
         else:
             if identity:
                 try:  # If identity['uid'] is in fact a base64 encoded JSON string
@@ -317,9 +322,13 @@ class Authorization(Endpoint):
                 else:
                     identity = json.loads(as_unicode(_id))
 
-                    session = self.endpoint_context.sdb[identity.get("sid")]
-                    if not session or "revoked" in session:
-                        identity = None
+                    try:
+                        session = self.endpoint_context.sdb[identity.get("sid")]
+                    except UnknownToken:
+                        identity= None
+                    else:
+                        if not session or "revoked" in session:
+                            identity = None
 
         authn_args = authn_args_gather(request, authn_class_ref, cinfo, **kwargs)
 

@@ -214,13 +214,9 @@ class TestEndpoint(object):
         assert set(_req.keys()) == {"client_id", "access_token"}
 
     def test_parse_invalid_token(self):
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer invalid"
-        )
+        _req = self.endpoint.parse_request({}, auth="Bearer invalid")
 
-        assert _req.to_dict() == {
-            "error": "invalid_token", "error_description": "Unknown token"
-        }
+        assert _req['error'] == "invalid_token"
 
     def test_process_request(self):
         session_id = setup_session(

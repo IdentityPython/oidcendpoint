@@ -1,6 +1,7 @@
 """Implements RFC7662"""
 import logging
 
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oauth2
 from oidcmsg.time_util import utc_time_sans_frac
 
@@ -56,7 +57,7 @@ class Introspection(Endpoint):
     def _introspect(self, token):
         try:
             info = self.endpoint_context.sdb[token]
-        except KeyError:
+        except (KeyError, UnknownToken):
             return None
 
         # Make sure that the token is an access_token or a refresh_token

@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from cryptojwt import jwe
 from cryptojwt.jws.jws import SIGNER_ALGS
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.message import Message
@@ -287,7 +288,7 @@ class Endpoint(object):
                 self.get_client_id_from_token,
                 **kwargs
             )
-        except UnknownOrNoAuthnMethod:
+        except (UnknownOrNoAuthnMethod, UnknownToken):
             if self.client_authn_method is None:
                 return {}
             else:
