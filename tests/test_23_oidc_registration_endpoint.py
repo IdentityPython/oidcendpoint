@@ -1,6 +1,7 @@
 # -*- coding: latin-1 -*-
 import json
 
+from cryptojwt.key_jar import init_key_jar
 import pytest
 import responses
 from oidcmsg.oidc import RegistrationRequest
@@ -18,6 +19,9 @@ KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
     {"type": "EC", "crv": "P-256", "use": ["sig"]},
 ]
+
+KEYJAR = init_key_jar(key_defs=KEYDEFS)
+JWKS = KEYJAR.export_jwks_as_json()
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"],
@@ -129,14 +133,30 @@ class TestEndpoint(object):
 
     def test_process_request(self):
         _req = self.endpoint.parse_request(CLI_REQ.to_json())
-        _resp = self.endpoint.process_request(request=_req)
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                "GET",
+                CLI_REQ['jwks_uri'],
+                body=JWKS,
+                adding_headers={"Content-Type": "application/json"},
+                status=200,
+            )
+            _resp = self.endpoint.process_request(request=_req)
         _reg_resp = _resp["response_args"]
         assert isinstance(_reg_resp, RegistrationResponse)
         assert "client_id" in _reg_resp and "client_secret" in _reg_resp
 
     def test_do_response(self):
         _req = self.endpoint.parse_request(CLI_REQ.to_json())
-        _resp = self.endpoint.process_request(request=_req)
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                "GET",
+                CLI_REQ['jwks_uri'],
+                body=JWKS,
+                adding_headers={"Content-Type": "application/json"},
+                status=200,
+            )
+            _resp = self.endpoint.process_request(request=_req)
         msg = self.endpoint.do_response(**_resp)
         assert isinstance(msg, dict)
         _msg = json.loads(msg["response"])
@@ -182,7 +202,15 @@ class TestEndpoint(object):
         _msg["id_token_signed_response_alg"] = "RS256"
         _msg["userinfo_signed_response_alg"] = "ES256"
         _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
-        _resp = self.endpoint.process_request(request=_req)
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                "GET",
+                _msg['jwks_uri'],
+                body=JWKS,
+                adding_headers={"Content-Type": "application/json"},
+                status=200,
+            )
+            _resp = self.endpoint.process_request(request=_req)
         assert "response_args" in _resp
 
     def test_register_custom_redirect_uri_web(self):
@@ -197,7 +225,15 @@ class TestEndpoint(object):
         _msg["redirect_uris"] = ["custom://cb.example.com"]
         _msg["application_type"] = "native"
         _req = self.endpoint.parse_request(RegistrationRequest(**_msg).to_json())
-        _resp = self.endpoint.process_request(request=_req)
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                "GET",
+                _msg['jwks_uri'],
+                body=JWKS,
+                adding_headers={"Content-Type": "application/json"},
+                status=200,
+            )
+            _resp = self.endpoint.process_request(request=_req)
         assert "response_args" in _resp
 
     def test_sector_uri_missing_redirect_uri(self):
@@ -230,7 +266,15 @@ class TestEndpoint(object):
     def test_no_client_expiration_time(self):
         self.endpoint.kwargs["client_secret_expires"] = False
         _req = self.endpoint.parse_request(CLI_REQ.to_json())
-        _resp = self.endpoint.process_request(request=_req)
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                "GET",
+                CLI_REQ['jwks_uri'],
+                body=JWKS,
+                adding_headers={"Content-Type": "application/json"},
+                status=200,
+            )
+            _resp = self.endpoint.process_request(request=_req)
         assert _resp
 
 
