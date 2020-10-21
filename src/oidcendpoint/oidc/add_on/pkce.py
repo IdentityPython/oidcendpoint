@@ -119,7 +119,21 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
 
 
 def add_pkce_support(endpoint, **kwargs):
-    endpoint["authorization"].post_parse_request.append(post_authn_parse)
+    authn_endpoint = endpoint.get("authorization")
+    if authn_endpoint is None:
+        LOGGER.warning(
+            "No authorization endpoint found, skipping PKCE configuration"
+        )
+        return
+
+    token_endpoint = endpoint.get("token")
+    if token_endpoint is None:
+        LOGGER.warning(
+            "No token endpoint found, skipping PKCE configuration"
+        )
+        return
+
+    authn_endpoint.post_parse_request.append(post_authn_parse)
 
     if "essential" not in kwargs:
         kwargs["essential"] = False
@@ -134,6 +148,6 @@ def add_pkce_support(endpoint, **kwargs):
             raise ValueError("Unsupported method: {}".format(method))
         kwargs["code_challenge_methods"][method] = CC_METHOD[method]
 
-    endpoint["authorization"].endpoint_context.args["pkce"] = kwargs
+    authn_endpoint.endpoint_context.args["pkce"] = kwargs
 
-    endpoint["token"].post_parse_request.append(post_token_parse)
+    token_endpoint.post_parse_request.append(post_token_parse)
