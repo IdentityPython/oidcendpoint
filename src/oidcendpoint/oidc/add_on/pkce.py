@@ -47,8 +47,11 @@ def post_authn_parse(request, client_id, endpoint_context, **kwargs):
         request["code_challenge_method"] = "plain"
 
     if (
-        request["code_challenge_method"]
-        not in endpoint_context.args["pkce"]["code_challenge_methods"]
+        "code_challenge" in request
+        and (
+            request["code_challenge_method"]
+            not in endpoint_context.args["pkce"]["code_challenge_methods"]
+        )
     ):
         return AuthorizationErrorResponse(
             error="invalid_request",
