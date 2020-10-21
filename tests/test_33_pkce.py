@@ -371,3 +371,54 @@ class TestEndpoint(object):
         assert isinstance(resp, TokenErrorResponse)
         assert resp["error"] == "invalid_grant"
         assert resp["error_description"] == "Missing code_verifier"
+
+    def test_no_authorization_endpoint(self, conf, caplog):
+        """
+        Test that PKCE configuration does not crash when there is no authorization
+        endpoint and a warning is logged.
+        """
+        del conf["endpoint"]["authorization"]
+        create_endpoint(conf)
+        assert "WARNING" in caplog.text
+        assert (
+            "No authorization endpoint found, skipping PKCE configuration"
+            in caplog.text
+        )
+
+    def test_no_token_endpoint(self, conf, caplog):
+        """
+        Test that PKCE configuration does not crash when there is no token endpoint
+        and a warning is logged.
+        """
+        del conf["endpoint"]["token"]
+        create_endpoint(conf)
+        assert "WARNING" in caplog.text
+        assert "No token endpoint found, skipping PKCE configuration" in caplog.text
+
+    def test_plain_challenge_method_not_supported_and_PKCE_not_essential(self, conf):
+        """
+        Test that an authentication request without PKCE parameters does not fail when
+        "plain" code_challenge_method is not supported and PKCE is not essential.
+        """
+        conf["add_on"]["pkce"]["kwargs"]["code_challenge_methods"] = ["S256"]
+        conf["add_on"]["pkce"]["kwargs"]["essential"] = False
+        endpoint_context = create_endpoint(conf)
+        authn_endpoint = endpoint_context.endpoint["authorization"]
+        token_endpoint = endpoint_context.endpoint["token"]
+
+        authentication_request = AUTH_REQ.copy()
+
+        parsed_request = authn_endpoint.parse_request(authentication_request.to_dict())
+
+        assert not isinstance(parsed_request, AuthorizationErrorResponse)
+        assert isinstance(parsed_request, AuthorizationRequest)
+
+        response = authn_endpoint.process_request(parsed_request)
+
+        assert isinstance(response["response_args"], AuthorizationResponse)
+
+        token_request = TOKEN_REQ.copy()
+        token_request["code"] = response["response_args"]["code"]
+        parsed_token_request = token_endpoint.parse_request(token_request)
+
+        assert isinstance(parsed_token_request, AccessTokenRequest)
