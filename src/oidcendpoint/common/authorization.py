@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
+from oidcmsg.message import Message
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
@@ -172,20 +173,33 @@ def get_uri(endpoint_context, request, uri_type):
 def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
     """
     Gather information to be used by the authentication method
+
+    :param request: The request either as a dictionary or as a Message instance
+    :param authn_class_ref: Authentication class reference
+    :param cinfo: Client information
+    :param kwargs: Extra keyword arguments
+    :return: Authentication arguments
     """
     authn_args = {
         "authn_class_ref": authn_class_ref,
-        "query": request.to_urlencoded(),
         "return_uri": request["redirect_uri"],
     }
+
+    if isinstance(request, Message):
+        authn_args["query"] = request.to_urlencoded()
+    elif isinstance(request, dict):
+        authn_args["query"] = urlencode(request)
+    else:
+        ValueError("Wrong request format")
 
     if "req_user" in kwargs:
         authn_args["as_user"] = (kwargs["req_user"],)
 
     # Below are OIDC specific. Just ignore if OAuth2
-    for attr in ["policy_uri", "logo_uri", "tos_uri"]:
-        if cinfo.get(attr):
-            authn_args[attr] = cinfo[attr]
+    if cinfo:
+        for attr in ["policy_uri", "logo_uri", "tos_uri"]:
+            if cinfo.get(attr):
+                authn_args[attr] = cinfo[attr]
 
     for attr in ["ui_locales", "acr_values", "login_hint"]:
         if request.get(attr):
