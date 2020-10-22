@@ -9,6 +9,7 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
+
 from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oidc
 from oidcmsg.exception import ParameterError
@@ -393,6 +394,9 @@ class Authorization(Endpoint):
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
+    def extra_response_args(self, aresp):
+        return aresp
+
     def create_authn_response(self, request, sid):
         """
 
@@ -473,6 +477,8 @@ class Authorization(Endpoint):
                     error="invalid_request", error_description="unsupported_response_type"
                 )
                 return {"response_args": resp, "fragment_enc": fragment_enc}
+
+        aresp = self.extra_response_args(aresp)
 
         return {"response_args": aresp, "fragment_enc": fragment_enc}
 
@@ -700,7 +706,7 @@ class Authorization(Endpoint):
     def process_request(self, request_info=None, **kwargs):
         """ The AuthorizationRequest endpoint
 
-        :param request_info: The authorization request as a dictionary
+        :param request_info: The authorization request as a Message instance
         :return: dictionary
         """
 
@@ -712,7 +718,8 @@ class Authorization(Endpoint):
         logger.debug("client {}: {}".format(_cid, cinfo))
 
         # this apply the default optionally deny_unknown_scopes policy
-        check_unknown_scopes_policy(request_info, cinfo, self.endpoint_context)
+        if cinfo:
+            check_unknown_scopes_policy(request_info, cinfo, self.endpoint_context)
 
         cookie = kwargs.get("cookie", "")
         if cookie:
