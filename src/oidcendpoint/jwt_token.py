@@ -16,6 +16,7 @@ class JWTToken(Token):
     init_args = {
         "add_claims_by_scope": False,
         "enable_claims_per_client": False,
+        "add_scope": False,
         "add_claims": {},
     }
 
@@ -49,6 +50,7 @@ class JWTToken(Token):
 
         self.add_claims = self.init_args["add_claims"]
         self.add_claims_by_scope = self.init_args["add_claims_by_scope"]
+        self.add_scope = self.init_args["add_scope"]
         self.enable_claims_per_client = self.init_args["enable_claims_per_client"]
 
         for param, default in self.init_args.items():
@@ -83,6 +85,7 @@ class JWTToken(Token):
         :return:
         """
         payload = {"sid": sid, "ttype": self.type, "sub": sinfo["sub"]}
+        scopes = sinfo["authn_req"]["scope"]
 
         if self.add_claims:
             self.do_add_claims(payload, uinfo, self.add_claims)
@@ -94,11 +97,16 @@ class JWTToken(Token):
                 payload,
                 uinfo,
                 convert_scopes2claims(
-                    sinfo["authn_req"]["scope"],
+                    scopes,
                     _allowed_claims,
                     map=self.scope_claims_map,
                 ).keys(),
             )
+        if self.add_scope:
+            payload["scope"] = self.cntx.scopes_handler.filter_scopes(
+                client_id, self.cntx, scopes
+            )
+
         # Add claims if is access token
         if self.type == "T" and self.enable_claims_per_client:
             client = self.cdb.get(client_id, {})
