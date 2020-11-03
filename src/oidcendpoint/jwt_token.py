@@ -1,7 +1,3 @@
-from typing import Any
-from typing import Dict
-from typing import Optional
-
 from cryptojwt import JWT
 from cryptojwt.jws.exception import JWSException
 
@@ -20,16 +16,16 @@ class JWTToken(Token):
     }
 
     def __init__(
-        self,
-        typ,
-        keyjar=None,
-        issuer=None,
-        aud=None,
-        alg="ES256",
-        lifetime=300,
-        ec=None,
-        token_type="Bearer",
-        **kwargs
+            self,
+            typ,
+            keyjar=None,
+            issuer=None,
+            aud=None,
+            alg="ES256",
+            lifetime=300,
+            ec=None,
+            token_type="Bearer",
+            **kwargs
     ):
         Token.__init__(self, typ, **kwargs)
         self.token_type = token_type
@@ -64,47 +60,38 @@ class JWTToken(Token):
                 pass
 
     def __call__(
-        self,
-        sid: str,
-        uinfo: Dict,
-        sinfo: Dict,
-        aud: Optional[Any],
-        client_id: Optional[str],
-        **kwargs
+            self,
+            sid: str,
+            **kwargs
     ):
         """
         Return a token.
 
         :param sid: Session id
-        :param uinfo: User information
-        :param sinfo: Session information
-        :param aud: audience
-        :param client_id: client_id
-        :return:
+        :return: Signed JSON Web Token
         """
-        payload = {"sid": sid, "ttype": self.type, "sub": sinfo["sub"]}
+
+        payload = {"sid": sid, "ttype": self.type, "sub": kwargs["sinfo"]["sub"]}
+
+        _user_claims = kwargs.get('user_claims')
+        _client_id = kwargs.get('client_id')
+        _scopes = kwargs.get('scope')
 
         if self.add_claims:
-            self.do_add_claims(payload, uinfo, self.add_claims)
+            self.do_add_claims(payload, _user_claims, self.add_claims)
         if self.add_claims_by_scope:
-            _allowed_claims = self.cntx.claims_handler.allowed_claims(
-                client_id, self.cntx
-            )
+            _allowed_claims = self.cntx.claims_handler.allowed_claims(_client_id, self.cntx)
             self.do_add_claims(
                 payload,
-                uinfo,
-                convert_scopes2claims(
-                    sinfo["authn_req"]["scope"],
-                    _allowed_claims,
-                    map=self.scope_claims_map,
-                ).keys(),
+                _user_claims,
+                convert_scopes2claims(_scopes, _allowed_claims, map=self.scope_claims_map).keys(),
             )
         # Add claims if is access token
         if self.type == "T" and self.enable_claims_per_client:
-            client = self.cdb.get(client_id, {})
+            client = self.cdb.get(_client_id, {})
             client_claims = client.get("access_token_claims")
             if client_claims:
-                self.do_add_claims(payload, uinfo, client_claims)
+                self.do_add_claims(payload, _user_claims, client_claims)
 
         payload.update(kwargs)
         signer = JWT(
@@ -114,10 +101,11 @@ class JWTToken(Token):
             sign_alg=self.alg,
         )
 
-        if aud is None:
+        _aud = kwargs.get('aud')
+        if _aud is None:
             _aud = self.def_aud
         else:
-            _aud = aud if isinstance(aud, list) else [aud]
+            _aud = _aud if isinstance(_aud, list) else [_aud]
             _aud.extend(self.def_aud)
 
         return signer.pack(payload, aud=_aud)
