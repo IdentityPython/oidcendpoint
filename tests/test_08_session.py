@@ -2,11 +2,10 @@ import os
 import shutil
 import time
 
-from oidcendpoint.token_handler import UnknownToken
+import pytest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import OpenIDRequest
 from oidcmsg.storage.init import storage_factory
-import pytest
 
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
@@ -17,6 +16,7 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.session import SessionDB
 from oidcendpoint.session import setup_session
 from oidcendpoint.sso_db import SSODb
+from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.token_handler import WrongTokenType
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo

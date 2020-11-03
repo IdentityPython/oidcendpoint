@@ -4,12 +4,12 @@ import logging
 from cryptojwt.exception import MissingValue
 from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
-from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oidc
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 

@@ -1,9 +1,9 @@
 # -*- coding: latin-1 -*-
 import json
 
-from cryptojwt.key_jar import init_key_jar
 import pytest
 import responses
+from cryptojwt.key_jar import init_key_jar
 from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import RegistrationResponse
 

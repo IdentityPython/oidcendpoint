@@ -13,9 +13,6 @@ from oidcmsg.oidc import AccessTokenResponse
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import utc_time_sans_frac
 
-from oidcendpoint.client_authn import ClientSecretPost
-from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
-from oidcendpoint.client_authn import WrongAuthnMethod
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import UnAuthorizedClient

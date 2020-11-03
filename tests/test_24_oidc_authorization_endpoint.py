@@ -32,8 +32,8 @@ from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
-from oidcendpoint.exception import UnknownClient
 from oidcendpoint.exception import UnAuthorizedClient
+from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.login_hint import LoginHint2Acrs
 from oidcendpoint.oidc import userinfo

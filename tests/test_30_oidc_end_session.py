@@ -4,7 +4,6 @@ import os
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
-from oidcendpoint.token_handler import UnknownToken
 import pytest
 import responses
 from cryptojwt.key_jar import build_keyjar
@@ -26,6 +25,7 @@ from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 

@@ -1,11 +1,11 @@
 """Implements RFC7662"""
 import logging
 
-from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oauth2
 from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.token_handler import UnknownToken
 
 LOGGER = logging.getLogger(__name__)
 
