@@ -31,7 +31,7 @@ class TestDB:
         self.db.set(['diana', "client_1"], client_info)
 
         user_info = self.db.get(['diana'])
-        assert user_info['client_id'] == ['client_1']
+        assert user_info['subordinate'] == ['client_1']
         client_info = self.db.get(['diana', "client_1"])
         assert client_info['sid'] == "abcdef"
 
@@ -43,9 +43,9 @@ class TestDB:
         self.db.set(['diana', "client_1", "G1"], grant)
 
         user_info = self.db.get(['diana'])
-        assert user_info['client_id'] == ['client_1']
+        assert user_info['subordinate'] == ['client_1']
         client_info = self.db.get(['diana', "client_1"])
-        assert client_info['grant_id'] == ["G1"]
+        assert client_info['subordinate'] == ["G1"]
         grant_info = self.db.get(['diana', 'client_1', 'G1'])
         assert grant_info.issued_at
         assert len(grant_info.issued_token) == 1

@@ -1,12 +1,13 @@
+from oidcendpoint.grant import AuthorizationCode
+from oidcendpoint.grant import find_token
 from oidcendpoint.grant import Grant
 from oidcendpoint.grant import Token
-from oidcendpoint.grant import find_token
 
 
 def test_access_code():
-    token = Token('access_code', value="ABCD")
+    token = AuthorizationCode('authorization_code', value="ABCD")
     assert token.issued_at
-    assert token.type == "access_code"
+    assert token.type == "authorization_code"
     assert token.value == "ABCD"
 
     token.register_usage()
@@ -15,8 +16,8 @@ def test_access_code():
 
 
 def test_access_token():
-    code = Token('access_code', value="ABCD")
-    token = Token('access_token', value="1234", based_on=code.id)
+    code = AuthorizationCode('authorization_code', value="ABCD")
+    token = Token('access_token', value="1234", based_on=code.id, usage_rules={"max_usage": 2})
     assert token.issued_at
     assert token.type == "access_token"
     assert token.value == "1234"
@@ -25,7 +26,6 @@ def test_access_token():
     #  max_usage - undefined
     assert token.max_usage_reached() is False
 
-    token.max_usage = 2
     token.register_usage()
     assert token.max_usage_reached() is True
 
@@ -45,6 +45,7 @@ def test_grant():
     assert code.revoked is True
     assert access_token.revoked is True
     assert refresh_token.revoked is True
+
 
 def test_grant_revoked_based_on():
     grant = Grant()
