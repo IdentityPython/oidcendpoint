@@ -71,7 +71,7 @@ class JWTToken(Token):
         :return: Signed JSON Web Token
         """
 
-        payload = {"sid": sid, "ttype": self.type, "sub": kwargs["sinfo"]["sub"]}
+        payload = {"sid": sid, "ttype": self.type, "sub": kwargs['sub']}
 
         _user_claims = kwargs.get('user_claims')
         _client_id = kwargs.get('client_id')
@@ -93,7 +93,7 @@ class JWTToken(Token):
             if client_claims:
                 self.do_add_claims(payload, _user_claims, client_claims)
 
-        payload.update(kwargs)
+        # payload.update(kwargs)
         signer = JWT(
             key_jar=self.key_jar,
             iss=self.issuer,

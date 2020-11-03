@@ -1,7 +1,7 @@
 import string
 from secrets import choice
 
-__version__ = "1.1.2"
+__version__ = '2.0.0'
 
 DEF_SIGN_ALG = {
     "id_token": "RS256",
