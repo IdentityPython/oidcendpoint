@@ -3,6 +3,7 @@ import logging
 from oidcmsg.oidc import Claims
 
 from oidcendpoint import sanitize
+from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.scopes import convert_scopes2claims
 

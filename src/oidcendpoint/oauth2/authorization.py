@@ -7,7 +7,6 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
-from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oauth2
 from oidcmsg.exception import ParameterError
 from oidcmsg.oidc import AuthorizationResponse
@@ -35,6 +34,7 @@ from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.session import setup_session
+from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_authn.authn_context import pick_auth
 
 logger = logging.getLogger(__name__)

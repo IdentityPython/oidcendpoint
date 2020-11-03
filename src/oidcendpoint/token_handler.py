@@ -304,7 +304,7 @@ def factory(ec, code=None, token=None, refresh=None, jwks_def=None, **kwargs):
         _add_passwd(kj, token, "token")
         args["access_token_handler"] = init_token_handler(ec, token, TTYPE["token"])
 
-    if refresh:
+    if refresh is not None:
         _add_passwd(kj, refresh, "refresh")
         args["refresh_token_handler"] = init_token_handler(
             ec, refresh, TTYPE["refresh"]
