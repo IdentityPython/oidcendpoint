@@ -39,9 +39,9 @@ def test_access_token():
 def test_grant():
     grant = Grant()
     code = grant.mint_token("authorization_code", value="ABCD")
-    access_token = grant.mint_token("access_token", value="1234", based_on=code.id)
-    refresh_token = grant.mint_token("refresh_token", value="1234", based_on=code.id)
-    grant.revoke()
+    access_token = grant.mint_token("access_token", value="1234", based_on=code)
+    refresh_token = grant.mint_token("refresh_token", value="1234", based_on=code)
+    grant.revoke_all()
     assert code.revoked is True
     assert access_token.revoked is True
     assert refresh_token.revoked is True
@@ -50,12 +50,12 @@ def test_grant():
 def test_grant_revoked_based_on():
     grant = Grant()
     code = grant.mint_token("authorization_code", value="ABCD")
-    access_token = grant.mint_token("access_token", value="1234", based_on=code.id)
-    refresh_token = grant.mint_token("refresh_token", value="1234", based_on=code.id)
+    access_token = grant.mint_token("access_token", value="1234", based_on=code)
+    refresh_token = grant.mint_token("refresh_token", value="1234", based_on=code)
 
     code.register_usage()
     if code.max_usage_reached():
-        grant.revoke_all_based_on(code.id)
+        grant.revoke_all_based_on(code.value)
 
     assert code.is_active() is False
     assert access_token.is_active() is False

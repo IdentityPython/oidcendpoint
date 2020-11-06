@@ -3,11 +3,15 @@ import time
 from typing import Optional
 from uuid import uuid1
 
+from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
-from oidcmsg.message import Message
 from oidcmsg.time_util import utc_time_sans_frac
+
+
+class MintingNotAllowed(Exception):
+    pass
 
 
 class GrantMessage(Message):
@@ -126,7 +130,11 @@ class Token(Item):
         return self
 
     def supports_minting(self, token_type):
-        return token_type in self.usage_rules['supports_minting']
+        _supports_minting = self.usage_rules.get("supports_minting")
+        if _supports_minting is None:
+            return False
+        else:
+            return token_type in _supports_minting
 
 
 class AuthorizationCode(Token):
@@ -152,8 +160,8 @@ TOKEN_MAP = {
 
 class Grant(Item):
     def __init__(self,
-                 scopes: Optional[list] = None,
-                 claims: Optional[dict] = None,
+                 scope: Optional[list] = None,
+                 claim: Optional[dict] = None,
                  resources: Optional[list] = None,
                  authorization_details: Optional[dict] = None,
                  token: Optional[list] = None,
@@ -161,9 +169,9 @@ class Grant(Item):
                  issued_at: int = 0,
                  expires_at: int = 0):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at)
-        self.scope = scopes or []
+        self.scope = scope or []
         self.authorization_details = authorization_details or None
-        self.claims = claims or None
+        self.claims = claim or None
         self.resources = resources or []
         self.issued_token = token or []
         self.id = uuid1().hex
@@ -178,7 +186,7 @@ class Grant(Item):
         for attr in ['scope', 'authorization_details', 'claims', 'resources']:
             setattr(self, attr, item.get(attr))
 
-    def revoke(self):
+    def revoke_all(self):
         self.revoked = True
         for t in self.issued_token:
             t.revoked = True
@@ -206,16 +214,24 @@ class Grant(Item):
     def from_json(self, json_str):
         d = json.loads(json_str)
         for attr in ["scope", "authorization_details", "claims", "resources", "issued_at",
-                     "not_before",
-                     "expires_at", "revoked", "id"]:
+                     "not_before", "expires_at", "revoked", "id"]:
             if attr in d:
                 setattr(self, attr, d[attr])
         if "issued_token" in d:
             setattr(self, "issued_token", [Token(**t) for t in d['issued_token']])
 
-    def mint_token(self, token_type, **kwargs):
-        item = TOKEN_MAP[token_type](typ=token_type, **kwargs)
+    def mint_token(self, token_type: str, based_on: Optional[Token] = None, **kwargs) -> Token:
+        if based_on:
+            if based_on.supports_minting(token_type) and based_on.is_active():
+                _base_on_ref = based_on.value
+            else:
+                raise MintingNotAllowed()
+        else:
+            _base_on_ref = None
+
+        item = TOKEN_MAP[token_type](typ=token_type, based_on=_base_on_ref, **kwargs)
         self.issued_token.append(item)
+
         return item
 
     def revoke_all_based_on(self, id):
@@ -229,3 +245,8 @@ class Grant(Item):
             if t.value == val:
                 return t
         return None
+
+    def revoke_token(self, val):
+        for t in self.issued_token:
+            if t.value == val:
+                t.revoked = True
