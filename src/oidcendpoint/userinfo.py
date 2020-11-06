@@ -124,7 +124,7 @@ def collect_user_info(
     :param userinfo_claims: user info claims
     :return: User info
     """
-    authn_req = session["authn_req"]
+    authn_req = session["authorization_request"]
     if scope_to_claims is None:
         scope_to_claims = endpoint_context.scope2claims
 
