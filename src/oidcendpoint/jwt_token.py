@@ -4,64 +4,11 @@ from cryptojwt import JWT
 from cryptojwt.jws.exception import JWSException
 
 from oidcendpoint.exception import ToOld
-from oidcendpoint.scopes import convert_scopes2claims
-from oidcendpoint.token_handler import is_expired
+from oidcendpoint.session_management import db_key
 from oidcendpoint.token_handler import Token
 from oidcendpoint.token_handler import UnknownToken
-
-
-class ClaimsInterface:
-    init_args = {
-        "add_claims_by_scope": False,
-        "enable_claims_per_client": False
-    }
-
-    def __init__(self, endpoint_context, **kwargs):
-        self.endpoint_context = endpoint_context
-        self.scope_claims_map = kwargs.get("scope_claims_map", endpoint_context.scope2claims)
-        self.add_claims_by_scope = kwargs.get("add_claims_by_scope",
-                                              self.init_args["add_claims_by_scope"])
-        self.enable_claims_per_client = kwargs.get("enable_claims_per_client",
-                                                   self.init_args["enable_claims_per_client"])
-
-    def _get_client_claims(self, client_id):
-        if self.enable_claims_per_client:
-            client_info = self.endpoint_context.cdb.get(client_id, {})
-            return client_info.get("introspection_claims")
-        else:
-            return []
-
-    def _get_user_info(self, token_info):
-        user_id = self.endpoint_context.sdb.sso_db.get_uid_by_sid(token_info["sid"])
-        return self.endpoint_context.userinfo(user_id, client_id=None)
-
-    def add_claims(self, client_id, user_id, payload, scopes, claims_restriction):
-        if claims_restriction is None:
-            user_info = self.endpoint_context.userinfo(user_id, client_id=None)
-            payload.update(user_info)
-        elif claims_restriction == {}:  # Nothing is allowed
-            pass
-        else:
-            possible_claims = self._get_client_claims(client_id)
-            if self.add_claims_by_scope:
-                _claims = convert_scopes2claims(scopes, map=self.scope_claims_map).keys()
-                possible_claims = list(set(possible_claims).union(_claims))
-
-            if possible_claims:
-                _claims = {c: None for c in
-                           set(possible_claims).intersection(set(claims_restriction.key()))}
-                _claims.update(claims_restriction)
-            else:
-                _claims = claims_restriction
-
-            if _claims:
-                user_info = self.endpoint_context.userinfo(user_id, client_id=None,
-                                                           user_info_claims=_claims)
-                for attr in _claims:
-                    try:
-                        payload[attr] = user_info[attr]
-                    except KeyError:
-                        pass
+from oidcendpoint.token_handler import is_expired
+from oidcendpoint.userinfo import ClaimsInterface
 
 
 class JWTToken(Token):
@@ -78,15 +25,15 @@ class JWTToken(Token):
             add_claims: bool = False,
             add_scope: bool = False,
             **kwargs
-            ):
+    ):
         Token.__init__(self, typ, **kwargs)
         self.token_type = token_type
         self.lifetime = lifetime
-        self.claims_interface = ClaimsInterface(ec, **kwargs)
+        self.claims_interface = ClaimsInterface(ec, "jwt_token", **kwargs)
 
         self.args = {
             (k, v) for k, v in kwargs.items() if k not in self.claims_interface.init_args.keys()
-            }
+        }
 
         self.key_jar = keyjar or ec.keyjar
         self.issuer = issuer or ec.issuer
@@ -102,7 +49,7 @@ class JWTToken(Token):
             self,
             sid: str,
             **kwargs
-            ):
+    ):
         """
         Return a token.
 
@@ -118,11 +65,13 @@ class JWTToken(Token):
         _claims = kwargs.get('claims')
 
         if self.add_claims:
-            self.claims_interface.add_claims(_client_id, _user_id, payload, claims=_claims,
-                                             scopes=_scopes)
+            grant = self.claims_interface.endpoint_context.session_manager.grants(sid)[0]
+            user_info = self.claims_interface.get_user_claims(
+                _user_id, grant.claims.get("id_token", {}))
+            payload.update(user_info)
         if self.add_scope:
-            payload["scope"] = self.cntx.scopes_handler.filter_scopes(
-                client_id, self.cntx, scopes
+            payload["scope"] = self.claims_interface.endpoint_context.scopes_handler.filter_scopes(
+                client_id, self.claims_interface.endpoint_context, scopes
             )
 
         # payload.update(kwargs)
@@ -131,7 +80,7 @@ class JWTToken(Token):
             iss=self.issuer,
             lifetime=self.lifetime,
             sign_alg=self.alg,
-            )
+        )
 
         _aud = kwargs.get('aud')
         if _aud is None:
@@ -164,7 +113,7 @@ class JWTToken(Token):
             "type": _payload["ttype"],
             "exp": _payload["exp"],
             "handler": self,
-            }
+        }
         return _res
 
     def is_expired(self, token, when=0):

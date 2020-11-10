@@ -11,6 +11,9 @@ from cryptojwt.jws.jws import factory
 from cryptojwt.jws.utils import alg2keytype
 from cryptojwt.jwt import JWT
 from cryptojwt.utils import as_bytes
+from oidcendpoint.session_management import db_key
+
+from oidcendpoint.session_management import unpack_db_key
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
@@ -120,53 +123,40 @@ class Session(Endpoint):
 
     def clean_sessions(self, usids):
         # Clean out all sessions
-        _sdb = self.endpoint_context.sdb
-        _sso_db = self.endpoint_context.sdb.sso_db
+        _mngr = self.endpoint_context.session_manager
+
         for sid in usids:
-            # remove session information
-            del _sdb[sid]
-            _sso_db.remove_session_id(sid)
+            _mngr.revoke_session(sid)
 
     def logout_all_clients(self, sid, client_id):
-        _sdb = self.endpoint_context.sdb
-        _sso_db = self.endpoint_context.sdb.sso_db
-
+        _mngr = self.endpoint_context.session_manager
+        _user_id, _client_id = unpack_db_key(sid)
         # Find all RPs this user has logged it from
-        uid = _sso_db.get_uid_by_sid(sid)
-        if uid is None:
-            logger.debug("Can not translate sid:%s into a user id", sid)
-            return {}
-
-        _client_sid = {}
-        usids = _sso_db.get_sids_by_uid(uid)
-        if usids is None:
-            logger.debug("No sessions found for uid: %s", uid)
-            return {}
-
-        for usid in usids:
-            _client_sid[_sdb[usid]["authn_req"]["client_id"]] = usid
+        _user_session_info = _mngr.get([_user_id])
 
         # Front-/Backchannel logout ?
         _cdb = self.endpoint_context.cdb
         _iss = self.endpoint_context.issuer
         bc_logouts = {}
         fc_iframes = {}
-        for _cid, _csid in _client_sid.items():
-            if "backchannel_logout_uri" in _cdb[_cid]:
-                _sub = _sso_db.get_sub_by_sid(_csid)
-                _spec = self.do_back_channel_logout(_cdb[_cid], _sub, _csid)
+        sids = []
+        for _client_id in _user_session_info["subordinate"]:
+            if "backchannel_logout_uri" in _cdb[_client_id]:
+                _sid = db_key(_user_id, _client_id)
+                _sub = _mngr.get([_user_id, _client_id])["sub"]
+                sids.append(_sid)
+                _spec = self.do_back_channel_logout(_cdb[_client_id], _sub, _sid)
                 if _spec:
-                    bc_logouts[_cid] = _spec
-            elif "frontchannel_logout_uri" in _cdb[_cid]:
+                    bc_logouts[_client_id] = _spec
+            elif "frontchannel_logout_uri" in _cdb[_client_id]:
                 # Construct an IFrame
-                _spec = do_front_channel_logout_iframe(_cdb[_cid], _iss, _csid)
+                _sid = db_key(_user_id, _client_id)
+                sids.append(_sid)
+                _spec = do_front_channel_logout_iframe(_cdb[_client_id], _iss, _sid)
                 if _spec:
-                    fc_iframes[_cid] = _spec
+                    fc_iframes[_client_id] = _spec
 
-        try:
-            self.clean_sessions(usids)
-        except KeyError:
-            pass
+        self.clean_sessions(sids)
 
         res = {}
         if bc_logouts:
@@ -191,15 +181,14 @@ class Session(Endpoint):
 
     def logout_from_client(self, sid, client_id):
         _cdb = self.endpoint_context.cdb
-        _sso_db = self.endpoint_context.sdb.sso_db
+        _mngr = self.endpoint_context.session_manager
 
         # Kill the session
-        _sdb = self.endpoint_context.sdb
-        _sdb.revoke_session(sid=sid)
+        _mngr.revoke_session(sid)
 
         res = {}
         if "backchannel_logout_uri" in _cdb[client_id]:
-            _sub = _sso_db.get_sub_by_sid(sid)
+            _sub = _mngr[sid]["sub"]
             _spec = self.do_back_channel_logout(_cdb[client_id], _sub, sid)
             if _spec:
                 res["blu"] = {client_id: _spec}
@@ -228,7 +217,7 @@ class Session(Endpoint):
         :return:
         """
         _cntx = self.endpoint_context
-        _sdb = _cntx.sdb
+        _mngr = _cntx.session_manager
 
         if "post_logout_redirect_uri" in request:
             if "id_token_hint" not in request:
@@ -250,6 +239,7 @@ class Session(Endpoint):
             _cookie_info = json.loads(as_unicode(b64d(as_bytes(part[0]))))
             logger.debug("Cookie info: {}".format(_cookie_info))
             _sid = _cookie_info["sid"]
+            _user_id, _client_id = unpack_db_key(_sid)
         else:
             logger.debug("No relevant cookie")
             _sid = ""
@@ -287,12 +277,15 @@ class Session(Endpoint):
         else:
             auds = []
 
+        if not _sid:
+            raise KeyError("Unknown session")
+
         try:
-            session = _sdb[_sid]
+            session = _mngr[_sid]
         except KeyError:
             raise ValueError("Can't find any corresponding session")
 
-        client_id = session["authn_req"]["client_id"]
+        client_id = session["authorization_request"]["client_id"]
         # Does this match what's in the cookie ?
         if _cookie_info:
             if client_id != _cookie_info["client_id"]:
@@ -325,7 +318,7 @@ class Session(Endpoint):
         payload = {
             "sid": _sid,
             "client_id": client_id,
-            "user": session["authn_event"]["uid"],
+            "user": _user_id
         }
 
         # redirect user to OP logout verification page

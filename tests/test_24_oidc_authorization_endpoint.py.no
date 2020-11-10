@@ -4,17 +4,14 @@ import os
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+import pytest
+import responses
+import yaml
 from cryptojwt import JWT
 from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
-
-from oidcendpoint.grant import Grant
-from oidcendpoint.session_management import db_key
-
-from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.oidc.authorization import Authorization
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
@@ -23,11 +20,7 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
-import pytest
-import responses
-import yaml
 
-from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.common.authorization import verify_uri
@@ -39,10 +32,12 @@ from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.login_hint import LoginHint2Acrs
 from oidcendpoint.oidc import userinfo
+from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.authorization import acr_claims
 from oidcendpoint.oidc.authorization import get_uri
 from oidcendpoint.oidc.authorization import inputs
@@ -50,6 +45,7 @@ from oidcendpoint.oidc.authorization import re_authenticate
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.session import SessionInfo
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_authn.authn_context import UNSPECIFIED
 from oidcendpoint.user_authn.authn_context import init_method
@@ -113,6 +109,7 @@ def full_path(local_file):
 
 
 USERINFO_db = json.loads(open(full_path("users.json")).read())
+
 
 client_yaml = """
 oidc_clients:
@@ -225,7 +222,6 @@ class TestEndpoint(object):
             },
             "userinfo": {"class": UserInfo, "kwargs": {"db": USERINFO_db}},
             "template_dir": "template",
-            "authz": {"class": AuthzHandling, "kwargs": {}},
             "cookie_dealer": {
                 "class": CookieDealer,
                 "kwargs": {
@@ -244,15 +240,12 @@ class TestEndpoint(object):
             },
         }
         endpoint_context = EndpointContext(conf)
-
         _clients = yaml.safe_load(io.StringIO(client_yaml))
         endpoint_context.cdb = _clients["oidc_clients"]
         endpoint_context.keyjar.import_jwks(
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
         self.endpoint = endpoint_context.endpoint["authorization"]
-        self.session_manager = endpoint_context.session_manager
-        self.user_id = "diana"
 
         self.rp_keyjar = KeyJar()
         self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")
@@ -262,22 +255,6 @@ class TestEndpoint(object):
 
     def test_init(self):
         assert self.endpoint
-
-    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
-        ae = create_authn_event(self.user_id, self.session_manager.salt)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return db_key(self.user_id, client_id, grant.id)
 
     def test_parse(self):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)

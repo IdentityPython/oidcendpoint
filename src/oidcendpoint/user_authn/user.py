@@ -11,7 +11,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT
 
 from oidcendpoint import sanitize
-from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InvalidCookieSign

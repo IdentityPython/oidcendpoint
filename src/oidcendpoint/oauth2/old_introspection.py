@@ -2,9 +2,10 @@
 import logging
 
 from oidcmsg import oauth2
+from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.token_handler import UnknownToken
 
 LOGGER = logging.getLogger(__name__)
 
@@ -53,12 +54,18 @@ class Introspection(Endpoint):
             except KeyError:
                 pass
 
-    def _introspect(self, token, grant):
-        # Make sure that the token is an access_token or a refresh_token
-        if token.type not in ["access_token", "refresh_token"]:
+    def _introspect(self, token):
+        try:
+            info = self.endpoint_context.sdb[token]
+        except (KeyError, UnknownToken):
             return None
 
-        if not token.is_active():
+        # Make sure that the token is an access_token or a refresh_token
+        if token != info.get("access_token") and token != info.get("refresh_token"):
+            return None
+
+        eat = info.get("expires_at")
+        if eat and eat < utc_time_sans_frac():
             return None
 
         if info:  # Now what can be returned ?
@@ -81,14 +88,10 @@ class Introspection(Endpoint):
         if "error" in _introspect_request:
             return _introspect_request
 
-        request_token = _introspect_request["token"]
-        session_id = self.endpoint_context.session_manager.token_handler.sid(request_token)
-        grant, token = self.endpoint_context.session_manager.find_grant(session_id,
-                                                                        request_token)
-
+        _token = _introspect_request["token"]
         _resp = self.response_cls(active=False)
 
-        _info = self._introspect(token)
+        _info = self._introspect(_token)
         if _info is None:
             return {"response_args": _resp}
 

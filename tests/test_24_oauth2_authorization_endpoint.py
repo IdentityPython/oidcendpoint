@@ -1,12 +1,10 @@
+from http.cookies import SimpleCookie
 import io
 import json
 import os
-from http.cookies import SimpleCookie
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
-import pytest
-import yaml
 from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
@@ -17,7 +15,10 @@ from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
+import pytest
+import yaml
 
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
@@ -29,12 +30,12 @@ from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
-from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
-from oidcendpoint.session import SessionInfo
+from oidcendpoint.session_management import db_key
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
@@ -199,6 +200,8 @@ class TestEndpoint(object):
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
         self.endpoint = endpoint_context.endpoint["authorization"]
+        self.session_manager = endpoint_context.session_manager
+        self.user_id = "diana"
 
         self.rp_keyjar = KeyJar()
         self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")
@@ -206,12 +209,52 @@ class TestEndpoint(object):
             "client_1", "hemligtkodord1234567890"
         )
 
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        client_id = auth_req['client_id']
+        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
+                                            sub_type=sub_type, sector_identifier=sector_identifier)
+        return db_key(self.user_id, client_id)
+
+    def _do_grant(self, auth_req):
+        client_id = auth_req['client_id']
+        # The user consent module produces a Grant instance
+        grant = Grant(scope=auth_req['scope'], resources=[client_id])
+
+        # the grant is assigned to a session (user_id, client_id)
+        self.session_manager.set([self.user_id, client_id, grant.id], grant)
+        return db_key(self.user_id, client_id, grant.id)
+
+    # def _mint_code(self, grant, client_id):
+    #     sid = db_key(self.user_id, client_id)
+    #     # Constructing an authorization code is now done
+    #     return grant.mint_token(
+    #         'authorization_code',
+    #         value=self.session_manager.token_handler["code"](sid),
+    #         expires_at=time_sans_frac() + 300  # 5 minutes from now
+    #     )
+    #
+    # def _mint_access_token(self, grant, client_id, token_ref=None):
+    #     _csi = self.session_manager.get([self.user_id, client_id])
+    #     return grant.mint_token(
+    #         'access_token',
+    #         value=self.session_manager.token_handler["access_token"](
+    #             db_key(self.user_id, client_id),
+    #             client_id=client_id,
+    #             aud=grant.resources,
+    #             user_claims=None,
+    #             scope=grant.scope,
+    #             sub=_csi['sub']
+    #         ),
+    #         expires_at=time_sans_frac() + 900,  # 15 minutes from now
+    #         based_on=token_ref  # Means the token (tok) was used to mint this token
+    #     )
+
     def test_init(self):
         assert self.endpoint
 
     def test_parse(self):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)
-
         assert isinstance(_req, AuthorizationRequest)
         assert set(_req.keys()) == set(AUTH_REQ.keys())
 
@@ -393,24 +436,16 @@ class TestEndpoint(object):
             scope="openid",
         )
 
-        _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-        )
-        _ec.cdb["client_id"] = {
+        self.endpoint.endpoint_context.cdb["client_id"] = {
             "client_id": "client_id",
             "redirect_uris": [("https://rp.example.com/cb", {})],
             "id_token_signed_response_alg": "ES256",
         }
 
-        resp = self.endpoint.create_authn_response(request, "session_id")
+        self._create_session(request)
+        session_id = self._do_grant(request)
+
+        resp = self.endpoint.create_authn_response(request, session_id)
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
 
     def test_setup_auth(self):
@@ -512,21 +547,13 @@ class TestEndpoint(object):
             "redirect_uris": [("https://rp.example.com/cb", {})],
             "id_token_signed_response_alg": "RS256",
         }
-        _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-        )
 
-        item = _ec.authn_broker.db["anon"]
+        pre_sid = self._create_session(request)
+        session_id = self._do_grant(request)
+
+        item = self.endpoint.endpoint_context.authn_broker.db["anon"]
         item["method"].user = b64e(
-            as_bytes(json.dumps({"uid": "krall", "sid": "session_id"}))
+            as_bytes(json.dumps({"uid": "krall", "sid": session_id}))
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
@@ -548,22 +575,18 @@ class TestEndpoint(object):
             "redirect_uris": [("https://rp.example.com/cb", {})],
             "id_token_signed_response_alg": "RS256",
         }
-        _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-            revoked=True,
-        )
 
+        pre_sid = self._create_session(request)
+        session_id = self._do_grant(request)
+
+        _mngr = self.endpoint.endpoint_context.session_manager
+        _csi = _mngr[session_id]
+        _csi.revoked = True
+
+        _ec = self.endpoint.endpoint_context
         item = _ec.authn_broker.db["anon"]
         item["method"].user = b64e(
-            as_bytes(json.dumps({"uid": "krall", "sid": "session_id"}))
+            as_bytes(json.dumps({"uid": "krall", "sid": session_id}))
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)

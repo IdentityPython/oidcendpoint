@@ -3,6 +3,9 @@ from urllib.parse import unquote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
+from oidcmsg.time_util import time_sans_frac
+
+from oidcendpoint.session_management import unpack_db_key
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
 from oidcmsg.message import Message
@@ -225,7 +228,8 @@ def create_authn_response(endpoint, request, sid):
         fragment_enc = False
     else:
         _context = endpoint.endpoint_context
-        _sinfo = _context.sdb[sid]
+        _mngr = endpoint.endpoint_context.session_manager
+        _session_info = _mngr[sid]
 
         if request.get("scope"):
             aresp["scope"] = request["scope"]
@@ -234,27 +238,41 @@ def create_authn_response(endpoint, request, sid):
         handled_response_type = []
 
         fragment_enc = True
+
         if len(rtype) == 1 and "code" in rtype:
             fragment_enc = False
 
-        if "code" in request["response_type"]:
-            _code = aresp["code"] = _context.sdb[sid]["code"]
-            handled_response_type.append("code")
-        else:
-            _context.sdb.update(sid, code=None)
-            _code = None
+            grant = _mngr.grants(sid)[0]
+            user_id, client_id = unpack_db_key(sid)
 
-        if "token" in rtype:
-            _dic = _context.sdb.upgrade_to_token(issue_refresh=False, key=sid)
+            if "code" in request["response_type"]:
+                _code = grant.mint_token(
+                    'authorization_code',
+                    value=_mngr.token_handler["code"](user_id),
+                    expires_at=time_sans_frac() + 300  # 5 minutes from now
+                )
+                aresp["code"] = _code.value
+                handled_response_type.append("code")
+            else:
+                _code = None
 
-            logger.debug("_dic: %s" % sanitize(_dic))
-            for key, val in _dic.items():
-                if key in aresp.parameters() and val is not None:
-                    aresp[key] = val
+            if "token" in rtype:
+                _access_token = grant.mint_token(
+                    "access_token",
+                    value=_mngr.token_handler["access_token"](
+                        sid,
+                        client_id=client_id,
+                        aud=grant.resources,
+                        user_claims=None,
+                        scope=grant.scope,
+                        sub=_session_info['sub'],
+                        based_on=_code
+                    ),
+                    expires_at=time_sans_frac() + 900
+                )
 
-            handled_response_type.append("token")
-
-        _access_token = aresp.get("access_token", None)
+                aresp['token'] = _access_token
+                handled_response_type.append("token")
 
         not_handled = rtype.difference(handled_response_type)
         if not_handled:
