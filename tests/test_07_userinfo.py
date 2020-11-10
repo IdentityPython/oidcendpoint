@@ -1,25 +1,23 @@
 import json
 import os
 
-import pytest
-from oidcmsg.message import Message
 from oidcmsg.oidc import OpenIDRequest
-from oidcmsg.oidc import OpenIDSchema
+import pytest
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.grant import Grant
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.scopes import SCOPE2CLAIMS
 from oidcendpoint.scopes import STANDARD_CLAIMS
 from oidcendpoint.scopes import convert_scopes2claims
+from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import unpack_db_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcendpoint.userinfo import by_schema
-from oidcendpoint.userinfo import claims_match
-from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.userinfo import update_claims
+from oidcendpoint.userinfo import ClaimsInterface
 
 CLAIMS = {
     "userinfo": {
@@ -136,27 +134,27 @@ def test_custom_scopes():
 
     assert set(
         convert_scopes2claims(["email"], _available_claims, map=_scopes).keys()
-    ) == {"email", "email_verified",}
+    ) == {"email", "email_verified", }
     assert set(
         convert_scopes2claims(["address"], _available_claims, map=_scopes).keys()
     ) == {"address"}
     assert set(
         convert_scopes2claims(["phone"], _available_claims, map=_scopes).keys()
-    ) == {"phone_number", "phone_number_verified",}
+    ) == {"phone_number", "phone_number_verified", }
 
     assert set(
         convert_scopes2claims(
             ["research_and_scholarship"], _available_claims, map=_scopes
         ).keys()
     ) == {
-        "name",
-        "given_name",
-        "family_name",
-        "email",
-        "email_verified",
-        "sub",
-        "eduperson_scoped_affiliation",
-    }
+               "name",
+               "given_name",
+               "family_name",
+               "email",
+               "email_verified",
+               "sub",
+               "eduperson_scoped_affiliation",
+           }
 
 
 PROVIDER_INFO = {
@@ -171,71 +169,6 @@ PROVIDER_INFO = {
         "http://example.info/claims/groups",
     ]
 }
-
-
-def test_update_claims_authn_req_id_token():
-    _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "id_token", PROVIDER_INFO)
-    assert set(claims.keys()) == {"auth_time", "acr"}
-
-
-def test_update_claims_authn_req_userinfo():
-    _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "userinfo", PROVIDER_INFO)
-    assert set(claims.keys()) == {
-        "given_name",
-        "nickname",
-        "email",
-        "email_verified",
-        "picture",
-        "http://example.info/claims/groups",
-    }
-
-
-def test_update_claims_authzreq_id_token():
-    _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "id_token", PROVIDER_INFO)
-    assert set(claims.keys()) == {"auth_time", "acr"}
-
-
-def test_update_claims_authzreq_userinfo():
-    _session_info = {"authn_req": OIDR}
-    claims = update_claims(_session_info, "userinfo", PROVIDER_INFO)
-    assert set(claims.keys()) == {
-        "given_name",
-        "nickname",
-        "email",
-        "email_verified",
-        "picture",
-        "http://example.info/claims/groups",
-    }
-
-
-def test_clams_value():
-    assert claims_match("red", CLAIMS["userinfo"]["http://example.info/claims/groups"])
-
-
-def test_clams_values():
-    assert claims_match("urn:mace:incommon:iap:silver", CLAIMS["id_token"]["acr"])
-
-
-def test_clams_essential():
-    assert claims_match(["foobar@example"], CLAIMS["userinfo"]["email"])
-
-
-def test_clams_none():
-    assert claims_match(["angle"], CLAIMS["userinfo"]["nickname"])
-
-
-def test_by_schema():
-    # There are no requested or optional claims defined for Message
-    assert by_schema(Message, sub="John") == {}
-
-    assert by_schema(OpenIDSchema, sub="John", given_name="John", age=34) == {
-        "sub": "John",
-        "given_name": "John",
-    }
-
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -300,22 +233,42 @@ class TestCollectUserInfo:
         )
         # Just has to be there
         self.endpoint_context.cdb["client1"] = {}
+        self.session_manager = self.endpoint_context.session_manager
+        self.claims_interface = ClaimsInterface(self.endpoint_context, "userinfo")
+        self.user_id = "diana"
+
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        client_id = auth_req['client_id']
+        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
+                                            sub_type=sub_type, sector_identifier=sector_identifier)
+        return db_key(self.user_id, client_id)
+
+    def _do_grant(self, auth_req):
+        client_id = auth_req['client_id']
+        # The user consent module produces a Grant instance
+        grant = Grant(scope=auth_req['scope'], resources=[client_id])
+
+        # the grant is assigned to a session (user_id, client_id)
+        self.session_manager.set([self.user_id, client_id, grant.id], grant)
+        return db_key(self.user_id, client_id, grant.id)
 
     def test_collect_user_info(self):
         _req = OIDR.copy()
         _req["claims"] = CLAIMS_2
 
-        _session_info = {"authn_req": _req}
-        session = _session_info.copy()
-        session["sub"] = "doe"
-        session["uid"] = "diana"
-        session["authn_event"] = create_authn_event("diana", "salt")
+        self._create_session(_req)
+        session_id = self._do_grant(_req)
+        _uid, _cid, _gid = unpack_db_key(session_id)
 
-        res = collect_user_info(self.endpoint_context, session)
+        _restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+                                                        scopes=OIDR["scope"])
+
+        res = self.claims_interface.get_user_claims("diana", _restriction)
 
         assert res == {
+            'eduperson_scoped_affiliation': ['staff@example.org'],
             "nickname": "Dina",
-            "sub": "doe",
             "email": "diana@example.org",
             "email_verified": False,
         }
@@ -325,21 +278,17 @@ class TestCollectUserInfo:
         _req["scope"] = "openid email"
         del _req["claims"]
 
-        _session_info = {"authn_req": _req}
-        session = _session_info.copy()
-        session["sub"] = "doe"
-        session["uid"] = "diana"
-        session["authn_event"] = create_authn_event("diana", "salt")
+        self._create_session(_req)
+        session_id = self._do_grant(_req)
+        _uid, _cid, _gid = unpack_db_key(session_id)
 
-        self.endpoint_context.provider_info["scopes_supported"] = [
-            "openid",
-            "email",
-            "offline_access",
-        ]
-        res = collect_user_info(self.endpoint_context, session)
+        self.claims_interface.add_claims_by_scope = True
+        _restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+                                                        scopes=_req["scope"])
+
+        res = self.claims_interface.get_user_claims("diana", _restriction)
 
         assert res == {
-            "sub": "doe",
             "email": "diana@example.org",
             "email_verified": False,
         }
@@ -349,25 +298,17 @@ class TestCollectUserInfo:
         _req["scope"] = "openid email address"
         del _req["claims"]
 
-        _session_info = {"authn_req": _req}
-        session = _session_info.copy()
-        session["sub"] = "doe"
-        session["uid"] = "diana"
-        session["authn_event"] = create_authn_event("diana", "salt")
+        self._create_session(_req)
+        session_id = self._do_grant(_req)
+        _uid, _cid, _gid = unpack_db_key(session_id)
 
-        # Scope address not supported
-        self.endpoint_context.provider_info["scopes_supported"] = [
-            "openid",
-            "email",
-            "offline_access",
-        ]
-        res = collect_user_info(self.endpoint_context, session)
+        self.claims_interface.add_claims_by_scope = False
+        _restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+                                                        scopes=_req["scope"])
 
-        assert res == {
-            "sub": "doe",
-            "email": "diana@example.org",
-            "email_verified": False,
-        }
+        res = self.claims_interface.get_user_claims("diana", _restriction)
+
+        assert res == {}
 
 
 class TestCollectUserInfoCustomScopes:
@@ -443,22 +384,43 @@ class TestCollectUserInfoCustomScopes:
             }
         )
         self.endpoint_context.cdb["client1"] = {}
+        self.endpoint_context.cdb["client1"] = {}
+        self.session_manager = self.endpoint_context.session_manager
+        self.claims_interface = ClaimsInterface(self.endpoint_context, "userinfo")
+        self.user_id = "diana"
+
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        client_id = auth_req['client_id']
+        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
+                                            sub_type=sub_type, sector_identifier=sector_identifier)
+        return db_key(self.user_id, client_id)
+
+    def _do_grant(self, auth_req):
+        client_id = auth_req['client_id']
+        # The user consent module produces a Grant instance
+        grant = Grant(scope=auth_req['scope'], resources=[client_id])
+
+        # the grant is assigned to a session (user_id, client_id)
+        self.session_manager.set([self.user_id, client_id, grant.id], grant)
+        return db_key(self.user_id, client_id, grant.id)
 
     def test_collect_user_info(self):
-        _session_info = {"authn_req": OIDR}
-        session = _session_info.copy()
-        session["sub"] = "doe"
-        session["uid"] = "diana"
-        session["authn_event"] = create_authn_event("diana", "salt")
+        self._create_session(OIDR)
+        session_id = self._do_grant(OIDR)
+        _uid, _cid, _gid = unpack_db_key(session_id)
 
-        res = collect_user_info(self.endpoint_context, session)
+        self.claims_interface.add_claims_by_scope = False
+        _restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+                                                        scopes=OIDR["scope"])
+
+        res = self.claims_interface.get_user_claims("diana", _restriction)
 
         assert res == {
             "email": "diana@example.org",
             "email_verified": False,
             "nickname": "Dina",
             "given_name": "Diana",
-            "sub": "doe",
         }
 
     def test_collect_user_info_2(self):
@@ -466,40 +428,41 @@ class TestCollectUserInfoCustomScopes:
         _req["scope"] = "openid email"
         del _req["claims"]
 
-        _session_info = {"authn_req": _req}
-        session = _session_info.copy()
-        session["sub"] = "doe"
-        session["uid"] = "diana"
-        session["authn_event"] = create_authn_event("diana", "salt")
+        self._create_session(_req)
+        session_id = self._do_grant(_req)
+        _uid, _cid, _gid = unpack_db_key(session_id)
 
-        self.endpoint_context.provider_info["claims_supported"].remove("email")
-        self.endpoint_context.provider_info["claims_supported"].remove("email_verified")
+        self.claims_interface.add_claims_by_scope = True
+        _restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+                                                        scopes=_req["scope"])
 
-        res = collect_user_info(self.endpoint_context, session)
+        res = self.claims_interface.get_user_claims("diana", _restriction)
 
-        assert res == {"sub": "doe"}
+        assert res == {'email': 'diana@example.org', 'email_verified': False}
 
     def test_collect_user_info_scope_not_supported(self):
         _req = OIDR.copy()
         _req["scope"] = "openid email address"
         del _req["claims"]
 
-        _session_info = {"authn_req": _req}
-        session = _session_info.copy()
-        session["sub"] = "doe"
-        session["uid"] = "diana"
-        session["authn_event"] = create_authn_event("diana", "salt")
+        self._create_session(_req)
+        session_id = self._do_grant(_req)
+        _uid, _cid, _gid = unpack_db_key(session_id)
 
-        # Scope address not supported
+        # Address asked for but not supported
         self.endpoint_context.provider_info["scopes_supported"] = [
             "openid",
             "email",
             "offline_access",
         ]
-        res = collect_user_info(self.endpoint_context, session)
+
+        self.claims_interface.add_claims_by_scope = True
+        _restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+                                                        scopes=_req["scope"])
+
+        res = self.claims_interface.get_user_claims("diana", _restriction)
 
         assert res == {
-            "sub": "doe",
-            "email": "diana@example.org",
-            "email_verified": False,
+            'email': 'diana@example.org',
+            'email_verified': False
         }

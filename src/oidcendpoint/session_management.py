@@ -2,6 +2,8 @@ import hashlib
 import logging
 
 from oidcendpoint import rndstr
+from oidcendpoint import token_handler
+from oidcendpoint.token_handler import UnknownToken
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,10 @@ class SessionInfo(object):
 
 
 class UserSessionInfo(SessionInfo):
-    pass
+    def __init__(self, **kwargs):
+        SessionInfo.__init__(self, **kwargs)
+        if "logout_sid" not in self._db:
+            self._db["logout_sid"] = {}
 
 
 class ClientSessionInfo(SessionInfo):
@@ -181,6 +186,9 @@ class Database(object):
             user_info = self._db[uid]
         except KeyError:
             raise KeyError('No such UserID')
+        else:
+            if user_info is None:
+                raise KeyError('No such UserID')
 
         if client_id is None:
             return user_info
@@ -243,10 +251,9 @@ class Database(object):
 
 
 class SessionManager(Database):
-    def __init__(self, db, handler, userinfo=None, sub_func=None):
+    def __init__(self, db, handler, sub_func=None):
         Database.__init__(self, db)
         self.token_handler = handler
-        self.userinfo = userinfo
         self.salt = rndstr(32)
 
         # this allows the subject identifier minters to be defined by someone
@@ -263,14 +270,18 @@ class SessionManager(Database):
     def get_user_info(self, uid):
         return self.get(uid)
 
-    def find_grant(self, session_id, token_value):
-        user_id, client_id = unpack_db_key(session_id)
-        client_info = self.get([user_id, client_id])
-        for grant_id in client_info["subordinate"]:
-            grant = self.get([user_id, client_id, grant_id])
-            for token in grant.issued_token:
-                if token.value == token_value:
-                    return grant, token
+    def find_token(self, session_id, token_value):
+        """
+
+        :param session_id: Based on 3-tuple, user_id, client_id and grant_id
+        :param token_value:
+        :return:
+        """
+        user_id, client_id, grant_id = unpack_db_key(session_id)
+        grant = self.get([user_id, client_id, grant_id])
+        for token in grant.issued_token:
+            if token.value == token_value:
+                return token
 
         return None
 
@@ -282,6 +293,8 @@ class SessionManager(Database):
         :param auth_req: Authorization Request
         :param client_id: Client ID
         :param user_id: User ID
+        :param sector_identifier:
+        :param sub_type:
         :param kwargs: extra keyword arguments
         :return:
         """
@@ -304,10 +317,16 @@ class SessionManager(Database):
         self.set([user_id, client_id], client_info)
 
     def _update_client_info(self, session_id, new_information):
-        _path = unpack_db_key(session_id)
-        _client_info = self.get(_path)
+        """
+
+        :param session_id:
+        :param new_information:
+        :return:
+        """
+        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        _client_info = self.get([_user_id, _client_id])
         _client_info.update(new_information)
-        self.set(_path, _client_info)
+        self.set([_user_id, _client_id], _client_info)
 
     def do_sub(self, session_id, sector_id="", subject_type="public"):
         """
@@ -318,37 +337,80 @@ class SessionManager(Database):
         :param subject_type: 'pairwise'/'public'
         :return:
         """
-        _path = unpack_db_key(session_id)
-        sub = self.sub_func[subject_type](_path[0], salt=self.salt, sector_identifier=sector_id)
+        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        sub = self.sub_func[subject_type](_user_id, salt=self.salt, sector_identifier=sector_id)
         self._update_client_info(session_id, {'sub': sub})
         return sub
 
     def __getitem__(self, item):
         return self.get(unpack_db_key(item))
 
-    def revoke_token(self, session_id, token_value):
-        grant, token = self.find_grant(session_id, token_value)
+    def get_client_session_info(self, session_id):
+        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        self.get([_user_id, _client_id])
+
+    def _revoke_dependent(self, grant, token):
+        for t in grant.issued_token:
+            if t.based_on == token.value:
+                t.revoked = True
+                self._revoke_dependent(grant, t)
+
+    def revoke_token(self, session_id, token_value, recursive=False):
+        token = self.find_token(session_id, token_value)
+        if token is None:
+            raise UnknownToken()
+
         token.revoked = True
+        if recursive:
+            grant = self[session_id]
+            self._revoke_dependent(grant, token)
 
     def get_sids_by_user_id(self, user_id):
         user_info = self.get([user_id])
         return [db_key(user_id, c) for c in user_info['subordinate']]
 
-    def get_authentication_event(self, user_id):
+    def get_authentication_event(self, session_id):
+        _user_id = unpack_db_key(session_id)[0]
         try:
-            user_info = self.get([user_id])
+            user_info = self.get([_user_id])
         except KeyError:
             return None
 
         return user_info["authentication_event"]
 
-    def revoke_session(self, session_id):
+    def revoke_client_session(self, session_id):
+        _user_id, _client_id, _ = unpack_db_key(session_id)
+        _info = self.get([_user_id, _client_id])
+        _info.revoke()
+        self.set([_user_id, _client_id], _info)
+
+    def revoke_grant(self, session_id):
         _path = unpack_db_key(session_id)
         _info = self.get(_path)
         _info.revoke()
         self.set(_path, _info)
 
     def grants(self, session_id):
-        uid, cid = unpack_db_key(session_id)
+        uid, cid, _gid = unpack_db_key(session_id)
         _csi = self.get([uid, cid])
         return [self.get([uid, cid, gid]) for gid in _csi['subordinate']]
+
+    def get_session_info(self, session_id):
+        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        return {
+            "session_id": session_id,
+            "user_id": _user_id,
+            "client_id": _client_id,
+            "user_session_info": self.get([_user_id]),
+            "client_session_info": self.get([_user_id, _client_id]),
+            "grant": self.get([_user_id, _client_id, _grant_id])
+        }
+
+    def get_session_info_by_token(self, token_value):
+        _token_info = self.token_handler.info(token_value)
+        return self.get_session_info(_token_info["sid"])
+
+
+def create_session_manager(endpoint_context, token_handler_args, db=None, sub_func=None):
+    _token_handler = token_handler.factory(endpoint_context, **token_handler_args)
+    return SessionManager(db, _token_handler, sub_func=sub_func)

@@ -2,16 +2,14 @@ import logging
 
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
-from oidcmsg.oidc import AccessTokenResponse
 from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.oidc import TokenErrorResponse
+from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.token_handler import ExpiredToken
-from oidcendpoint.userinfo import by_schema
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +30,7 @@ class RefreshAccessToken(Endpoint):
         self.post_parse_request.append(self._post_parse_request)
 
     def _refresh_access_token(self, req, **kwargs):
-        _sdb = self.endpoint_context.sdb
-
-        # client_id = str(req["client_id"])
+        _mngr = self.endpoint_context.session_manager
 
         if req["grant_type"] != "refresh_token":
             return self.error_cls(
@@ -42,14 +38,29 @@ class RefreshAccessToken(Endpoint):
             )
 
         rtoken = req["refresh_token"]
-        try:
-            _info = _sdb.refresh_token(rtoken)
-        except ExpiredToken:
+        _session_info = _mngr.get_session_info_by_token(rtoken)
+        grant, token = _mngr.find_grant(_session_info["session_id"], rtoken)
+        if token.is_active is False:
             return self.error_cls(
-                error="invalid_request", error_description="Refresh token is expired"
+                error="invalid_request", error_description="Refresh token inactive"
             )
 
-        return by_schema(AccessTokenResponse, **_info)
+        access_token = grant.mint_token(
+            'access_token',
+            value=_mngr.token_handler["access_token"](
+                _session_info["session_id"],
+                client_id=_session_info["client_id"],
+                aud=grant.resources,
+                user_claims=None,
+                scope=grant.scope,
+                sub=_session_info["client_session_info"]['sub']
+            ),
+            expires_at=time_sans_frac() + 900,  # 15 minutes from now
+            based_on=rtoken  # Means the token (tok) was used to mint this token
+        )
+
+        return {"access_token": access_token, "token_type": "Bearer",
+                "expires_in": 900, "scope": grant.scope}
 
     def client_authentication(self, request, auth=None, **kwargs):
         """
@@ -114,10 +125,12 @@ class RefreshAccessToken(Endpoint):
         if isinstance(response_args, ResponseMessage):
             return response_args
 
+
         _token = request["refresh_token"].replace(" ", "+")
+        _session_info = self.endpoint_context.session_manager.get_session_info_by_token(_token)
         _cookie = new_cookie(
             self.endpoint_context,
-            sub=self.endpoint_context.sdb[_token]["sub"],
+            sub=_session_info["client_session_info"]["sub"],
             cookie_name=self.endpoint_context.cookie_name["session"],
         )
         _headers = [("Content-type", "application/json")]

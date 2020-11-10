@@ -171,7 +171,7 @@ class Grant(Item):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at)
         self.scope = scope or []
         self.authorization_details = authorization_details or None
-        self.claims = claim or None
+        self.claims = claim or {}  # default is to not release any user information
         self.resources = resources or []
         self.issued_token = token or []
         self.id = uuid1().hex

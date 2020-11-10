@@ -14,8 +14,7 @@ from oidcendpoint.scopes import SCOPE2CLAIMS
 from oidcendpoint.scopes import STANDARD_CLAIMS
 from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import Scopes
-from oidcendpoint.session import create_session_db
-from oidcendpoint.sso_db import SSODb
+from oidcendpoint.session_management import create_session_manager
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
 from oidcendpoint.util import allow_refresh_token
@@ -100,21 +99,15 @@ class EndpointContext(OidcContext):
         self.conf = conf
 
         # For my Dev environment
-        self.sso_db = None
-        self.session_db = None
-        self.state_db = None
         self.cdb = None
         self.jti_db = None
         self.registration_access_token = None
 
         self.add_boxes(
             {
-                "state": "state_db",
                 "client": "cdb",
                 "jti": "jti_db",
                 "registration_access_token": "registration_access_token",
-                "sso": "sso_db",
-                "session": "session_db",
             },
             self.db_conf,
         )
@@ -279,10 +272,9 @@ class EndpointContext(OidcContext):
             self.claims_handler = Claims()
 
     def set_session_db(self):
-        self.do_session_db(SSODb(db=self.sso_db), self.session_db)
+        self.do_session_manager()
         # append userinfo db to the session db
         self.do_userinfo()
-        logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
     def do_add_on(self):
         if self.conf.get("add_on"):
@@ -311,9 +303,9 @@ class EndpointContext(OidcContext):
     def do_userinfo(self):
         _conf = self.conf.get("userinfo")
         if _conf:
-            if self.sdb:
+            if self.session_manager:
                 self.userinfo = init_user_info(_conf, self.cwd)
-                self.sdb.userinfo = self.userinfo
+                self.session_manager.userinfo = self.userinfo
             else:
                 logger.warning("Cannot init_user_info if no session_db was provided.")
 
@@ -357,9 +349,9 @@ class EndpointContext(OidcContext):
                 else:
                     self._sub_func[key] = args["function"]
 
-    def do_session_db(self, sso_db, db=None):
-        self.sdb = create_session_db(
-            self, self.th_args, db=db, sso_db=sso_db, sub_func=self._sub_func
+    def do_session_manager(self, db=None):
+        self.session_manager = create_session_manager(
+            self, self.th_args, db=db, sub_func=self._sub_func
         )
 
     def do_endpoints(self):

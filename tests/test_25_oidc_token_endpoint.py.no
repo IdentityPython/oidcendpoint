@@ -1,28 +1,25 @@
 import json
 import os
 
+import pytest
 from cryptojwt import JWT
 from cryptojwt.key_jar import build_keyjar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RefreshAccessTokenRequest
-from oidcmsg.time_util import time_sans_frac
-import pytest
 
 from oidcendpoint import JWT_BEARER
-from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import UnAuthorizedClient
-from oidcendpoint.grant import Grant
-from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.refresh_token import RefreshAccessToken
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.session_management import db_key
+from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -32,6 +29,7 @@ KEYDEFS = [
 ]
 
 CLIENT_KEYJAR = build_keyjar(KEYDEFS)
+
 
 RESPONSE_TYPES_SUPPORTED = [
     ["code"],
@@ -147,7 +145,6 @@ class TestEndpoint(object):
             "userinfo": {"class": UserInfo, "kwargs": {"db": {}}},
             "client_authn": verify_client,
             "template_dir": "template",
-            "id_token": {"class": IDToken, "kwargs": {}},
         }
         endpoint_context = EndpointContext(conf)
         endpoint_context.cdb["client_1"] = {
@@ -159,87 +156,48 @@ class TestEndpoint(object):
         }
         endpoint_context.keyjar.import_jwks(CLIENT_KEYJAR.export_jwks(), "client_1")
         self.endpoint = endpoint_context.endpoint["token"]
-        self.session_manager = endpoint_context.session_manager
-        self.user_id = "diana"
-
-    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
-        ae = create_authn_event(self.user_id, self.session_manager.salt)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return grant
-
-    def _mint_code(self, grant, client_id):
-        sid = db_key(self.user_id, client_id)
-        # Constructing an authorization code is now done
-        return grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](sid),
-            expires_at=time_sans_frac() + 300  # 5 minutes from now
-        )
-
-    def _mint_access_token(self, grant, client_id, token_ref=None):
-        _csi = self.session_manager.get([self.user_id, client_id])
-        return grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                db_key(self.user_id, client_id),
-                client_id=client_id,
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=_csi['sub']
-            ),
-            expires_at=time_sans_frac() + 900,  # 15 minutes from now
-            based_on=token_ref  # Means the token (tok) was used to mint this token
-        )
 
     def test_init(self):
         assert self.endpoint
 
     def test_parse(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ['client_id'])
-
+        session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ, uid="user")
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request["code"] = code.value
+        _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
         _req = self.endpoint.parse_request(_token_request)
 
         assert isinstance(_req, AccessTokenRequest)
         assert set(_req.keys()) == set(_token_request.keys())
 
     def test_process_request(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ['client_id'])
-
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request["code"] = code.value
-
+        _context = self.endpoint.endpoint_context
+        _token_request["code"] = _context.sdb[session_id]["code"]
+        _context.sdb.update(session_id, user="diana")
         _req = self.endpoint.parse_request(_token_request)
+
         _resp = self.endpoint.process_request(request=_req)
 
         assert _resp
         assert set(_resp.keys()) == {"http_headers", "response_args"}
 
     def test_process_request_using_code_twice(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ['client_id'])
-
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request["code"] = code.value
-
+        _context = self.endpoint.endpoint_context
+        _token_request["code"] = _context.sdb[session_id]["code"]
+        _context.sdb.update(session_id, user="diana")
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
@@ -253,12 +211,15 @@ class TestEndpoint(object):
         assert set(_resp.keys()) == {"error"}
 
     def test_do_response(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ['client_id'])
-
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
+        self.endpoint.endpoint_context.sdb.update(session_id, user="diana")
         _token_request = TOKEN_REQ_DICT.copy()
-        _token_request["code"] = code.value
+        _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
         _req = self.endpoint.parse_request(_token_request)
 
         _resp = self.endpoint.process_request(request=_req)
@@ -266,10 +227,12 @@ class TestEndpoint(object):
         assert isinstance(msg, dict)
 
     def test_process_request_using_private_key_jwt(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ['client_id'])
-
+        session_id = setup_session(
+            self.endpoint.endpoint_context,
+            AUTH_REQ,
+            uid="user",
+            acr=INTERNETPROTOCOLPASSWORD,
+        )
         _token_request = TOKEN_REQ_DICT.copy()
         del _token_request["client_id"]
         del _token_request["client_secret"]
@@ -281,8 +244,9 @@ class TestEndpoint(object):
         _token_request.update(
             {"client_assertion": _assertion, "client_assertion_type": JWT_BEARER}
         )
-        _token_request["code"] = code.value
+        _token_request["code"] = self.endpoint.endpoint_context.sdb[session_id]["code"]
 
+        _context.sdb.update(session_id, user="diana")
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 

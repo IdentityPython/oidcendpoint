@@ -1,67 +1,71 @@
 import logging
 
-from oidcmsg.oidc import Claims
-
-from oidcendpoint import sanitize
-from oidcendpoint.exception import FailedAuthentication
-from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.scopes import convert_scopes2claims
 
 logger = logging.getLogger(__name__)
 
 
-def id_token_claims(session, provider_info):
-    """
-    Pick the IdToken claims from the request
+class ClaimsInterface:
+    init_args = {
+        "add_claims_by_scope": False,
+        "enable_claims_per_client": False
+    }
 
-    :param session: Session information
-    :return: The IdToken claims
-    """
-    itc = update_claims(session, "id_token", provider_info=provider_info, old_claims={})
-    return itc
+    def __init__(self, endpoint_context, usage, **kwargs):
+        self.usage = usage  # for instance introspection, id_token, userinfo
+        self.endpoint_context = endpoint_context
+        self.add_claims_by_scope = kwargs.get("add_claims_by_scope",
+                                              self.init_args["add_claims_by_scope"])
+        self.enable_claims_per_client = kwargs.get("enable_claims_per_client",
+                                                   self.init_args["enable_claims_per_client"])
 
+    def request_claims(self, user_id, client_id):
+        if self.usage in ["id_token", "userinfo"]:
+            _csi = self.endpoint_context.session_manager.get([user_id, client_id])
+            if "claims" in _csi["authorization_request"]:
+                return _csi["authorization_request"]["claims"].get(self.usage)
 
-def update_claims(session, about, provider_info, old_claims=None):
-    """
+        return {}
 
-    :param session:
-    :param about: userinfo or id_token
-    :param old_claims:
-    :return: claims or None
-    """
+    def _get_client_claims(self, client_id):
+        client_info = self.endpoint_context.cdb.get(client_id, {})
+        return client_info.get("{}_claims".format(self.usage), {})
 
-    if old_claims is None:
-        old_claims = {}
+    def get_claims(self, client_id, user_id, scopes):
+        """
 
-    req = None
-    try:
-        req = session["authn_req"]
-    except KeyError:
-        pass
+        :param client_id:
+        :param user_id:
+        :param scopes:
+        :return:
+        """
+        claims = self._get_client_claims(client_id)
+        if self.add_claims_by_scope:
+            _supported = self.endpoint_context.provider_info.get("scopes_supported", [])
+            if _supported:
+                _scopes = set(_supported).intersection(set(scopes))
+            else:
+                _scopes = scopes
 
-    if req:
-        try:
-            _claims = req["claims"][about]
-        except KeyError:
-            pass
+            _claims = convert_scopes2claims(_scopes, map=self.endpoint_context.scope2claims)
+            claims.update(_claims)
+        request_claims = self.request_claims(user_id=user_id, client_id=client_id)
+        claims.update(request_claims)
+        return claims
+
+    def get_user_claims(self, user_id, claims_restriction):
+        """
+
+        :param user_id: User identifier
+        :param claims_restriction: Specifies the upper limit of what claims can be returned
+        :return:
+        """
+        if claims_restriction:
+            user_info = self.endpoint_context.userinfo(user_id, client_id=None)
+            return {k: user_info.get(k) for k, v in claims_restriction.items() if
+                    claims_match(user_info.get(k), v)}
         else:
-            if _claims:
-                # Deal only with supported claims
-                _unsup = [
-                    c
-                    for c in _claims.keys()
-                    if c not in provider_info["claims_supported"]
-                ]
-                for _c in _unsup:
-                    del _claims[_c]
-
-                # update with old claims, do not overwrite
-                for key, val in old_claims.items():
-                    if key not in _claims:
-                        _claims[key] = val
-                return _claims
-
-    return old_claims
+            return {}
 
 
 def claims_match(value, claimspec):
@@ -76,6 +80,9 @@ def claims_match(value, claimspec):
         as key
     :return: Boolean
     """
+    if value is None:
+        return False
+
     if claimspec is None:  # match anything
         return True
 
@@ -110,103 +117,3 @@ def by_schema(cls, **kwa):
     :return: A dictionary with claims (keys) that meets the filter criteria
     """
     return dict([(key, val) for key, val in kwa.items() if key in cls.c_param])
-
-
-def collect_user_info(
-    endpoint_context, session, userinfo_claims=None, scope_to_claims=None
-):
-    """
-    Collect information about a user.
-    This can happen in two cases, either when constructing an IdToken or
-    when returning user info through the UserInfo endpoint
-
-    :param session: Session information
-    :param userinfo_claims: user info claims
-    :return: User info
-    """
-    authn_req = session["authorization_request"]
-    if scope_to_claims is None:
-        scope_to_claims = endpoint_context.scope2claims
-
-    _allowed = endpoint_context.scopes_handler.allowed_scopes(
-        authn_req["client_id"], endpoint_context
-    )
-    supported_scopes = [s for s in authn_req["scope"] if s in _allowed]
-    if userinfo_claims is None:
-        _allowed_claims = endpoint_context.claims_handler.allowed_claims(
-            authn_req["client_id"], endpoint_context
-        )
-        uic = convert_scopes2claims(
-            supported_scopes, _allowed_claims, map=scope_to_claims
-        )
-
-        # Get only keys allowed by user and update the dict if such info
-        # is stored in session
-        perm_set = session.get("permission")
-        if perm_set:
-            uic = {key: uic[key] for key in uic if key in perm_set}
-
-        uic = update_claims(
-            session,
-            "userinfo",
-            provider_info=endpoint_context.provider_info,
-            old_claims=uic,
-        )
-
-        if uic:
-            userinfo_claims = Claims(**uic)
-            logger.debug("userinfo_claim: %s" % sanitize(userinfo_claims.to_dict()))
-        else:
-            userinfo_claims = None
-            logger.warning(("Client {} doesn't have any claims "
-                            "belonging to one or more scopes.").format(authn_req["client_id"]))
-            raise ImproperlyConfigured("Some additional scopes doesn't have any claims.")
-
-    logger.debug("Session info: %s" % sanitize(session))
-
-    authn_event = session["authn_event"]
-    if authn_event:
-        uid = authn_event["uid"]
-    else:
-        uid = session["uid"]
-
-    info = endpoint_context.userinfo(uid, authn_req["client_id"], userinfo_claims)
-
-    if "sub" in userinfo_claims:
-        if not claims_match(session["sub"], userinfo_claims["sub"]):
-            raise FailedAuthentication("Unmatched sub claim")
-
-    info["sub"] = session["sub"]
-    try:
-        logger.debug("user_info_response: {}".format(info))
-    except UnicodeEncodeError:
-        logger.debug("user_info_response: {}".format(info.encode("utf-8")))
-
-    return info
-
-
-def userinfo_in_id_token_claims(endpoint_context, session, def_itc=None):
-    """
-    Collect user info claims that are to be placed in the id token.
-
-    :param endpoint_context: Endpoint context
-    :param session: Session information
-    :param def_itc: Default ID Token claims
-    :return: User information or None
-    """
-    if def_itc:
-        itc = def_itc
-    else:
-        itc = {}
-
-    itc.update(id_token_claims(session, provider_info=endpoint_context.provider_info))
-
-    if not itc:
-        return None
-
-    _claims = by_schema(endpoint_context.id_token_schema, **itc)
-
-    if _claims:
-        return collect_user_info(endpoint_context, session, _claims)
-    else:
-        return None

@@ -45,19 +45,23 @@ def available_claims(endpoint_context):
         return STANDARD_CLAIMS
 
 
-def convert_scopes2claims(scopes, allowed_claims, map=None):
+def convert_scopes2claims(scopes, allowed_claims=None, map=None):
     if map is None:
         map = SCOPE2CLAIMS
 
     res = {}
-    for scope in scopes:
-        try:
-            claims = dict(
-                [(name, None) for name in map[scope] if name in allowed_claims]
-            )
+    if allowed_claims is None:
+        for scope in scopes:
+            claims = {name: None for name in map[scope]}
             res.update(claims)
-        except KeyError:
-            continue
+    else:
+        for scope in scopes:
+            try:
+                claims = {name: None for name in map[scope] if name in allowed_claims}
+                res.update(claims)
+            except KeyError:
+                continue
+
     return res
 
 

@@ -90,12 +90,13 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
         return request
 
     try:
-        _info = endpoint_context.sdb[request["code"]]
+        _session_info = endpoint_context.session_manager.get_session_info_by_token(request["code"])
     except KeyError:
         return TokenErrorResponse(
             error="invalid_grant", error_description="Unknown access grant"
         )
-    _authn_req = _info["authn_req"]
+
+    _authn_req = _session_info["client_session_info"]["authorization_request"]
 
     if "code_challenge" in _authn_req:
         if "code_verifier" not in request:
@@ -104,11 +105,11 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
                 error_description="Missing code_verifier",
             )
 
-        _method = _info["authn_req"]["code_challenge_method"]
+        _method = _authn_req["code_challenge_method"]
 
         if not verify_code_challenge(
             request["code_verifier"],
-            _info["authn_req"]["code_challenge"],
+            _authn_req["code_challenge"],
             _method,
         ):
             return TokenErrorResponse(
