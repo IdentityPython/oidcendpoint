@@ -248,7 +248,7 @@ class TokenCoop(Endpoint):
 
             try:
                 grant_class = grant_type_options["class"]
-            except KeyError:
+            except (KeyError, TypeError):
                 raise ProcessError(
                     "Token Endpoint's grant types must be True, None or a dict with a"
                     " 'class' key."
@@ -258,7 +258,7 @@ class TokenCoop(Endpoint):
             if isinstance(grant_class, str):
                 try:
                     grant_class = importer(grant_class)
-                except ValueError:
+                except (ValueError, AttributeError):
                     raise ProcessError(
                         f"Token Endpoint's grant type class {grant_class} can't"
                         " be imported."
