@@ -113,6 +113,8 @@ class IDToken(object):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
         self.enable_claims_per_client = kwargs.get("enable_claims_per_client", False)
+        self.add_c_hash = kwargs.get("add_c_hash", True)
+        self.add_at_hash = kwargs.get("add_at_hash", True)
         self.scope_to_claims = None
         self.provider_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
@@ -176,8 +178,16 @@ class IDToken(object):
         halg = "HS%s" % alg[-3:]
         if code:
             _args["c_hash"] = left_hash(code.encode("utf-8"), halg)
+        elif self.add_c_hash and session.get("code"):
+            _args["c_hash"] = left_hash(
+                session.get("code").encode("utf-8"), halg
+            )
         if access_token:
             _args["at_hash"] = left_hash(access_token.encode("utf-8"), halg)
+        elif self.add_at_hash and session.get("access_token"):
+            _args["at_hash"] = left_hash(
+                session.get("access_token").encode("utf-8"), halg
+            )
 
         authn_req = session["authn_req"]
         if authn_req:

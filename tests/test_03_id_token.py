@@ -120,6 +120,26 @@ class TestEndpoint(object):
         }
         assert info["lifetime"] == 300
 
+    @pytest.mark.parametrize("add_c_hash", [True, False])
+    def test_id_token_payload_with_code_in_session(self, add_c_hash):
+        self.endpoint_context.idtoken.add_c_hash = add_c_hash
+        code = "ABCDEFGHIJKLMNOP"
+        session_info = {"authn_req": AREQN, "sub": "1234567890", "code": code}
+
+        info = self.endpoint_context.idtoken.payload(session_info)
+        if add_c_hash:
+            assert info["payload"] == {
+                "nonce": "nonce",
+                "sub": "1234567890",
+                "c_hash": "5-i4nCch0pDMX1VCVJHs1g",
+            }
+        else:
+            assert info["payload"] == {
+                "nonce": "nonce",
+                "sub": "1234567890",
+            }
+        assert info["lifetime"] == 300
+
     def test_id_token_payload_with_access_token(self):
         session_info = {"authn_req": AREQN, "sub": "1234567890"}
 
@@ -131,6 +151,30 @@ class TestEndpoint(object):
             "at_hash": "bKkyhbn1CC8IMdavzOV-Qg",
             "sub": "1234567890",
         }
+        assert info["lifetime"] == 300
+
+    @pytest.mark.parametrize("add_at_hash", [True, False])
+    def test_id_token_payload_with_access_token_in_session(self, add_at_hash):
+        self.endpoint_context.idtoken.add_at_hash = add_at_hash
+        access_token = "012ABCDEFGHIJKLMNOP"
+        session_info = {
+            "authn_req": AREQN,
+            "sub": "1234567890",
+            "access_token": access_token
+        }
+
+        info = self.endpoint_context.idtoken.payload(session_info)
+        if add_at_hash:
+            assert info["payload"] == {
+                "nonce": "nonce",
+                "sub": "1234567890",
+                "at_hash": "bKkyhbn1CC8IMdavzOV-Qg",
+            }
+        else:
+            assert info["payload"] == {
+                "nonce": "nonce",
+                "sub": "1234567890",
+            }
         assert info["lifetime"] == 300
 
     def test_id_token_payload_with_code_and_access_token(self):
@@ -145,6 +189,36 @@ class TestEndpoint(object):
             "c_hash": "5-i4nCch0pDMX1VCVJHs1g",
             "sub": "1234567890",
         }
+        assert info["lifetime"] == 300
+
+    @pytest.mark.parametrize("add_hashes", [True, False])
+    def test_id_token_payload_with_code_and_access_token_in_session(
+        self, add_hashes
+    ):
+        self.endpoint_context.idtoken.add_c_hash = add_hashes
+        self.endpoint_context.idtoken.add_at_hash = add_hashes
+        code = "ABCDEFGHIJKLMNOP"
+        access_token = "012ABCDEFGHIJKLMNOP"
+        session_info = {
+            "authn_req": AREQN,
+            "sub": "1234567890",
+            "access_token": access_token,
+            "code": code,
+        }
+
+        info = self.endpoint_context.idtoken.payload(session_info)
+        if add_hashes:
+            assert info["payload"] == {
+                "nonce": "nonce",
+                "sub": "1234567890",
+                "at_hash": "bKkyhbn1CC8IMdavzOV-Qg",
+                "c_hash": "5-i4nCch0pDMX1VCVJHs1g",
+            }
+        else:
+            assert info["payload"] == {
+                "nonce": "nonce",
+                "sub": "1234567890",
+            }
         assert info["lifetime"] == 300
 
     def test_id_token_payload_with_userinfo(self):
