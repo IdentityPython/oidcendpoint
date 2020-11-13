@@ -416,7 +416,7 @@ class Authorization(Endpoint):
                     expires_at=time_sans_frac() + 900
                 )
 
-                aresp['token'] = _access_token
+                aresp['access_token'] = _access_token
                 handled_response_type.append("token")
 
             not_handled = rtype.difference(handled_response_type)

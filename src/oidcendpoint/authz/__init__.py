@@ -16,8 +16,14 @@ class AuthzHandling(object):
         self.kwargs = kwargs
 
     def __call__(self, user_id, client_id, request):
-        permission = {k: v for k, v in request.items() if k in ["scope", "claims"]}
-        return Grant(**permission)
+        args = {}
+        scope = request.get("scope")
+        if scope:
+            args["scope"] = scope
+        claims = request.get("claims")
+        if claims:
+            args["claim"] = claims.to_dict()
+        return Grant(**args)
 
 
 class Implicit(AuthzHandling):

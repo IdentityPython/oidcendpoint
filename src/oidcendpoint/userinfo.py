@@ -11,27 +11,22 @@ class ClaimsInterface:
         "enable_claims_per_client": False
     }
 
-    def __init__(self, endpoint_context, usage, **kwargs):
-        self.usage = usage  # for instance introspection, id_token, userinfo
+    def __init__(self, endpoint_context):
         self.endpoint_context = endpoint_context
-        self.add_claims_by_scope = kwargs.get("add_claims_by_scope",
-                                              self.init_args["add_claims_by_scope"])
-        self.enable_claims_per_client = kwargs.get("enable_claims_per_client",
-                                                   self.init_args["enable_claims_per_client"])
 
-    def request_claims(self, user_id, client_id):
-        if self.usage in ["id_token", "userinfo"]:
+    def request_claims(self, user_id, client_id, usage=""):
+        if usage in ["id_token", "userinfo"]:
             _csi = self.endpoint_context.session_manager.get([user_id, client_id])
             if "claims" in _csi["authorization_request"]:
-                return _csi["authorization_request"]["claims"].get(self.usage)
+                return _csi["authorization_request"]["claims"].get(usage, {})
 
         return {}
 
-    def _get_client_claims(self, client_id):
+    def _get_client_claims(self, client_id, usage):
         client_info = self.endpoint_context.cdb.get(client_id, {})
-        return client_info.get("{}_claims".format(self.usage), {})
+        return client_info.get("{}_claims".format(usage), {})
 
-    def get_claims(self, client_id, user_id, scopes):
+    def get_claims(self, client_id, user_id, scopes, usage):
         """
 
         :param client_id:
@@ -39,8 +34,32 @@ class ClaimsInterface:
         :param scopes:
         :return:
         """
-        claims = self._get_client_claims(client_id)
-        if self.add_claims_by_scope:
+
+        # base_claims from module
+        module = None
+        if usage == "userinfo":
+            if "userinfo" in self.endpoint_context.endpoint:
+                module = self.endpoint_context.endpoint["userinfo"]
+        elif usage == "id_token":
+            if self.endpoint_context.idtoken:
+                module = self.endpoint_context.idtoken
+        elif usage == "introspection":
+            if "introspection" in self.endpoint_context.endpoint:
+                module = self.endpoint_context.endpoint["introspection"]
+
+        if module:
+            base_claims = module.kwargs.get("base_claims", {})
+        else:
+            base_claims = {}
+
+        if module and module.kwargs.get("enable_claims_per_client"):
+            claims = self._get_client_claims(client_id, usage)
+        else:
+            claims = {}
+
+        claims.update(base_claims)
+
+        if module and module.kwargs.get("add_claims_by_scope"):
             _supported = self.endpoint_context.provider_info.get("scopes_supported", [])
             if _supported:
                 _scopes = set(_supported).intersection(set(scopes))
@@ -49,8 +68,12 @@ class ClaimsInterface:
 
             _claims = convert_scopes2claims(_scopes, map=self.endpoint_context.scope2claims)
             claims.update(_claims)
-        request_claims = self.request_claims(user_id=user_id, client_id=client_id)
-        claims.update(request_claims)
+
+        request_claims = self.request_claims(user_id=user_id, client_id=client_id, usage=usage)
+        # If they want less then what's possible that's OK.
+        if request_claims:
+            claims = {k: v for k, v in claims.items() if k in request_claims}
+
         return claims
 
     def get_user_claims(self, user_id, claims_restriction):

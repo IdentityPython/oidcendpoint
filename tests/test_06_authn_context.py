@@ -207,10 +207,10 @@ def test_authn_event():
         authn_info="authn_class_ref",
     )
 
-    assert an.valid()
+    assert an.is_valid()
 
     n = time_sans_frac() + 3
-    assert an.valid(n) is False
+    assert an.is_valid(n) is False
 
     n = an.expires_in()
     assert n == 1  # could possibly be 0

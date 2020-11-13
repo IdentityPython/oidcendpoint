@@ -4,11 +4,15 @@ from cryptojwt import JWT
 from cryptojwt.jws.exception import JWSException
 
 from oidcendpoint.exception import ToOld
-from oidcendpoint.session_management import db_key
 from oidcendpoint.token_handler import Token
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.token_handler import is_expired
-from oidcendpoint.userinfo import ClaimsInterface
+
+TYPE_MAP = {
+    "A": "code",
+    "T": "access_token",
+    "R": "refresh_token"
+}
 
 
 class JWTToken(Token):
@@ -23,25 +27,23 @@ class JWTToken(Token):
             ec=None,
             token_type: str = "Bearer",
             add_claims: bool = False,
+            claims: Optional[list] = None,
             **kwargs
     ):
         Token.__init__(self, typ, **kwargs)
         self.token_type = token_type
         self.lifetime = lifetime
-        self.claims_interface = ClaimsInterface(ec, "jwt_token", **kwargs)
 
-        self.args = {
-            (k, v) for k, v in kwargs.items() if k not in self.claims_interface.init_args.keys()
-        }
-
+        self.args = kwargs
         self.key_jar = keyjar or ec.keyjar
         self.issuer = issuer or ec.issuer
         self.cdb = ec.cdb
-        self.cntx = ec
+        self.endpoint_context = ec
 
         self.def_aud = aud or []
         self.alg = alg
         self.add_claims = add_claims
+        self.claims = claims or []
 
     def __call__(
             self,
@@ -51,22 +53,22 @@ class JWTToken(Token):
         """
         Return a token.
 
+        :param endpoint_context:
         :param sid: Session id
         :return: Signed JSON Web Token
         """
 
         payload = {"sid": sid, "ttype": self.type, "sub": kwargs['sub']}
 
-        _scopes = kwargs.get('scope')
-        _client_id = kwargs.get('client_id')
-        _user_id = kwargs.get('user_id')
-        _claims = kwargs.get('claims')
+        session_info = self.endpoint_context.session_manager.get_session_info(sid)
 
         if self.add_claims:
-            grant = self.claims_interface.endpoint_context.session_manager.grants(sid)[0]
-            user_info = self.claims_interface.get_user_claims(
-                _user_id, grant.claims.get("id_token", {}))
-            payload.update(user_info)
+            grant = session_info["grant"]
+            _claims_restriction = grant.claims.get("introspection")
+            if _claims_restriction:
+                user_info = self.endpoint_context.claims_interface.get_user_claims(
+                    session_info["user_id"], _claims_restriction)
+                payload.update(user_info)
 
         # payload.update(kwargs)
         signer = JWT(

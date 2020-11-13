@@ -14,7 +14,7 @@ class AuthnEvent(Message):
         "valid_until": SINGLE_OPTIONAL_INT,
     }
 
-    def valid(self, now=0):
+    def is_valid(self, now=0):
         if now:
             return self["valid_until"] > now
         else:

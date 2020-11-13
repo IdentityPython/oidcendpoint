@@ -1,9 +1,12 @@
 from http.cookies import SimpleCookie
+import json
+import time
 
-import pytest
 from cryptojwt.jwk.hmac import SYMKey
 from cryptojwt.key_jar import init_key_jar
+import pytest
 
+from oidcendpoint import rndstr
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.cookie import compute_session_state
@@ -11,6 +14,8 @@ from oidcendpoint.cookie import cookie_value
 from oidcendpoint.cookie import create_session_cookie
 from oidcendpoint.cookie import make_cookie
 from oidcendpoint.cookie import new_cookie
+from oidcendpoint.cookie import sign_enc_payload
+from oidcendpoint.cookie import ver_dec_content
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.token import AccessToken
 
@@ -256,6 +261,8 @@ endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
 endpoint_context.cdb[client_id] = {"client_secret": client_secret}
 endpoint_context.cookie_dealer = CookieDealer(**cookie_conf)
 
+enc_key = rndstr(32)
+
 
 def test_new_cookie():
     kaka = new_cookie(
@@ -301,3 +308,10 @@ def test_cookie_same_site_none():
     assert kaka["test"]["secure"] is True
     assert kaka["test"]["httponly"] is True
     assert kaka["test"]["samesite"] is "None"
+
+
+def test_cookie_enc():
+    _key = SYMKey(k=enc_key)
+    _enc_data = sign_enc_payload(json.dumps({"test": "data"}), timestamp=time.time(), enc_key=_key)
+    _data, _timestamp = ver_dec_content(_enc_data.split('|'), enc_key=_key)
+    assert json.loads(_data) == {"test": "data"}

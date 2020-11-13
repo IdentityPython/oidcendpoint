@@ -396,7 +396,7 @@ class TestEndpoint(object):
         # from claims
         assert "given_name" in _resp["response_args"]["__verified_id_token"]
         # from config
-        assert "email" in _resp["response_args"]["__verified_id_token"]
+        assert "nickname" in _resp["response_args"]["__verified_id_token"]
 
     def test_re_authenticate(self):
         request = {"prompt": "login"}
@@ -564,23 +564,16 @@ class TestEndpoint(object):
         )
 
         _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-        )
         _ec.cdb["client_id"] = {
             "client_id": "client_id",
             "redirect_uris": [("https://rp.example.com/cb", {})],
             "id_token_signed_response_alg": "ES256",
         }
 
-        resp = self.endpoint.create_authn_response(request, "session_id")
+        self._create_session(request)
+        session_id = self._do_grant(request)
+
+        resp = self.endpoint.create_authn_response(request, session_id)
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
 
     def test_setup_auth(self):
@@ -651,20 +644,13 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "RS256",
         }
         _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-        )
+
+        self._create_session(request)
+        session_id = self._do_grant(request)
 
         item = _ec.authn_broker.db["anon"]
         item["method"].user = b64e(
-            as_bytes(json.dumps({"uid": "krall", "sid": "session_id"}))
+            as_bytes(json.dumps({"uid": "krall", "sid": session_id}))
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
@@ -687,22 +673,17 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "RS256",
         }
         _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-            revoked=True,
-        )
+
+        self._create_session(request)
+        session_id = self._do_grant(request)
 
         item = _ec.authn_broker.db["anon"]
         item["method"].user = b64e(
-            as_bytes(json.dumps({"uid": "krall", "sid": "session_id"}))
+            as_bytes(json.dumps({"uid": "krall", "sid": session_id}))
         )
+
+        grant = _ec.session_manager[session_id]
+        grant.revoked = True
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
         assert set(res.keys()) == {"args", "function"}

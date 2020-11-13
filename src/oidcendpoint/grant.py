@@ -57,19 +57,22 @@ class Item:
         else:
             return False
 
-    def is_active(self):
+    def is_active(self, now=0):
         if self.max_usage_reached():
             return False
 
         if self.revoked:
             return False
 
+        if now == 0:
+            now = time.time()
+
         if self.not_before:
-            if time.time() < self.not_before:
+            if now < self.not_before:
                 return False
 
         if self.expires_at:
-            if time.time() > self.expires_at:
+            if now > self.expires_at:
                 return False
 
         return True
@@ -137,6 +140,10 @@ class Token(Item):
             return token_type in _supports_minting
 
 
+class AccessToken(Token):
+    pass
+
+
 class AuthorizationCode(Token):
     def set_defaults(self):
         if "supports_minting" not in self.usage_rules:
@@ -153,7 +160,7 @@ class RefreshToken(Token):
 
 TOKEN_MAP = {
     "authorization_code": AuthorizationCode,
-    "access_token": Token,
+    "access_token": AccessToken,
     "refresh_token": RefreshToken
 }
 

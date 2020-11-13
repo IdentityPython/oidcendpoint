@@ -1,22 +1,25 @@
 import os
 
-import pytest
 from cryptojwt.jwt import JWT
-from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.key_jar import init_key_jar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import time_sans_frac
+import pytest
 
 from oidcendpoint import user_info
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
+from oidcendpoint.oauth2.introspection import Introspection
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.session import setup_session
+from oidcendpoint.session_management import db_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
@@ -98,6 +101,11 @@ class TestEndpoint(object):
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
+            "claims": {
+                "userinfo": {"email": None, "phone_number": None},
+                "id_token": {"email": None},
+                "introspection": {"email": None, "email_verified": True}
+            },
             "token_handler_args": {
                 "jwks_def": {
                     "private_path": "private/token_jwks.json",
@@ -111,13 +119,15 @@ class TestEndpoint(object):
                     "class": "oidcendpoint.jwt_token.JWTToken",
                     "kwargs": {
                         "lifetime": 3600,
-                        "add_claims": [
-                            "email",
-                            "email_verified",
-                            "phone_number",
-                            "phone_number_verified",
-                        ],
+                        "add_claims": True,
                         "add_claim_by_scope": True,
+                        "aud": ["https://example.org/appl"],
+                    },
+                },
+                "refresh": {
+                    "class": "oidcendpoint.jwt_token.JWTToken",
+                    "kwargs": {
+                        "lifetime": 3600,
                         "aud": ["https://example.org/appl"],
                     },
                 },
@@ -140,6 +150,10 @@ class TestEndpoint(object):
                 },
                 "token": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
                 "session": {"path": "{}/end_session", "class": Session},
+                "introspection": {
+                    "path": "{}/introspection",
+                    "class": Introspection
+                }
             },
             "client_authn": verify_client,
             "authentication": {
@@ -157,64 +171,120 @@ class TestEndpoint(object):
             "id_token": {"class": IDToken},
         }
 
-        endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
-        endpoint_context.cdb["client_1"] = {
+        self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
+        self.endpoint_context.cdb["client_1"] = {
             "client_secret": "hemligt",
             "redirect_uris": [("https://example.com/cb", None)],
             "client_salt": "salted",
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
         }
-        self.endpoint = Session(endpoint_context)
+        self.session_manager = self.endpoint_context.session_manager
+        self.user_id = "diana"
+        self.endpoint = self.endpoint_context.endpoint["session"]
+
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        client_id = auth_req['client_id']
+        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
+                                            sub_type=sub_type, sector_identifier=sector_identifier)
+        return db_key(self.user_id, client_id)
+
+    def _do_grant(self, auth_req):
+        client_id = auth_req['client_id']
+        # The user consent module produces a Grant instance
+        grant = Grant(scope=auth_req['scope'], resources=[client_id])
+
+        # the grant is assigned to a session (user_id, client_id)
+        self.session_manager.set([self.user_id, client_id, grant.id], grant)
+        return db_key(self.user_id, client_id, grant.id)
+
+    def _mint_code(self, grant):
+        # Constructing an authorization code is now done
+        return grant.mint_token(
+            'authorization_code',
+            value=self.session_manager.token_handler["code"](self.user_id),
+            expires_at=time_sans_frac() + 300  # 5 minutes from now
+        )
+
+    def _mint_access_token(self, grant, session_id, token_ref=None):
+        _session_info = self.session_manager.get_session_info(session_id)
+        return grant.mint_token(
+            'access_token',
+            value=self.session_manager.token_handler["access_token"](
+                session_id,
+                client_id=_session_info["client_id"],
+                aud=grant.resources,
+                user_claims=None,
+                scope=grant.scope,
+                sub=_session_info["client_session_info"]['sub']
+            ),
+            expires_at=time_sans_frac() + 900,  # 15 minutes from now
+            based_on=token_ref  # Means the token (tok) was used to mint this token
+        )
 
     def test_parse(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid="diana"
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        self._create_session(AUTH_REQ)
+        session_id = self._do_grant(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        grant.claims = {
+            "introspection": {
+                "email": None,
+                "email_verified": None,
+                "phone_number": None,
+                "phone_number_verified": None
+            }
+        }
+        code = self._mint_code(grant)
+        access_token = self._mint_access_token(grant, session_id, code)
 
         _verifier = JWT(self.endpoint.endpoint_context.keyjar)
-        _info = _verifier.unpack(_dic["access_token"])
+        _info = _verifier.unpack(access_token.value)
 
         assert _info["ttype"] == "T"
         assert _info["phone_number"] == "+46907865000"
         assert set(_info["aud"]) == {"client_1", "https://example.org/appl"}
 
     def test_info(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid="diana"
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        self._create_session(AUTH_REQ)
+        session_id = self._do_grant(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        code = self._mint_code(grant)
+        access_token = self._mint_access_token(grant, session_id, code)
 
-        handler = self.endpoint.endpoint_context.sdb.handler.handler["access_token"]
-        _info = handler.info(_dic["access_token"])
+        _info = self.session_manager.token_handler.info(access_token.value)
         assert _info["type"] == "T"
         assert _info["sid"] == session_id
 
     @pytest.mark.parametrize("enable_claims_per_client", [True, False])
     def test_client_claims(self, enable_claims_per_client):
-        ec = self.endpoint.endpoint_context
-        handler = ec.sdb.handler.handler["access_token"]
-        session_id = setup_session(ec, AUTH_REQ, uid="diana")
-        ec.cdb["client_1"]["access_token_claims"] = {"address": None}
-        handler.enable_claims_per_client = enable_claims_per_client
-        _dic = ec.sdb.upgrade_to_token(key=session_id)
+        self.endpoint.endpoint_context.cdb["client_1"]["introspection_claims"] = {"address": None}
 
-        token = _dic["access_token"]
+        self.endpoint_context.endpoint[
+            "introspection"].kwargs["enable_claims_per_client"] = enable_claims_per_client
+        self._create_session(AUTH_REQ)
+        session_id = self._do_grant(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        grant.claims = {
+            "introspection": self.endpoint_context.claims_interface.get_claims("client_1",
+                                                                               "diana",
+                                                                               AUTH_REQ["scope"],
+                                                                               usage="introspection")
+        }
+        code = self._mint_code(grant)
+        access_token = self._mint_access_token(grant, session_id, code)
+
         _jwt = JWT(key_jar=KEYJAR, iss="client_1")
-        res = _jwt.unpack(token)
+        res = _jwt.unpack(access_token.value)
         assert enable_claims_per_client is ("address" in res)
 
     def test_is_expired(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context, AUTH_REQ, uid="diana"
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        self._create_session(AUTH_REQ)
+        session_id = self._do_grant(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        code = self._mint_code(grant)
+        access_token = self._mint_access_token(grant, session_id, code)
 
-        handler = self.endpoint.endpoint_context.sdb.handler.handler["access_token"]
-        assert handler.is_expired(_dic["access_token"]) is False
-
-        assert (
-            handler.is_expired(_dic["access_token"], utc_time_sans_frac() + 4000)
-            is True
-        )
+        assert access_token.is_active()
+        # 4000 seconds in the future. Passed the lifetime.
+        assert access_token.is_active(now=time_sans_frac() + 4000) is False

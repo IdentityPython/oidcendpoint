@@ -3,15 +3,11 @@ import uuid
 
 from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
-from oidcendpoint.session_management import unpack_db_key
 
-from oidcendpoint.session_management import SessionInfo
-
-from oidcendpoint import rndstr
 from oidcendpoint.endpoint import construct_endpoint_info
-from oidcendpoint.grant import Item
-from oidcendpoint.session_management import db_key
-from oidcendpoint.userinfo import ClaimsInterface
+from oidcendpoint.session_management import SessionInfo
+from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.userinfo import claims_match
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +118,6 @@ class IDToken(object):
         self.provider_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
         )
-        self.claims_interface = ClaimsInterface(endpoint_context, "id_token", **kwargs)
 
     def payload(
             self,
@@ -134,14 +129,10 @@ class IDToken(object):
     ):
         """
 
-        :param session: Session information
-        :param acr: Default Assurance/Authentication context class reference
+        :param session_id: Session identifier
         :param alg: Which signing algorithm to use for the IdToken
         :param code: Access grant
         :param access_token: Access Token
-        :param user_info: If user info are to be part of the IdToken
-        :param auth_time:
-        :param lifetime: Life time of the ID Token
         :param extra_claims: extra claims to be added to the ID Token
         :return: IDToken instance
         """
@@ -149,15 +140,22 @@ class IDToken(object):
         _mngr = self.endpoint_context.session_manager
         session_information = _mngr.get_session_info(session_id)
         _args = {"sub": session_information["client_session_info"]["sub"]}
-        for claim, attr in {"authn_time": "auth_time", "acr": "acr"}.items():
+        for claim, attr in {"authn_time": "auth_time", "authn_info": "acr"}.items():
             _val = session_information["user_session_info"]["authentication_event"].get(claim)
             if _val:
                 _args[attr] = _val
 
-        grant = _mngr.grants(session_id)[0]
-        _claims_restriction = grant.claims.get(self.claims_interface.usage)
-        user_info = self.claims_interface.get_user_claims(user_id=session_information["user_id"],
-                                                          claims_restriction=_claims_restriction)
+        grant = session_information["grant"]
+        _claims_restriction = grant.claims.get("id_token")
+        if _claims_restriction == {}:
+            user_info = None
+        else:
+            user_info = self.endpoint_context.claims_interface.get_user_claims(
+                user_id=session_information["user_id"],
+                claims_restriction=_claims_restriction)
+            if _claims_restriction and "acr" in _claims_restriction and "acr" in _args:
+                if claims_match(_args["acr"], _claims_restriction["acr"]) is False:
+                    raise ValueError("Could not match expected 'acr'")
 
         if user_info:
             try:

@@ -336,11 +336,11 @@ class TestEndpoint(object):
         session_id = self._do_grant(AREQ)
         grant = self.session_manager[session_id]
 
-        self.endpoint_context.idtoken.claims_interface.enable_claims_per_client = True
+        self.endpoint_context.idtoken.kwargs["enable_claims_per_client"] = True
         self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
 
-        _claims = self.endpoint_context.idtoken.claims_interface.get_claims(
-            client_id=AREQ["client_id"], user_id=USER_ID, scopes=AREQ["scope"])
+        _claims = self.endpoint_context.claims_interface.get_claims(
+            client_id=AREQ["client_id"], user_id=USER_ID, scopes=AREQ["scope"], usage="id_token")
         grant.claims = {'id_token': _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -361,8 +361,8 @@ class TestEndpoint(object):
         # self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
         # self.endpoint_context.idtoken.enable_claims_per_client = True
 
-        _claims = self.endpoint_context.idtoken.claims_interface.get_claims(
-            client_id=AREQ["client_id"], user_id=USER_ID, scopes=AREQ["scope"])
+        _claims = self.endpoint_context.claims_interface.get_claims(
+            client_id=AREQ["client_id"], user_id=USER_ID, scopes=AREQ["scope"], usage="id_token")
         grant.claims = {"id_token": _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -382,9 +382,9 @@ class TestEndpoint(object):
         session_id = self._do_grant(AREQS)
         grant = self.session_manager[session_id]
 
-        self.endpoint_context.idtoken.claims_interface.add_claims_by_scope = True
-        _claims = self.endpoint_context.idtoken.claims_interface.get_claims(
-            client_id=AREQS["client_id"], user_id=USER_ID, scopes=AREQS["scope"])
+        self.endpoint_context.idtoken.kwargs["add_claims_by_scope"] = True
+        _claims = self.endpoint_context.claims_interface.get_claims(
+            client_id=AREQS["client_id"], user_id=USER_ID, scopes=AREQS["scope"], usage="id_token")
         grant.claims = {"id_token": _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -398,14 +398,15 @@ class TestEndpoint(object):
         assert "email" in res
         assert "nickname" not in res
 
-    def test_client_claims_scopes_and_request_claims(self):
+    def test_client_claims_scopes_and_request_claims_no_match(self):
         self._create_session(AREQRC)
         session_id = self._do_grant(AREQRC)
         grant = self.session_manager[session_id]
 
-        self.endpoint_context.idtoken.claims_interface.add_claims_by_scope = True
-        _claims = self.endpoint_context.idtoken.claims_interface.get_claims(
-            client_id=AREQRC["client_id"], user_id=USER_ID, scopes=AREQRC["scope"])
+        self.endpoint_context.idtoken.kwargs["add_claims_by_scope"] = True
+        _claims = self.endpoint_context.claims_interface.get_claims(
+            client_id=AREQRC["client_id"], user_id=USER_ID, scopes=AREQRC["scope"],
+            usage="id_token")
         grant.claims = {"id_token": _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -415,7 +416,34 @@ class TestEndpoint(object):
         client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
         _jwt = JWT(key_jar=client_keyjar, iss="client_1")
         res = _jwt.unpack(_token)
-        assert "address" in res
+        # No user information
+        assert "address" not in res
+        assert "email" not in res
+        assert "nickname" not in res
+
+    def test_client_claims_scopes_and_request_claims_one_match(self):
+        _req = AREQS.copy()
+        _req["claims"] = {"id_token": {"email": None}}
+
+        self._create_session(_req)
+        session_id = self._do_grant(_req)
+        grant = self.session_manager[session_id]
+
+        self.endpoint_context.idtoken.kwargs["add_claims_by_scope"] = True
+        _claims = self.endpoint_context.claims_interface.get_claims(
+            client_id=AREQRC["client_id"], user_id=USER_ID, scopes=_req["scope"],
+            usage="id_token")
+        grant.claims = {"id_token": _claims}
+
+        _token = self.endpoint_context.idtoken.make(session_id=session_id)
+        assert _token
+        client_keyjar = KeyJar()
+        _jwks = self.endpoint_context.keyjar.export_jwks()
+        client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
+        _jwt = JWT(key_jar=client_keyjar, iss="client_1")
+        res = _jwt.unpack(_token)
+        # Only email as requested
         assert "email" in res
-        assert "nickname" in res
+        assert "address" not in res
+        assert "nickname" not in res
 
