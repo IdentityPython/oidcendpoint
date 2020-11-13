@@ -205,6 +205,21 @@ class TestEndpoint(object):
         res = _jwt.unpack(token)
         assert enable_claims_per_client is ("address" in res)
 
+    @pytest.mark.parametrize("add_scope", [True, False])
+    def test_add_scopes(self, add_scope):
+        ec = self.endpoint.endpoint_context
+        handler = ec.sdb.handler.handler["access_token"]
+        auth_req = dict(AUTH_REQ)
+        auth_req["scope"] = ["openid", "profile", "aba"]
+        session_id = setup_session(ec, auth_req, uid="diana")
+        handler.add_scope = add_scope
+        _dic = ec.sdb.upgrade_to_token(key=session_id)
+
+        token = _dic["access_token"]
+        _jwt = JWT(key_jar=KEYJAR, iss="client_1")
+        res = _jwt.unpack(token)
+        assert add_scope is (res.get("scope") == ["openid", "profile"])
+
     def test_is_expired(self):
         session_id = setup_session(
             self.endpoint.endpoint_context, AUTH_REQ, uid="diana"

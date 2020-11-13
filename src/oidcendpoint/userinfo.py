@@ -127,10 +127,9 @@ def collect_user_info(
     if scope_to_claims is None:
         scope_to_claims = endpoint_context.scope2claims
 
-    _allowed = endpoint_context.scopes_handler.allowed_scopes(
-        authn_req["client_id"], endpoint_context
+    supported_scopes = endpoint_context.scopes_handler.filter_scopes(
+        authn_req["client_id"], endpoint_context, authn_req["scope"]
     )
-    supported_scopes = [s for s in authn_req["scope"] if s in _allowed]
     if userinfo_claims is None:
         _allowed_claims = endpoint_context.claims_handler.allowed_claims(
             authn_req["client_id"], endpoint_context
