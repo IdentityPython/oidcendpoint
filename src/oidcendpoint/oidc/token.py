@@ -53,7 +53,7 @@ class AccessToken(Endpoint):
             )
 
         _session_info = _mngr.get_session_info_by_token(_access_code)
-        grant, code = _mngr.find_grant(_session_info["session_id"], _access_code)
+        code = _mngr.find_token(_session_info["session_id"], _access_code)
 
         # assert that the code is valid
         if code.is_active() is False:
@@ -72,6 +72,8 @@ class AccessToken(Endpoint):
                 )
 
         _log_debug("All checks OK")
+
+        grant = _session_info["grant"]
 
         issue_refresh = False
         if "issue_refresh" in kwargs:
@@ -121,8 +123,7 @@ class AccessToken(Endpoint):
 
         if "openid" in _authn_req["scope"]:
             try:
-                _idtoken = _context.idtoken.make(_session_info["user_id"],
-                                                 _session_info["client_id"])
+                _idtoken = _context.idtoken.make(_session_info["session_id"])
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
                 resp = self.error_cls(
@@ -155,7 +156,7 @@ class AccessToken(Endpoint):
             logger.error("Access Code invalid")
             return self.error_cls(error="invalid_grant")
 
-        grant, code = _mngr.find_grant(_session_info["session_id"], request["code"])
+        code = _mngr.find_token(_session_info["session_id"], request["code"])
         _auth_req = _session_info["client_session_info"]["authorization_request"]
         if code.is_active():
             state = _auth_req["state"]
@@ -199,12 +200,12 @@ class AccessToken(Endpoint):
             return response_args
 
         _mngr = self.endpoint_context.session_manager
-        _tinfo = _mngr.token_handler.info(request["code"])
-        _cs_info = _mngr[_tinfo["sid"]]
+        _s_info = _mngr.get_session_info_by_token(request["code"])
 
         _cookie = new_cookie(
             self.endpoint_context,
-            sub=_cs_info["sub"],
+            sid=_s_info["session_id"],
+            sub=_s_info["client_session_info"]["sub"],
             cookie_name=self.endpoint_context.cookie_name["session"],
         )
         _headers = [("Content-type", "application/json")]

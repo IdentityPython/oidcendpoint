@@ -179,7 +179,7 @@ class TestEndpoint(object):
         return grant
 
     def _mint_code(self, grant, client_id):
-        sid = db_key(self.user_id, client_id)
+        sid = db_key(self.user_id, client_id, grant.id)
         # Constructing an authorization code is now done
         return grant.mint_token(
             'authorization_code',
@@ -187,17 +187,17 @@ class TestEndpoint(object):
             expires_at=time_sans_frac() + 300  # 5 minutes from now
         )
 
-    def _mint_access_token(self, grant, client_id, token_ref=None):
-        _csi = self.session_manager.get([self.user_id, client_id])
+    def _mint_access_token(self, grant, session_id, token_ref=None):
+        _session_info = self.session_manager.get_session_info(session_id)
         return grant.mint_token(
             'access_token',
             value=self.session_manager.token_handler["access_token"](
-                db_key(self.user_id, client_id),
-                client_id=client_id,
+                session_id,
+                client_id=_session_info["client_id"],
                 aud=grant.resources,
                 user_claims=None,
                 scope=grant.scope,
-                sub=_csi['sub']
+                sub=_session_info["client_session_info"]['sub']
             ),
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=token_ref  # Means the token (tok) was used to mint this token

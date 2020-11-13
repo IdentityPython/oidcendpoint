@@ -17,6 +17,7 @@ from oidcendpoint.scopes import Scopes
 from oidcendpoint.session_management import create_session_manager
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
+from oidcendpoint.userinfo import ClaimsInterface
 from oidcendpoint.util import allow_refresh_token
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import get_http_params
@@ -252,6 +253,8 @@ class EndpointContext(OidcContext):
         if "device_authorization_supported" in self.provider_info:
             self.dev_auth_db = None
             self.add_boxes({"dev_auth": "dev_auth_db"}, self.db_conf)
+
+        self.claims_interface = ClaimsInterface(self)
 
     def set_scopes_handler(self):
         _spec = self.conf.get("scopes_handler")

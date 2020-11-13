@@ -3,6 +3,8 @@ import logging
 
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
+from oidcendpoint.grant import AccessToken
+from oidcendpoint.grant import AuthorizationCode
 from oidcendpoint.token_handler import UnknownToken
 
 logger = logging.getLogger(__name__)
@@ -73,6 +75,7 @@ class SessionInfo(object):
 
     def revoke(self):
         self._revoked = True
+        return self
 
     def is_revoked(self):
         return self._revoked
@@ -124,8 +127,8 @@ class Database(object):
                 if client_id in _userinfo['subordinate']:
                     _cid_key = db_key(uid, client_id)
                     _cid_info = self._db[db_key(uid, client_id)]
-                    if _cid_info.is_revoked():
-                        raise Revoked("Session is revoked")
+                    # if _cid_info.is_revoked():
+                    #     raise Revoked("Session is revoked")
                     if _cid_info:
                         if grant_id:
                             _gid_key = db_key(uid, client_id, grant_id)
@@ -201,8 +204,8 @@ class Database(object):
                 except KeyError:
                     return {}
                 else:
-                    if client_session_info.is_revoked():
-                        raise Revoked("Session is revoked")
+                    # if client_session_info.is_revoked():
+                    #     raise Revoked("Session is revoked")
 
                     if grant_id is None:
                         return client_session_info
@@ -379,10 +382,16 @@ class SessionManager(Database):
         return user_info["authentication_event"]
 
     def revoke_client_session(self, session_id):
-        _user_id, _client_id, _ = unpack_db_key(session_id)
+        parts = unpack_db_key(session_id)
+        if len(parts) == 2:
+            _user_id, _client_id = parts
+        elif len(parts) == 3:
+            _user_id, _client_id, _ = parts
+        else:
+            raise ValueError("Invalid session ID")
+
         _info = self.get([_user_id, _client_id])
-        _info.revoke()
-        self.set([_user_id, _client_id], _info)
+        self.set([_user_id, _client_id], _info.revoke())
 
     def revoke_grant(self, session_id):
         _path = unpack_db_key(session_id)
@@ -409,6 +418,39 @@ class SessionManager(Database):
     def get_session_info_by_token(self, token_value):
         _token_info = self.token_handler.info(token_value)
         return self.get_session_info(_token_info["sid"])
+
+    @staticmethod
+    def _pick_grant(client_info, token_type):
+        if len(client_info["subordinate"]) == 1:
+            return client_info["subordinate"][0]
+
+        for grant in client_info["subordinate"]:
+            match = 0
+            for _token in grant.issued_token:
+                for _class in token_type:
+                    if isinstance(_token, _class):
+                        match +=1
+                        break
+            if match == len(token_type):
+                return grant
+        return None
+
+    def get_grant(self, user_id, client_id):
+        _client_info = self.get([user_id, client_id])
+        response_type = _client_info["authorization_request"]["response_type"]
+        if response_type == ["code"]:
+            return self._pick_grant(_client_info, [AuthorizationCode])
+        elif response_type == ["token"] or response_type == ["token", "id_token"]:
+            return self._pick_grant(_client_info, [AccessToken])
+        elif response_type == ["id_token"]:
+            for grant in _client_info["subordinate"]:
+                if grant.issued_token == []:
+                    return grant
+        elif response_type == ["code", "token"] or response_type == ["code", "token", "id_token"]:
+            return self._pick_grant(_client_info, [AuthorizationCode, AccessToken])
+
+        return None
+
 
 
 def create_session_manager(endpoint_context, token_handler_args, db=None, sub_func=None):

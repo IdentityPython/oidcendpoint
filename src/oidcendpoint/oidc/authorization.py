@@ -358,11 +358,7 @@ class Authorization(Endpoint):
                 # I get back a dictionary
                 user = identity["uid"]
                 if "req_user" in kwargs:
-                    sids = _mngr.get_sids_by_user_id(kwargs["req_user"])
-                    if (
-                            sids
-                            and user != _mngr.get_authentication_event(sids[-1]).uid
-                    ):
+                    if user != kwargs["req_user"]:
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
                             # Need to authenticate but not allowed
@@ -372,6 +368,12 @@ class Authorization(Endpoint):
                             }
                         else:
                             return {"function": authn, "args": authn_args}
+
+                if "sid" in identity:
+                    session_id = identity["sid"]
+                    grant = _mngr[session_id]
+                    if grant.is_active() is False:
+                        return {"function": authn, "args": authn_args}
 
         authn_event = _mngr.get_authentication_event(user)
 
@@ -411,7 +413,7 @@ class Authorization(Endpoint):
         else:
             _context = self.endpoint_context
             _mngr = self.endpoint_context.session_manager
-            _sinfo = _mngr[sid]
+            _sinfo = _mngr.get_session_info(sid)
 
             if request.get("scope"):
                 aresp["scope"] = request["scope"]
@@ -423,13 +425,12 @@ class Authorization(Endpoint):
             if len(rtype) == 1 and "code" in rtype:
                 fragment_enc = False
 
-            grant = _mngr.grants(sid)[0]
-            user_id, client_id = unpack_db_key(sid)
+            grant = _sinfo["grant"]
 
             if "code" in request["response_type"]:
                 _code = grant.mint_token(
                     'authorization_code',
-                    value=_mngr.token_handler["code"](user_id),
+                    value=_mngr.token_handler["code"](sid),
                     expires_at=time_sans_frac() + 300  # 5 minutes from now
                 )
                 aresp["code"] = _code.value
@@ -442,17 +443,17 @@ class Authorization(Endpoint):
                     "access_token",
                     value=_mngr.token_handler["access_token"](
                         sid,
-                        client_id=client_id,
+                        client_id=_sinfo["client_id"],
                         aud=grant.resources,
                         user_claims=None,
                         scope=grant.scope,
-                        sub=_sinfo['sub'],
+                        sub=_sinfo["client_session_info"]['sub'],
                         based_on=_code
                     ),
                     expires_at=time_sans_frac() + 900
                 )
 
-                aresp['token'] = _access_token
+                aresp['access_token'] = _access_token.value
                 handled_response_type.append("token")
             else:
                 _access_token = None
@@ -460,17 +461,17 @@ class Authorization(Endpoint):
             if "id_token" in request["response_type"]:
                 kwargs = {}
                 if {"code", "id_token", "token"}.issubset(rtype):
-                    kwargs = {"code": _code, "access_token": _access_token}
+                    kwargs = {"code": _code.value, "access_token": _access_token.value}
                 elif {"code", "id_token"}.issubset(rtype):
-                    kwargs = {"code": _code}
+                    kwargs = {"code": _code.value}
                 elif {"id_token", "token"}.issubset(rtype):
-                    kwargs = {"access_token": _access_token}
+                    kwargs = {"access_token": _access_token.value}
 
                 # if request["response_type"] == ["id_token"]:
                 #     kwargs["user_claims"] = True
 
                 try:
-                    id_token = _context.idtoken.make(user_id=user_id, client_id=client_id, **kwargs)
+                    id_token = _context.idtoken.make(sid, **kwargs)
                 except (JWEException, NoSuitableSigningKeys) as err:
                     logger.warning(str(err))
                     resp = self.error_cls(
@@ -480,7 +481,8 @@ class Authorization(Endpoint):
                     return {"response_args": resp, "fragment_enc": fragment_enc}
 
                 aresp["id_token"] = id_token
-                _mngr.update([user_id, client_id], {"id_token": id_token})
+                _mngr.update([_sinfo["user_id"], _sinfo["client_id"]],
+                             {"id_token": id_token})
                 handled_response_type.append("id_token")
 
             not_handled = rtype.difference(handled_response_type)
@@ -594,9 +596,8 @@ class Authorization(Endpoint):
 
         _cookie = new_cookie(
             self.endpoint_context,
-            uid=user,
+            sid=session_id,
             state=request["state"],
-            client_id=request["client_id"],
             cookie_name=self.endpoint_context.cookie_name["session"],
         )
 
@@ -671,7 +672,7 @@ class Authorization(Endpoint):
             except KeyError:
                 return self.error_response({}, "server_error", "No such session")
             else:
-                if authn_event.is_active() is False:
+                if authn_event.is_valid() is False:
                     return self.error_response({}, "server_error", "Authentication has timed out")
 
             _state = b64e(

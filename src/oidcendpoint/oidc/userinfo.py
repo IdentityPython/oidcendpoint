@@ -9,7 +9,6 @@ from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.session_management import unpack_db_key
 from oidcendpoint.token_handler import UnknownToken
 # from oidcendpoint.userinfo import collect_user_info
 from oidcendpoint.userinfo import ClaimsInterface
@@ -38,12 +37,10 @@ class UserInfo(Endpoint):
         Endpoint.__init__(self, endpoint_context, **kwargs)
         # Add the issuer ID as an allowed JWT target
         self.allowed_targets.append("")
-        self.claims_interface = ClaimsInterface(endpoint_context, "userinfo", **kwargs)
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
-        _info = endpoint_context.session_manager.token_handler.info(token)
-        sinfo = self.endpoint_context.session_manager[_info["sid"]]
-        return sinfo["authorization_request"]["client_id"]
+        _info = endpoint_context.session_manager.get_session_info_by_token(token)
+        return _info["client_id"]
 
     def do_response(self, response_args=None, request=None, client_id="", **kwargs):
 
@@ -100,23 +97,22 @@ class UserInfo(Endpoint):
 
     def process_request(self, request=None, **kwargs):
         _mngr = self.endpoint_context.session_manager
-        _info = _mngr.token_handler.info(request["access_token"])
-        grant, token = _mngr.find_grant(_info['sid'], request["access_token"])
+        _session_info = _mngr.get_session_info_by_token(request["access_token"])
+        token = _mngr.find_token(_session_info["session_id"], request["access_token"])
         # should be an access token
         if token.is_active() is False:
             return self.error_cls(
                 error="invalid_token", error_description="Invalid Token"
             )
-        _user_id, _client_id = unpack_db_key(_info['sid'])
-        _cs_info = _mngr.get([_user_id, _client_id])
-        _us_info = _mngr.get([_user_id])
+
         allowed = True
+        _auth_event = _session_info["user_session_info"]["authentication_event"]
         # if the authenticate is still active or offline_access is granted.
-        if _us_info["authentication_event"]["valid_until"] > utc_time_sans_frac():
+        if _auth_event["valid_until"] > utc_time_sans_frac():
             pass
         else:
             logger.debug("authentication not valid: {} > {}".format(
-                _us_info["authentication_event"]["valid_until"], utc_time_sans_frac()
+                _auth_event["valid_until"], utc_time_sans_frac()
             ))
             allowed = False
 
@@ -126,16 +122,16 @@ class UserInfo(Endpoint):
 
         if allowed:
             # Scope can translate to userinfo_claims
-            _restrictions = grant.claims.get("userinfo")
-            info = self.claims_interface.get_user_claims(
-                user_id=_user_id, claims_restriction=_restrictions)
+            _restrictions = _session_info["grant"].claims.get("userinfo")
+            info = self.endpoint_context.claims_interface.get_user_claims(
+                user_id=_session_info["user_id"], claims_restriction=_restrictions)
         else:
             info = {
                 "error": "invalid_request",
                 "error_description": "Access not granted",
             }
 
-        return {"response_args": info, "client_id": _client_id}
+        return {"response_args": info, "client_id": _session_info["client_id"]}
 
     def parse_request(self, request, auth=None, **kwargs):
         """

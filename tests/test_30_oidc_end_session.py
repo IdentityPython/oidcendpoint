@@ -4,20 +4,26 @@ import os
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+from cryptojwt import as_unicode
+from cryptojwt import b64d
 from cryptojwt.key_jar import build_keyjar
+from cryptojwt.utils import as_bytes
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
+from oidcmsg.time_util import time_sans_frac
 import pytest
 import responses
 
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.common.authorization import join_query
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import RedirectURIError
+from oidcendpoint.grant import Grant
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
@@ -26,6 +32,7 @@ from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import AccessToken
 from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import unpack_db_key
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
@@ -186,9 +193,56 @@ class TestEndpoint(object):
                 "post_logout_redirect_uris": [("{}logout_cb".format(CLI2), "")],
             },
         }
+        self.session_manager = endpoint_context.session_manager
         self.authn_endpoint = endpoint_context.endpoint["authorization"]
         self.session_endpoint = endpoint_context.endpoint["session"]
         self.token_endpoint = endpoint_context.endpoint["token"]
+        self.user_id = "diana"
+
+    def _create_session(self, auth_req, user_id="", sub_type="public", sector_identifier=''):
+        if not user_id:
+            user_id = self.user_id
+        client_id = auth_req['client_id']
+        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        self.session_manager.create_session(ae, auth_req, user_id, client_id=client_id,
+                                            sub_type=sub_type,
+                                            sector_identifier=sector_identifier)
+        return db_key(self.user_id, client_id)
+
+    def _do_grant(self, auth_req, user_id=''):
+        if not user_id:
+            user_id = self.user_id
+        client_id = auth_req['client_id']
+        # The user consent module produces a Grant instance
+        grant = Grant(scope=auth_req['scope'], resources=[client_id])
+
+        # the grant is assigned to a session (user_id, client_id)
+        self.session_manager.set([user_id, client_id, grant.id], grant)
+        return db_key(user_id, client_id, grant.id)
+
+    def _mint_code(self, grant, session_id):
+        # Constructing an authorization code is now done
+        return grant.mint_token(
+            'authorization_code',
+            value=self.session_manager.token_handler["code"](session_id),
+            expires_at=time_sans_frac() + 300  # 5 minutes from now
+        )
+
+    def _mint_access_token(self, grant, session_id, token_ref=None):
+        _session_info = self.session_manager.get_session_info(session_id)
+        return grant.mint_token(
+            'access_token',
+            value=self.session_manager.token_handler["access_token"](
+                session_id,
+                client_id=_session_info["client_id"],
+                aud=grant.resources,
+                user_claims=None,
+                scope=grant.scope,
+                sub=_session_info["client_session_info"]['sub']
+            ),
+            expires_at=time_sans_frac() + 900,  # 15 minutes from now
+            based_on=token_ref  # Means the token (tok) was used to mint this token
+        )
 
     def test_end_session_endpoint(self):
         # End session not allowed if no cookie and no id_token_hint is sent
@@ -196,13 +250,11 @@ class TestEndpoint(object):
         with pytest.raises(ValueError):
             _ = self.session_endpoint.process_request("", cookie="FAIL")
 
-    def _create_cookie(self, session_id, state, client_id):
+    def _create_cookie(self, session_id):
         ec = self.session_endpoint.endpoint_context
         return new_cookie(
             ec,
             sid=session_id,
-            state=state,
-            client_id=client_id,
             cookie_name=ec.cookie_name["session"],
         )
 
@@ -215,7 +267,7 @@ class TestEndpoint(object):
             client_id="client_1",
         )
         _pr_resp = self.authn_endpoint.parse_request(req.to_dict())
-        _resp = self.authn_endpoint.process_request(_pr_resp)
+        return self.authn_endpoint.process_request(_pr_resp)
 
     def _code_auth2(self, state):
         req = AuthorizationRequest(
@@ -226,16 +278,7 @@ class TestEndpoint(object):
             client_id="client_2",
         )
         _pr_resp = self.authn_endpoint.parse_request(req.to_dict())
-        _resp = self.authn_endpoint.process_request(_pr_resp)
-
-    # def _get_sid(self):
-    #     _mngr = self.session_endpoint.endpoint_context.session_manager
-    #
-    #     for _sid in _sdb.keys():
-    #         if _sid.startswith("__state__"):
-    #             continue
-    #         else:
-    #             return _sid
+        return self.authn_endpoint.process_request(_pr_resp)
 
     def _auth_with_id_token(self, state):
         req = AuthorizationRequest(
@@ -249,11 +292,19 @@ class TestEndpoint(object):
         _pr_resp = self.authn_endpoint.parse_request(req.to_dict())
         _resp = self.authn_endpoint.process_request(_pr_resp)
 
-        return _resp["response_args"]["id_token"]
+        part = self.session_endpoint.endpoint_context.cookie_dealer.get_cookie_value(
+            _resp["cookie"][0], cookie_name="oidcop"
+        )
+        # value is a base64 encoded JSON document
+        _cookie_info = json.loads(as_unicode(b64d(as_bytes(part[0]))))
+
+        return _resp["response_args"], _cookie_info["sid"]
 
     def test_end_session_endpoint_with_cookie(self):
-        self._code_auth("1234567")
-        cookie = self._create_cookie(db_key("diana", "client_1"), "1234567", "client_1")
+        _resp = self._code_auth("1234567")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
+        cookie = self._create_cookie(_session_info["session_id"])
 
         _req_args = self.session_endpoint.parse_request({"state": "1234567"})
         resp = self.session_endpoint.process_request(_req_args, cookie=cookie)
@@ -265,39 +316,27 @@ class TestEndpoint(object):
         qs = parse_qs(p.query)
         jwt_info = self.session_endpoint.unpack_signed_jwt(qs["sjwt"][0])
 
-        assert jwt_info["user"] == "diana"
-        assert jwt_info["client_id"] == "client_1"
+        assert jwt_info["sid"] == _session_info["session_id"]
         assert jwt_info["redirect_uri"] == "https://example.com/post_logout"
 
-    def test_end_session_endpoint_with_wrong_cookie(self):
-        self._code_auth("1234567")
-        cookie = self._create_cookie(db_key("diana", "client_1"), "abcdefg", "client_2")
-
-        with pytest.raises(UnknownToken):
-            self.session_endpoint.process_request({"state": "abcde"}, cookie=cookie)
-
-    def test_end_session_endpoint_with_cookie_wrong_user(self):
+    def test_end_session_endpoint_with_cookie_and_unknown_sid(self):
         # Need cookie and ID Token to figure this out
-        id_token = self._auth_with_id_token("1234567")
+        resp_args, _session_id = self._auth_with_id_token("1234567")
+        id_token = resp_args["id_token"]
 
-        cookie = self._create_cookie(db_key("diggins", "client_1"), "1234567", "client_1")
+        _uid, _cid, _gid = unpack_db_key(_session_id)
+        cookie = self._create_cookie(db_key(_uid, "client_66", _gid))
 
-        msg = Message(id_token=id_token)
-        verify_id_token(msg, keyjar=self.session_endpoint.endpoint_context.keyjar)
-
-        msg2 = Message(id_token_hint=id_token)
-        msg2[verified_claim_name("id_token_hint")] = msg[
-            verified_claim_name("id_token")
-        ]
         with pytest.raises(ValueError):
-            self.session_endpoint.process_request(msg2, cookie=cookie)
+            self.session_endpoint.process_request({"state": "foo"}, cookie=cookie)
 
-    def test_end_session_endpoint_with_cookie_unknown_sid(self):
+    def test_end_session_endpoint_with_cookie_id_token_and_unknown_sid(self):
         # Need cookie and ID Token to figure this out
-        id_token = self._auth_with_id_token("1234567")
+        resp_args, _session_id = self._auth_with_id_token("1234567")
+        id_token = resp_args["id_token"]
 
-        # Wrong client_id
-        cookie = self._create_cookie(db_key("diana", "client_1"), "state", "client_1")
+        _uid, _cid, _gid = unpack_db_key(_session_id)
+        cookie = self._create_cookie(db_key(_uid, "client_66", _gid))
 
         msg = Message(id_token=id_token)
         verify_id_token(msg, keyjar=self.session_endpoint.endpoint_context.keyjar)
@@ -310,10 +349,11 @@ class TestEndpoint(object):
             self.session_endpoint.process_request(msg2, cookie=cookie)
 
     def test_end_session_endpoint_with_cookie_dual_login(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
         self._code_auth2("abcdefg")
-        _sdb = self.session_endpoint.endpoint_context.sdb
-        cookie = self._create_cookie(db_key("diana", "client_1"), "1234567", "client_1")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
+        cookie = self._create_cookie(_session_info["session_id"])
 
         resp = self.session_endpoint.process_request({"state": "abcde"}, cookie=cookie)
 
@@ -324,15 +364,15 @@ class TestEndpoint(object):
         qs = parse_qs(p.query)
         jwt_info = self.session_endpoint.unpack_signed_jwt(qs["sjwt"][0])
 
-        assert jwt_info["user"] == "diana"
-        assert jwt_info["client_id"] == "client_1"
+        assert jwt_info["sid"] == _session_info["session_id"]
         assert jwt_info["redirect_uri"] == "https://example.com/post_logout"
 
     def test_end_session_endpoint_with_post_logout_redirect_uri(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
         self._code_auth2("abcdefg")
-        _sdb = self.session_endpoint.endpoint_context.sdb
-        cookie = self._create_cookie(db_key("diana", "client_1"), "1234567", "client_1")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
+        cookie = self._create_cookie(_session_info["session_id"])
 
         post_logout_redirect_uri = join_query(
             *self.session_endpoint.endpoint_context.cdb["client_1"][
@@ -350,13 +390,13 @@ class TestEndpoint(object):
             )
 
     def test_end_session_endpoint_with_wrong_post_logout_redirect_uri(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
         self._code_auth2("abcdefg")
 
-        id_token = self._auth_with_id_token("1234567")
+        resp_args, _session_id = self._auth_with_id_token("1234567")
+        id_token = resp_args["id_token"]
 
-        _sdb = self.session_endpoint.endpoint_context.sdb
-        cookie = self._create_cookie(db_key("diana", "client_1"), "1234567", "client_1")
+        cookie = self._create_cookie(_session_id)
 
         post_logout_redirect_uri = "https://demo.example.com/log_out"
 
@@ -398,7 +438,7 @@ class TestEndpoint(object):
         assert _jwt["iss"] == ISS
         assert _jwt["aud"] == ["client_1"]
         assert _jwt["sub"] == "username"
-        assert _jwt["sid"] == "_sid_"
+        assert "sid" in _jwt
 
     def test_front_channel_logout(self):
         self._code_auth("1234567")
@@ -444,13 +484,16 @@ class TestEndpoint(object):
             assert i in res
 
     def test_logout_from_client_bc(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
+
         self.session_endpoint.endpoint_context.cdb["client_1"][
             "backchannel_logout_uri"
         ] = "https://example.com/bc_logout"
         self.session_endpoint.endpoint_context.cdb["client_1"]["client_id"] = "client_1"
-        _sid = db_key()
-        res = self.session_endpoint.logout_from_client(db_key(), "client_1")
+
+        res = self.session_endpoint.logout_from_client(_session_info["session_id"], "client_1")
         assert set(res.keys()) == {"blu"}
         assert set(res["blu"].keys()) == {"client_1"}
         _spec = res["blu"]["client_1"]
@@ -459,30 +502,35 @@ class TestEndpoint(object):
         assert _jwt
         assert _jwt["iss"] == ISS
         assert _jwt["aud"] == ["client_1"]
-        assert _jwt["sid"] == _sid
+        assert "sid" in _jwt  # This session ID is not the same as the session_id mentioned above
 
-        with pytest.raises(UnknownToken):
-            _ = self.session_endpoint.endpoint_context.sdb[_sid]
+        _sid = self.session_endpoint._decrypt_sid(_jwt["sid"])
+        assert _sid == _session_info["session_id"]
+        assert _session_info["client_session_info"].is_revoked()
 
     def test_logout_from_client_fc(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
+
         # del self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri']
         self.session_endpoint.endpoint_context.cdb["client_1"][
             "frontchannel_logout_uri"
         ] = "https://example.com/fc_logout"
         self.session_endpoint.endpoint_context.cdb["client_1"]["client_id"] = "client_1"
-        _sid = db_key("diana", "client_1")
-        res = self.session_endpoint.logout_from_client(_sid, "client_1")
+
+        res = self.session_endpoint.logout_from_client(_session_info["session_id"], "client_1")
         assert set(res.keys()) == {"flu"}
         assert set(res["flu"].keys()) == {"client_1"}
         _spec = res["flu"]["client_1"]
         assert _spec == '<iframe src="https://example.com/fc_logout">'
 
-        with pytest.raises(UnknownToken):
-            _ = self.session_endpoint.endpoint_context.sdb[_sid]
+        assert _session_info["client_session_info"].is_revoked()
 
     def test_logout_from_client(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
         self._code_auth2("abcdefg")
 
         # client0
@@ -495,9 +543,8 @@ class TestEndpoint(object):
         ] = "https://example.com/fc_logout"
         self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
 
-        _sid = db_key("diana", "client_1")
+        res = self.session_endpoint.logout_all_clients(_session_info["session_id"], "client_1")
 
-        res = self.session_endpoint.logout_all_clients(_sid, "client_1")
         assert res
         assert set(res.keys()) == {"blu", "flu"}
         assert set(res["flu"].keys()) == {"client_2"}
@@ -511,44 +558,40 @@ class TestEndpoint(object):
         assert _jwt["iss"] == ISS
         assert _jwt["aud"] == ["client_1"]
 
-        with pytest.raises(UnknownToken):
-            _ = self.session_endpoint.endpoint_context.sdb[_sid]
+        # both should be revoked
+        assert _session_info["client_session_info"].is_revoked()
+        _cinfo = self.session_manager[db_key(self.user_id, "client_2")]
+        assert _cinfo.is_revoked()
 
     def test_do_verified_logout(self):
         with responses.RequestsMock() as rsps:
             rsps.add("POST", "https://example.com/bc_logout", body="OK", status=200)
 
-            self._code_auth("1234567")
+            _resp = self._code_auth("1234567")
+            _code = _resp["response_args"]["code"]
+            _session_info = self.session_manager.get_session_info_by_token(_code)
             _cdb = self.session_endpoint.endpoint_context.cdb
             _cdb["client_1"]["backchannel_logout_uri"] = "https://example.com/bc_logout"
             _cdb["client_1"]["client_id"] = "client_1"
 
-            _sid = db_key("diana", "client_1")
-
-            res = self.session_endpoint.do_verified_logout(_sid, "client_1")
+            res = self.session_endpoint.do_verified_logout(_session_info["session_id"], "client_1")
             assert res == []
 
     def test_logout_from_client_unknow_sid(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
         self._code_auth2("abcdefg")
 
-        # client0
-        self.session_endpoint.endpoint_context.cdb["client_1"][
-            "backchannel_logout_uri"
-        ] = "https://example.com/bc_logout"
-        self.session_endpoint.endpoint_context.cdb["client_1"]["client_id"] = "client_1"
-        self.session_endpoint.endpoint_context.cdb["client_2"][
-            "frontchannel_logout_uri"
-        ] = "https://example.com/fc_logout"
-        self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
-
-        _sid = "sid"
-
-        res = self.session_endpoint.logout_all_clients(_sid, "client_1")
-        assert res == {}
+        _uid, _cid, _gid = unpack_db_key(_session_info["session_id"])
+        _sid = db_key('babs', _cid, _gid)
+        with pytest.raises(KeyError):
+            res = self.session_endpoint.logout_all_clients(_sid, "client_1")
 
     def test_logout_from_client_no_session(self):
-        self._code_auth("1234567")
+        _resp = self._code_auth("1234567")
+        _code = _resp["response_args"]["code"]
+        _session_info = self.session_manager.get_session_info_by_token(_code)
         self._code_auth2("abcdefg")
 
         # client0
@@ -561,9 +604,8 @@ class TestEndpoint(object):
         ] = "https://example.com/fc_logout"
         self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
 
-        _sid = db_key("diana", "client_1")
+        _uid, _cid, _gid = unpack_db_key(_session_info["session_id"])
+        self.session_endpoint.endpoint_context.session_manager.delete([_uid, _cid])
 
-        self.session_endpoint.endpoint_context.session_manager.delete("diana", "client_1")
-
-        res = self.session_endpoint.logout_all_clients(_sid, "client_1")
-        assert res == {}
+        with pytest.raises(ValueError):
+            self.session_endpoint.logout_all_clients(_session_info["session_id"], "client_1")

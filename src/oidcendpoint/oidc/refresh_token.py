@@ -1,5 +1,7 @@
 import logging
 
+from cryptojwt.jwe.exception import JWEException
+from cryptojwt.jws.exception import NoSuitableSigningKeys
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import RefreshAccessTokenRequest
@@ -10,6 +12,7 @@ from oidcendpoint import sanitize
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.grant import RefreshToken
 
 logger = logging.getLogger(__name__)
 
@@ -37,30 +40,68 @@ class RefreshAccessToken(Endpoint):
                 error="invalid_request", error_description="Wrong grant_type"
             )
 
-        rtoken = req["refresh_token"]
-        _session_info = _mngr.get_session_info_by_token(rtoken)
-        grant, token = _mngr.find_grant(_session_info["session_id"], rtoken)
+        token_value = req["refresh_token"]
+        _session_info = _mngr.get_session_info_by_token(token_value)
+        token = _mngr.find_token(_session_info["session_id"], token_value)
+        if not isinstance(token, RefreshToken):
+            return self.error_cls(
+                error="invalid_request", error_description="Wrong token type"
+            )
+
         if token.is_active is False:
             return self.error_cls(
                 error="invalid_request", error_description="Refresh token inactive"
             )
 
-        access_token = grant.mint_token(
+        _grant = _session_info["grant"]
+        access_token = _grant.mint_token(
             'access_token',
             value=_mngr.token_handler["access_token"](
                 _session_info["session_id"],
                 client_id=_session_info["client_id"],
-                aud=grant.resources,
+                aud=_grant.resources,
                 user_claims=None,
-                scope=grant.scope,
+                scope=_grant.scope,
                 sub=_session_info["client_session_info"]['sub']
             ),
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
-            based_on=rtoken  # Means the token (tok) was used to mint this token
+            based_on=token  # Means the token (tok) was used to mint this token
         )
 
-        return {"access_token": access_token, "token_type": "Bearer",
-                "expires_in": 900, "scope": grant.scope}
+        _resp = {"access_token": access_token.value, "token_type": "Bearer",
+                "expires_in": 900, "scope": _grant.scope}
+
+        _mints = token.usage_rules.get("supports_minting")
+        if "refresh_token" in _mints:
+            refresh_token = _grant.mint_token(
+                'refresh_token',
+                value=_mngr.token_handler["refresh_token"](
+                    _session_info["session_id"],
+                    client_id=_session_info["client_id"],
+                    aud=_grant.resources,
+                    user_claims=None,
+                    scope=_grant.scope,
+                    sub=_session_info["client_session_info"]['sub']
+                ),
+                expires_at=time_sans_frac() + 900,  # 15 minutes from now
+                based_on=token  # Means the token (tok) was used to mint this token
+            )
+            _resp["refresh_token"] = refresh_token.value
+
+        if "id_token" in _mints:
+            try:
+                _idtoken = self.endpoint_context.idtoken.make(_session_info["session_id"])
+            except (JWEException, NoSuitableSigningKeys) as err:
+                logger.warning(str(err))
+                resp = self.error_cls(
+                    error="invalid_request",
+                    error_description="Could not sign/encrypt id_token",
+                )
+                return resp
+
+            _resp["id_token"] = _idtoken
+
+        return _resp
 
     def client_authentication(self, request, auth=None, **kwargs):
         """
@@ -130,6 +171,7 @@ class RefreshAccessToken(Endpoint):
         _session_info = self.endpoint_context.session_manager.get_session_info_by_token(_token)
         _cookie = new_cookie(
             self.endpoint_context,
+            sid=_session_info["session_id"],
             sub=_session_info["client_session_info"]["sub"],
             cookie_name=self.endpoint_context.cookie_name["session"],
         )
