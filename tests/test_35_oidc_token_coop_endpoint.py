@@ -7,17 +7,18 @@ from cryptojwt.key_jar import build_keyjar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RefreshAccessTokenRequest
+from oidcmsg.oidc import ResponseMessage
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import MultipleCodeUsage
-from oidcendpoint.exception import ProcessError
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
+from oidcendpoint.oidc.token_coop import AccessToken, RefreshToken
 from oidcendpoint.oidc.token_coop import TokenCoop
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -43,12 +44,6 @@ RESPONSE_TYPES_SUPPORTED = [
 
 CAPABILITIES = {
     "subject_types_supported": ["public", "pairwise"],
-    "grant_types_supported": [
-        "authorization_code",
-        "implicit",
-        "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "refresh_token",
-    ],
 }
 
 AUTH_REQ = AuthorizationRequest(
@@ -119,7 +114,7 @@ def conf():
                         "client_secret_post",
                         "client_secret_jwt",
                         "private_key_jwt",
-                    ]
+                    ],
                 },
             },
             "userinfo": {
@@ -157,6 +152,64 @@ class TestEndpoint(object):
 
     def test_init(self):
         assert self.endpoint
+
+    @pytest.mark.parametrize("grant_types_supported", [
+        {
+            "authorization_code": {
+                "class": AccessToken
+            },
+            "refresh_token": {
+                "class": RefreshToken,
+            },
+        },
+        {},  # Empty dict should work with the default grant types
+        {
+            "authorization_code": {
+                "class": "oidcendpoint.oidc.token_coop.AccessToken"
+            },
+        },
+        {
+            "authorization_code": {
+                "class": "oidcendpoint.oidc.token_coop.AccessToken",
+                "kwargs": {},
+            },
+        },
+        {
+            "authorization_code": True,  # Both True and None end up using the defaults
+            "refresh_token": None,  # This represents a key w/o value in the YAML conf
+        },
+    ])
+    def test_init_with_grant_types_supported(self, conf, grant_types_supported):
+        token_conf = conf["endpoint"]["token"]
+        token_conf["kwargs"]["grant_types_supported"] = grant_types_supported
+        endpoint_context = EndpointContext(conf)
+        assert endpoint_context
+
+    @pytest.mark.parametrize("grant_types_supported", [
+        {
+            "authorization_code": AccessToken,
+            "refresh_token": {
+                "class": RefreshToken,
+            },
+        },
+        {
+            "authorization_code": {
+                "class": "oidcendpoint.UnknownModule"
+            },
+        },
+        {
+            "authorization_code": {
+                "kwargs": {},
+            },
+        },
+    ])
+    def test_errors_in_grant_types_supported(self, conf, grant_types_supported):
+        token_conf = conf["endpoint"]["token"]
+        token_conf["kwargs"]["grant_types_supported"] = grant_types_supported
+        with pytest.raises(Exception) as exception_info:
+            EndpointContext(conf)
+        assert exception_info.typename == "ProcessError"
+        assert "Token Endpoint" in str(exception_info.value)
 
     def test_parse(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ, uid="user")
@@ -241,7 +294,7 @@ class TestEndpoint(object):
 
         _context.sdb.update(session_id, user="diana")
         _req = self.endpoint.parse_request(_token_request)
-        _resp = self.endpoint.process_request(request=_req)
+        self.endpoint.process_request(request=_req)
 
         # 2nd time used
         with pytest.raises(UnAuthorizedClient):
@@ -363,9 +416,58 @@ class TestEndpoint(object):
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
-        self.endpoint.allow_refresh = False
+        self.endpoint.helper = {"authorization_code": AccessToken}
 
         _request = REFRESH_TOKEN_REQ.copy()
         _request["refresh_token"] = _resp["response_args"]["refresh_token"]
-        with pytest.raises(ProcessError):
-            self.endpoint.parse_request(_request.to_json())
+        _resp = self.endpoint.parse_request(_request.to_json())
+        assert "error" in _resp
+        assert "error_description" in _resp
+        assert _resp["error"] == "invalid_request"
+        assert _resp["error_description"] == "Unsupported grant_type: refresh_token"
+
+    def test_custom_grant_class(self, conf):
+        """
+        Register a custom grant type supported and see if it works as it should.
+        """
+        class CustomGrant:
+            def __init__(self, endpoint, config=None):
+                self.endpoint = endpoint
+
+            def post_parse_request(self, request, client_id="", **kwargs):
+                request.testvalue = "test"
+                return request
+
+            def process_request(self, request, **kwargs):
+                """
+                All grant types should return a ResponseMessage class or inherit it.
+                """
+                return ResponseMessage(test="successful")
+
+        token_conf = conf["endpoint"]["token"]
+        token_conf["kwargs"]["grant_types_supported"] = {
+            "authorization_code": True,
+            "test_grant": {
+                "class": CustomGrant
+            }
+        }
+        endpoint_context = EndpointContext(conf)
+        token_endpoint = endpoint_context.endpoint["token"]
+        token_endpoint.client_authn_method = [None]
+        endpoint_context.cdb["client_1"] = {
+            "client_secret": "hemligt",
+            "redirect_uris": [("https://example.com/cb", None)],
+            "client_salt": "salted",
+            "endpoint_auth_method": "client_secret_post",
+            "response_types": ["code", "token", "code id_token", "id_token"],
+        }
+        endpoint_context.keyjar.import_jwks(CLIENT_KEYJAR.export_jwks(), "client_1")
+
+        request = dict(grant_type="test_grant", client_id="client_1")
+
+        parsed_request = token_endpoint.parse_request(request)
+        assert parsed_request.testvalue == "test"
+
+        response = token_endpoint.process_request(parsed_request)
+        assert "test" in response
+        assert response["test"] == "successful"
