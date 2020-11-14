@@ -163,7 +163,10 @@ class Session(Endpoint):
                 if _spec:
                     fc_iframes[_cid] = _spec
 
-        self.clean_sessions(usids)
+        try:
+            self.clean_sessions(usids)
+        except KeyError:
+            pass
 
         res = {}
         if bc_logouts:
@@ -208,7 +211,11 @@ class Session(Endpoint):
             if _spec:
                 res["flu"] = {client_id: _spec}
 
-        self.clean_sessions([sid])
+        try:
+            self.clean_sessions([sid])
+        except KeyError:
+            pass
+
         return res
 
     def process_request(self, request=None, cookie=None, **kwargs):
