@@ -238,10 +238,7 @@ class TestEndpoint(object):
         assert isinstance(resp["response_args"], AuthorizationResponse)
 
         _token_request = TOKEN_REQ.copy()
-        session = self.token_endpoint.endpoint_context.sdb[
-            resp["response_args"]["code"]
-        ]
-        _token_request["code"] = session["code"]
+        _token_request["code"] = resp["response_args"]["code"]
         _token_request["code_verifier"] = _cc_info["code_verifier"]
         _req = self.token_endpoint.parse_request(_token_request)
 
