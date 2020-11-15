@@ -4,7 +4,7 @@ import pytest
 
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -63,7 +63,7 @@ class TestEndpoint(object):
                     "class": ProviderConfiguration,
                     "kwargs": {},
                 },
-                "token": {"path": "token", "class": AccessToken, "kwargs": {}},
+                "token": {"path": "token", "class": Token, "kwargs": {}},
             },
             "template_dir": "template",
         }

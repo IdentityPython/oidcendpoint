@@ -17,7 +17,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.session_management import ClientSessionInfo
 from oidcendpoint.session_management import SessionManager
 from oidcendpoint.session_management import UserSessionInfo
@@ -285,7 +285,7 @@ class TestSessionJWTToken():
                     "class": Authorization,
                     "kwargs": {},
                 },
-                "token": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
+                "token": {"path": "{}/token", "class": Token, "kwargs": {}},
                 "session": {"path": "{}/end_session", "class": Session},
             },
             "client_authn": verify_client,

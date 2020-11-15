@@ -103,12 +103,14 @@ class EndpointContext(OidcContext):
         self.cdb = None
         self.jti_db = None
         self.registration_access_token = None
+        self.session_db = None
 
         self.add_boxes(
             {
                 "client": "cdb",
                 "jti": "jti_db",
                 "registration_access_token": "registration_access_token",
+                "session": "session_db"
             },
             self.db_conf,
         )
@@ -138,6 +140,7 @@ class EndpointContext(OidcContext):
         self.login_hint2acrs = None
         self.userinfo = None
         self.scope2claims = SCOPE2CLAIMS
+        self.token_usage_rules = {}
         # arguments for endpoints add-ons
         self.args = {}
 
@@ -147,6 +150,7 @@ class EndpointContext(OidcContext):
             "symkey",
             "client_authn",
             "id_token_schema",
+            "token_usage_rules"
         ]:
             try:
                 setattr(self, param, conf[param])
@@ -353,9 +357,15 @@ class EndpointContext(OidcContext):
                     self._sub_func[key] = args["function"]
 
     def do_session_manager(self, db=None):
-        self.session_manager = create_session_manager(
-            self, self.th_args, db=db, sub_func=self._sub_func
-        )
+        if self.session_db is None:
+            self.session_manager = create_session_manager(
+                self, self.th_args, db=db, sub_func=self._sub_func
+            )
+        else:
+            self.session_manager = create_session_manager(
+                self, self.th_args, db=self.session_db, sub_func=self._sub_func
+            )
+
 
     def do_endpoints(self):
         self.endpoint = build_endpoints(

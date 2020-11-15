@@ -17,7 +17,7 @@ from oidcendpoint.cookie import new_cookie
 from oidcendpoint.cookie import sign_enc_payload
 from oidcendpoint.cookie import ver_dec_content
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]},
@@ -233,7 +233,7 @@ conf = {
     "grant_expires_in": 300,
     "refresh_token_expires_in": 86400,
     "verify_ssl": False,
-    "endpoint": {"token": {"path": "token", "class": AccessToken, "kwargs": {}}},
+    "endpoint": {"token": {"path": "token", "class": Token, "kwargs": {}}},
     "template_dir": "template",
     "keys": {
         "private_path": "own/jwks.json",

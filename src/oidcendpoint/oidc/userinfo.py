@@ -10,8 +10,6 @@ from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.token_handler import UnknownToken
-# from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.userinfo import ClaimsInterface
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -125,6 +123,7 @@ class UserInfo(Endpoint):
             _restrictions = _session_info["grant"].claims.get("userinfo")
             info = self.endpoint_context.claims_interface.get_user_claims(
                 user_id=_session_info["user_id"], claims_restriction=_restrictions)
+            info["sub"] = _session_info["client_session_info"]["sub"]
         else:
             info = {
                 "error": "invalid_request",

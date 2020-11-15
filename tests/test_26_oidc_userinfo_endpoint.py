@@ -15,7 +15,7 @@ from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.session_management import db_key
 from oidcendpoint.session_management import unpack_db_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -106,7 +106,7 @@ class TestEndpoint(object):
                 },
                 "token": {
                     "path": "token",
-                    "class": AccessToken,
+                    "class": Token,
                     "kwargs": {
                         "client_authn_methods": [
                             "client_secret_post",
@@ -363,4 +363,4 @@ class TestEndpoint(object):
         args = self.endpoint.process_request(_req)
         assert set(args["response_args"].keys()) == {'eduperson_scoped_affiliation', 'given_name',
                                                      'email_verified', 'email', 'family_name',
-                                                     'name'}
+                                                     'name', "sub"}

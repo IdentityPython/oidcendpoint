@@ -1,10 +1,14 @@
 import hashlib
+import json
 import logging
+
+from oidcmsg.message import Message
 
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
 from oidcendpoint.grant import AccessToken
 from oidcendpoint.grant import AuthorizationCode
+from oidcendpoint.grant import Grant
 from oidcendpoint.token_handler import UnknownToken
 
 logger = logging.getLogger(__name__)
@@ -80,6 +84,27 @@ class SessionInfo(object):
     def is_revoked(self):
         return self._revoked
 
+    def to_json(self):
+        _tdb = {}
+        for k, v in self._db.items():
+            if isinstance(v, Message):
+                _tdb[k] = v.to_dict()
+            else:
+                _tdb[k] = v
+
+        d = {
+            "db": _tdb,
+            "revoked": self._revoked,
+            "type": self.__class__.__name__
+        }
+        return json.dumps(d)
+
+    def from_json(self, js):
+        data = json.loads(js)
+        self._db = data["db"]
+        self._revoked = data["revoked"]
+        return self
+
 
 class UserSessionInfo(SessionInfo):
     def __init__(self, **kwargs):
@@ -98,7 +123,10 @@ class ClientSessionInfo(SessionInfo):
 
 class Database(object):
     def __init__(self, storage=None):
-        self._db = storage or {}
+        if storage is None:
+            self._db = {}
+        else:
+            self._db = storage
 
     def eval_path(self, path):
         uid = path[0]
@@ -254,10 +282,11 @@ class Database(object):
 
 
 class SessionManager(Database):
-    def __init__(self, db, handler, sub_func=None):
+    def __init__(self, db, handler, conf=None, sub_func=None):
         Database.__init__(self, db)
         self.token_handler = handler
         self.salt = rndstr(32)
+        self.conf = conf or {}
 
         # this allows the subject identifier minters to be defined by someone
         # else then me.
@@ -452,7 +481,20 @@ class SessionManager(Database):
         return None
 
 
-
 def create_session_manager(endpoint_context, token_handler_args, db=None, sub_func=None):
     _token_handler = token_handler.factory(endpoint_context, **token_handler_args)
     return SessionManager(db, _token_handler, sub_func=sub_func)
+
+
+class JSON:
+    def serialize(self, instance):
+        return instance.to_json()
+
+    def deserialize(self, js):
+        args = json.loads(js)
+        if args["type"] == "UserSessionInfo":
+            return UserSessionInfo().from_json(js)
+        elif args["type"] == "ClientSessionInfo":
+            return ClientSessionInfo().from_json(js)
+        elif args["type"] == "grant":
+            return Grant().from_json(js)

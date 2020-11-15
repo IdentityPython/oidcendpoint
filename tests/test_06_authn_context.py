@@ -11,7 +11,7 @@ from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_authn.authn_context import TIMESYNCTOKEN
 from oidcendpoint.user_authn.authn_context import init_method
@@ -152,7 +152,7 @@ class TestAuthnBrokerEC:
                     "class": Authorization,
                     "kwargs": {},
                 },
-                "token": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
+                "token": {"path": "{}/token", "class": Token, "kwargs": {}},
             },
             "authentication": METHOD,
             "userinfo": {"class": UserInfo, "kwargs": {"db": USERINFO_db}},
