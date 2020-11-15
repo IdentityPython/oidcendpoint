@@ -18,7 +18,7 @@ from oidcendpoint.id_token import IDToken
 from oidcendpoint.id_token import get_sign_and_encrypt_algorithms
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.session_management import SessionManager
 from oidcendpoint.session_management import db_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -82,7 +82,7 @@ conf = {
             "class": Authorization,
             "kwargs": {},
         },
-        "token_endpoint": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
+        "token_endpoint": {"path": "{}/token", "class": Token, "kwargs": {}},
         "userinfo_endpoint": {
             "path": "{}/userinfo",
             "class": userinfo.UserInfo,

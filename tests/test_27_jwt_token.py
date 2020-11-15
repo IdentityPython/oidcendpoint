@@ -18,7 +18,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.session_management import db_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
@@ -148,7 +148,7 @@ class TestEndpoint(object):
                     "class": Authorization,
                     "kwargs": {},
                 },
-                "token": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
+                "token": {"path": "{}/token", "class": Token, "kwargs": {}},
                 "session": {"path": "{}/end_session", "class": Session},
                 "introspection": {
                     "path": "{}/introspection",

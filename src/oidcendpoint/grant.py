@@ -42,13 +42,15 @@ class Item:
                  usage_rules: Optional[dict] = None,
                  issued_at: int = 0,
                  expires_at: int = 0,
-                 not_before: int = 0
+                 not_before: int = 0,
+                 revoked: bool = False,
+                 used: int = 0
                  ):
         self.issued_at = issued_at or utc_time_sans_frac()
         self.not_before = not_before
         self.expires_at = expires_at
-        self.revoked = False
-        self.used = 0
+        self.revoked = revoked
+        self.used = used
         self.usage_rules = usage_rules or {}
 
     def max_usage_reached(self):
@@ -83,22 +85,24 @@ class Token(Item):
                   "usage_rules", "used", "based_on", "id"]
 
     def __init__(self,
-                 typ: str = '',
+                 type: str = '',
                  based_on: Optional[str] = None,
                  usage_rules: Optional[dict] = None,
                  value: Optional[str] = '',
                  issued_at: int = 0,
                  expires_at: int = 0,
-                 not_before: int = 0
+                 not_before: int = 0,
+                 revoked: bool = False,
+                 used: int = 0,
+                 id: str = ""
                  ):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at,
-                      not_before=not_before)
+                      not_before=not_before, revoked=revoked, used=used)
 
-        self.type = typ
+        self.type = type
         self.value = value
         self.based_on = based_on
-        self.id = uuid1().hex
-
+        self.id = id or uuid1().hex
         self.set_defaults()
 
     def set_defaults(self):
@@ -174,7 +178,8 @@ class Grant(Item):
                  token: Optional[list] = None,
                  usage_rules: Optional[dict] = None,
                  issued_at: int = 0,
-                 expires_at: int = 0):
+                 expires_at: int = 0,
+                 revoked: bool = False):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at)
         self.scope = scope or []
         self.authorization_details = authorization_details or None
@@ -205,6 +210,7 @@ class Grant(Item):
 
     def to_json(self):
         d = {
+            "type": "grant",
             "scope": self.scope,
             "authorization_details": self.authorization_details,
             "claims": self.claims,
@@ -213,7 +219,7 @@ class Grant(Item):
             "not_before": self.not_before,
             "expires_at": self.expires_at,
             "revoked": self.revoked,
-            "issued_token": [t.to_json for t in self.issued_token],
+            "issued_token": [t.to_json() for t in self.issued_token],
             "id": self.id
         }
         return json.dumps(d)
@@ -225,7 +231,13 @@ class Grant(Item):
             if attr in d:
                 setattr(self, attr, d[attr])
         if "issued_token" in d:
-            setattr(self, "issued_token", [Token(**t) for t in d['issued_token']])
+            _it = []
+            for js in d["issued_token"]:
+                args = json.loads(js)
+                _it.append(TOKEN_MAP[args["type"]](**args))
+            setattr(self, "issued_token", _it)
+
+        return self
 
     def mint_token(self, token_type: str, based_on: Optional[Token] = None, **kwargs) -> Token:
         if based_on:
@@ -236,7 +248,10 @@ class Grant(Item):
         else:
             _base_on_ref = None
 
-        item = TOKEN_MAP[token_type](typ=token_type, based_on=_base_on_ref, **kwargs)
+        if not "usage_rules" in kwargs and token_type in self.usage_rules:
+            kwargs["usage_rules"] = self.usage_rules[token_type]
+
+        item = TOKEN_MAP[token_type](type=token_type, based_on=_base_on_ref, **kwargs)
         self.issued_token.append(item)
 
         return item
@@ -257,3 +272,47 @@ class Grant(Item):
         for t in self.issued_token:
             if t.value == val:
                 t.revoked = True
+
+
+DEFAULT_USAGE = {
+    "authorization_code": {
+        "max_usage": 1,
+        "supports_minting": ["access_token", "refresh_token", "id_token"],
+        "expires_in": 300
+    },
+    "access_token": {
+        "supports_minting": [],
+        "expires_in": 3600
+    },
+    "refresh_token": {
+        "supports_minting": ["access_token", "refresh_token", "id_token"]
+    }
+}
+
+
+def get_usage_rules(token_type, endpoint_context, grant, client_id):
+    """
+    The order of importance:
+    Grant, Client, EndPointContext, Default
+
+    :param token_type: The type of token
+    :param endpoint_context: An EndpointContext instance
+    :param grant: A Grant instance
+    :param client_id: The client identifier
+    :return: Usage specification
+    """
+
+    if token_type in endpoint_context.token_usage_rules:
+        _usage = endpoint_context.token_usage_rules[token_type]
+    else:
+        _usage = DEFAULT_USAGE[token_type]
+
+    _cinfo = endpoint_context.cdb.get(client_id, {})
+    if "token_usage_rules" in _cinfo:
+        _usage.update(_cinfo["token_usage_rules"])
+
+    _grant_usage = grant.usage_rules.get(token_type)
+    if _grant_usage:
+        _usage.update(_grant_usage)
+
+    return _usage

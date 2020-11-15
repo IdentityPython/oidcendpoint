@@ -1,7 +1,7 @@
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.oidc.userinfo import UserInfo
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
@@ -40,7 +40,7 @@ conf = {
             "class": Authorization,
             "kwargs": {},
         },
-        "token_endpoint": {"path": "token", "class": AccessToken, "kwargs": {}},
+        "token_endpoint": {"path": "token", "class": Token, "kwargs": {}},
         "userinfo_endpoint": {
             "path": "userinfo",
             "class": UserInfo,

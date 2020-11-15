@@ -24,7 +24,7 @@ from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import NotForMe
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.oidc.userinfo import UserInfo
 
 KEYDEFS = [
@@ -44,7 +44,7 @@ CONF = {
     "endpoint": {
         "token": {
             "path": "token",
-            "class": AccessToken,
+            "class": Token,
             "kwargs": {
                 "client_authn_method": [
                     "private_key_jwt",

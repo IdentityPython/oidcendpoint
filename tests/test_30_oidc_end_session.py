@@ -30,10 +30,9 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.session import do_front_channel_logout_iframe
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.session_management import db_key
 from oidcendpoint.session_management import unpack_db_key
-from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -132,7 +131,7 @@ class TestEndpoint(object):
                     "class": Authorization,
                     "kwargs": {"client_authn_method": None},
                 },
-                "token": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
+                "token": {"path": "{}/token", "class": Token, "kwargs": {}},
                 "userinfo": {
                     "path": "{}/userinfo",
                     "class": userinfo.UserInfo,

@@ -35,6 +35,7 @@ from oidcendpoint.exception import ServiceError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.grant import get_usage_rules
 from oidcendpoint.oauth2.authorization import check_unknown_scopes_policy
 from oidcendpoint.session_management import ClientSessionInfo
 from oidcendpoint.session_management import UserSessionInfo
@@ -395,6 +396,36 @@ class Authorization(Endpoint):
     def extra_response_args(self, aresp):
         return aresp
 
+    def _mint_token(self, token_type, grant, session_info, based_on=None):
+        _mngr = self.endpoint_context.session_manager
+        usage_rules = get_usage_rules("authorization_code", self.endpoint_context,
+                                      grant, session_info["client_id"])
+        _exp_in = usage_rules.get("expires_in")
+        if isinstance(_exp_in, str):
+            _exp_in = int(_exp_in)
+
+        token = grant.mint_token(
+            token_type,
+            value=_mngr.token_handler["access_token"](
+                session_info["session_id"],
+                client_id=session_info["client_id"],
+                aud=grant.resources,
+                user_claims=None,
+                scope=grant.scope,
+                sub=session_info["client_session_info"]['sub']
+            ),
+            based_on=based_on,
+            usage_rules=usage_rules
+        )
+
+        if _exp_in:
+            token.expires_at = utc_time_sans_frac() + _exp_in
+
+        self.endpoint_context.session_manager.set(
+            unpack_db_key(session_info["session_id"]), grant)
+
+        return token
+
     def create_authn_response(self, request, sid):
         """
 
@@ -428,31 +459,19 @@ class Authorization(Endpoint):
             grant = _sinfo["grant"]
 
             if "code" in request["response_type"]:
-                _code = grant.mint_token(
-                    'authorization_code',
-                    value=_mngr.token_handler["code"](sid),
-                    expires_at=time_sans_frac() + 300  # 5 minutes from now
-                )
+                _code = self._mint_token('authorization_code', grant, _sinfo)
                 aresp["code"] = _code.value
                 handled_response_type.append("code")
             else:
                 _code = None
 
             if "token" in rtype:
-                _access_token = grant.mint_token(
-                    "access_token",
-                    value=_mngr.token_handler["access_token"](
-                        sid,
-                        client_id=_sinfo["client_id"],
-                        aud=grant.resources,
-                        user_claims=None,
-                        scope=grant.scope,
-                        sub=_sinfo["client_session_info"]['sub'],
-                        based_on=_code
-                    ),
-                    expires_at=time_sans_frac() + 900
-                )
+                if _code:
+                    based_on = _code
+                else:
+                    based_on = None
 
+                _access_token = self._mint_token("access_token", grant, _sinfo, based_on)
                 aresp['access_token'] = _access_token.value
                 handled_response_type.append("token")
             else:

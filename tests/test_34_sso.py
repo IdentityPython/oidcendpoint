@@ -139,23 +139,6 @@ class TestUserAuthn(object):
             },
             "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "authentication": {
-                "user": {
-                    "acr": INTERNETPROTOCOLPASSWORD,
-                    "class": UserPassJinja2,
-                    "verify_endpoint": "verify/user",
-                    "kwargs": {
-                        "template": "user_pass.jinja2",
-                        "sym_key": "24AA/LR6HighEnergy",
-                        "db": {
-                            "class": JSONDictDB,
-                            "kwargs": {"json_path": full_path("passwd.json")},
-                        },
-                        "page_header": "Testing log in",
-                        "submit_btn": "Get me in!",
-                        "user_label": "Nickname",
-                        "passwd_label": "Secret sauce",
-                    },
-                },
                 "anon": {
                     "acr": UNSPECIFIED,
                     "class": NoAuthn,
@@ -197,20 +180,9 @@ class TestUserAuthn(object):
         info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=None)
         # info = self.endpoint.process_request(request)
 
-        assert "function" in info
+        assert "user" in info
 
-        authn_event = create_authn_event(
-            "diana",
-            "",
-            authn_info=INTERNETPROTOCOLPASSWORD,
-            time_stamp=utc_time_sans_frac(),
-        )
-
-        info = {"user": "diana", "authn_event": authn_event}
-
-        res = self.endpoint.authz_part2(
-            info["user"], info["authn_event"], request, cookie=""
-        )
+        res = self.endpoint.authz_part2(info["user"], request, cookie="")
         assert res
         cookie = res["cookie"]
 
@@ -223,18 +195,7 @@ class TestUserAuthn(object):
         assert set(info.keys()) == {"authn_event", "identity", "user"}
         assert info["user"] == "diana"
 
-        authn_event = create_authn_event(
-            "diana",
-            "",
-            authn_info=INTERNETPROTOCOLPASSWORD,
-            time_stamp=utc_time_sans_frac(),
-        )
-
-        info = {"user": "diana", "authn_event": authn_event}
-
-        res = self.endpoint.authz_part2(
-            info["user"], info["authn_event"], request, cookie=""
-        )
+        res = self.endpoint.authz_part2(info["user"], request, cookie="")
         cookie = res["cookie"]
 
         # third login
@@ -246,21 +207,8 @@ class TestUserAuthn(object):
         assert set(info.keys()) == {"authn_event", "identity", "user"}
         assert info["user"] == "diana"
 
-        authn_event = create_authn_event(
-            "diana",
-            "",
-            authn_info=INTERNETPROTOCOLPASSWORD,
-            time_stamp=utc_time_sans_frac(),
-        )
+        self.endpoint.authz_part2(info["user"], request, cookie="")
 
-        info = {"user": "diana", "authn_event": authn_event}
-
-        self.endpoint.authz_part2(info["user"], info["authn_event"], request, cookie="")
-
-        sids = self.endpoint.endpoint_context.sdb.sso_db.get_sids_by_uid("diana")
-        assert len(sids) == 3
-        # from which clients
-        clients = [
-            self.endpoint.endpoint_context.session_db[s]["client_id"] for s in sids
-        ]
-        assert set(clients) == {"client_1", "client2", "client3"}
+        user_session_info = self.endpoint.endpoint_context.session_manager.get(["diana"])
+        assert len(user_session_info["subordinate"]) == 3
+        assert set(user_session_info["subordinate"]) == {"client_1", "client2", "client3"}

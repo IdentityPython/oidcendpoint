@@ -15,7 +15,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -100,7 +100,7 @@ class TestAuthz(object):
                     "class": Authorization,
                     "kwargs": {"client_authn_method": None},
                 },
-                "token": {"path": "{}/token", "class": AccessToken, "kwargs": {}},
+                "token": {"path": "{}/token", "class": Token, "kwargs": {}},
                 "userinfo": {
                     "path": "{}/userinfo",
                     "class": userinfo.UserInfo,

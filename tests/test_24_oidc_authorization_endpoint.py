@@ -49,7 +49,7 @@ from oidcendpoint.oidc.authorization import inputs
 from oidcendpoint.oidc.authorization import re_authenticate
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_authn.authn_context import UNSPECIFIED
 from oidcendpoint.user_authn.authn_context import init_method
@@ -193,7 +193,7 @@ class TestEndpoint(object):
                 },
                 "token": {
                     "path": "token",
-                    "class": AccessToken,
+                    "class": Token,
                     "kwargs": {
                         "client_authn_method": [
                             "client_secret_post",

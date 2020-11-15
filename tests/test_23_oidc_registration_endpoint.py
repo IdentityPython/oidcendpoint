@@ -12,7 +12,7 @@ from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.registration import match_sp_sep
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.oidc.userinfo import UserInfo
 
 KEYDEFS = [
@@ -108,7 +108,7 @@ class TestEndpoint(object):
                 },
                 "token": {
                     "path": "token",
-                    "class": AccessToken,
+                    "class": Token,
                     "kwargs": {
                         "client_authn_method": [
                             "client_secret_post",
