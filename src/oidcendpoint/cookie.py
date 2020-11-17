@@ -202,7 +202,7 @@ def make_cookie_content(
     :param max_age: The time in seconds for when a cookie will be deleted
     :type max_age: int
     :param secure: A secure cookie is only sent to the server with an encrypted request over the
-    HTTPS protocol.
+        HTTPS protocol.
     :type secure: boolean
     :param http_only: HttpOnly cookies are inaccessible to JavaScript's Document.cookie API
     :type http_only: boolean
