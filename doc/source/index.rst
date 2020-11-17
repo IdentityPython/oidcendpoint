@@ -11,7 +11,7 @@ Welcome to OidcEndpoint's documentation!
    :caption: Contents:
 
    oidcendpoint
-   session_management
+   session_manager
 
 Indices and tables
 ==================
