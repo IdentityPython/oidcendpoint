@@ -2,7 +2,7 @@ import logging
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.session_management import unpack_session_key
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import RefreshAccessTokenRequest
@@ -71,7 +71,7 @@ class Token(Endpoint):
                 token.expires_at = time_sans_frac() + _exp_in
 
         self.endpoint_context.session_manager.set(
-            unpack_db_key(session_info["session_id"]), grant)
+            unpack_session_key(session_info["session_id"]), grant)
 
         return token
 

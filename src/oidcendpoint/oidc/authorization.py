@@ -39,8 +39,8 @@ from oidcendpoint.grant import get_usage_rules
 from oidcendpoint.oauth2.authorization import check_unknown_scopes_policy
 from oidcendpoint.session_management import ClientSessionInfo
 from oidcendpoint.session_management import UserSessionInfo
-from oidcendpoint.session_management import db_key
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.session_management import session_key
+from oidcendpoint.session_management import unpack_session_key
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_authn.authn_context import pick_auth
 
@@ -422,7 +422,7 @@ class Authorization(Endpoint):
             token.expires_at = utc_time_sans_frac() + _exp_in
 
         self.endpoint_context.session_manager.set(
-            unpack_db_key(session_info["session_id"]), grant)
+            unpack_session_key(session_info["session_id"]), grant)
 
         return token
 
@@ -568,7 +568,7 @@ class Authorization(Endpoint):
 
         response_info = {}
         _mngr = self.endpoint_context.session_manager
-        user_id, client_id = unpack_db_key(pre_sid)
+        user_id, client_id = unpack_session_key(pre_sid)
 
         # Do the authorization
         try:
@@ -591,7 +591,7 @@ class Authorization(Endpoint):
                     response_info, "server_error", "{}".format(err.args)
                 )
             else:
-                session_id = db_key(user_id, client_id, grant.id)
+                session_id = session_key(user_id, client_id, grant.id)
 
         logger.debug("response type: %s" % request["response_type"])
 
@@ -659,7 +659,7 @@ class Authorization(Endpoint):
             )
 
         _mngr.set([user_id, client_id], client_info)
-        return db_key(user_id, client_id)
+        return session_key(user_id, client_id)
 
     def authz_part2(self, user, request, **kwargs):
         """

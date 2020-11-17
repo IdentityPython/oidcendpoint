@@ -20,8 +20,8 @@ from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.grant import Grant
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.oauth2.introspection import Introspection
-from oidcendpoint.oidc.token_coop import TokenCoop
-from oidcendpoint.session_management import db_key
+from oidcendpoint.oidc.token import Token
+from oidcendpoint.session_management import session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -134,7 +134,7 @@ class TestEndpoint:
                 },
                 "token": {
                     "path": "token",
-                    "class": TokenCoop,
+                    "class": Token,
                     "kwargs": {
                         "client_authn_method": [
                             "client_secret_basic",
@@ -194,7 +194,7 @@ class TestEndpoint:
         self.session_manager.create_session(ae, auth_req, user_id, client_id=client_id,
                                             sub_type=sub_type,
                                             sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req, user_id=''):
         if not user_id:
@@ -205,7 +205,7 @@ class TestEndpoint:
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager.set([user_id, client_id, grant.id], grant)
-        return db_key(user_id, client_id, grant.id)
+        return session_key(user_id, client_id, grant.id)
 
     def _mint_code(self, grant, session_id):
         # Constructing an authorization code is now done

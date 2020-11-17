@@ -35,7 +35,7 @@ from oidcendpoint.exception import UnknownClient
 from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
-from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import session_key
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
@@ -214,7 +214,7 @@ class TestEndpoint(object):
         ae = create_authn_event(self.user_id, self.session_manager.salt)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req):
         client_id = auth_req['client_id']
@@ -223,10 +223,10 @@ class TestEndpoint(object):
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return db_key(self.user_id, client_id, grant.id)
+        return session_key(self.user_id, client_id, grant.id)
 
     # def _mint_code(self, grant, client_id):
-    #     sid = db_key(self.user_id, client_id)
+    #     sid = session_key(self.user_id, client_id)
     #     # Constructing an authorization code is now done
     #     return grant.mint_token(
     #         'authorization_code',
@@ -239,7 +239,7 @@ class TestEndpoint(object):
     #     return grant.mint_token(
     #         'access_token',
     #         value=self.session_manager.token_handler["access_token"](
-    #             db_key(self.user_id, client_id),
+    #             session_key(self.user_id, client_id),
     #             client_id=client_id,
     #             aud=grant.resources,
     #             user_claims=None,

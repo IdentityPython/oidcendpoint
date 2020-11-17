@@ -15,8 +15,8 @@ from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.scopes import SCOPE2CLAIMS
 from oidcendpoint.scopes import STANDARD_CLAIMS
 from oidcendpoint.scopes import convert_scopes2claims
-from oidcendpoint.session_management import db_key
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.session_management import session_key
+from oidcendpoint.session_management import unpack_session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 from oidcendpoint.userinfo import ClaimsInterface
@@ -272,7 +272,7 @@ class TestCollectUserInfo:
         ae = create_authn_event(self.user_id, self.session_manager.salt)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req):
         client_id = auth_req['client_id']
@@ -282,7 +282,7 @@ class TestCollectUserInfo:
 
         # the grant is assigned to a session (user_id, client_id, grant_id)
         self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return db_key(self.user_id, client_id, grant.id)
+        return session_key(self.user_id, client_id, grant.id)
 
     def test_collect_user_info(self):
         _req = OIDR.copy()
@@ -290,7 +290,7 @@ class TestCollectUserInfo:
 
         self._create_session(_req)
         session_id = self._do_grant(_req)
-        _uid, _cid, _gid = unpack_db_key(session_id)
+        _uid, _cid, _gid = unpack_session_key(session_id)
 
         _userinfo_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
                                                                  scopes=OIDR["scope"],
@@ -329,7 +329,7 @@ class TestCollectUserInfo:
 
         self._create_session(_req)
         session_id = self._do_grant(_req)
-        _uid, _cid, _gid = unpack_db_key(session_id)
+        _uid, _cid, _gid = unpack_session_key(session_id)
 
         _userinfo_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
                                                                  scopes=_req["scope"],
@@ -356,7 +356,7 @@ class TestCollectUserInfo:
 
         self._create_session(_req)
         session_id = self._do_grant(_req)
-        _uid, _cid, _gid = unpack_db_key(session_id)
+        _uid, _cid, _gid = unpack_session_key(session_id)
 
         self.endpoint_context.endpoint["userinfo"].kwargs["add_claims_by_scope"] = False
         self.endpoint_context.endpoint["userinfo"].kwargs["enable_claims_per_client"] = False
@@ -377,7 +377,7 @@ class TestCollectUserInfo:
 
         self._create_session(_req)
         session_id = self._do_grant(_req)
-        _uid, _cid, _gid = unpack_db_key(session_id)
+        _uid, _cid, _gid = unpack_session_key(session_id)
 
         self.endpoint_context.endpoint["userinfo"].kwargs["add_claims_by_scope"] = False
         self.endpoint_context.endpoint["userinfo"].kwargs["enable_claims_per_client"] = True
@@ -503,7 +503,7 @@ class TestCollectUserInfoCustomScopes:
         ae = create_authn_event(self.user_id, self.session_manager.salt)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req):
         client_id = auth_req['client_id']
@@ -512,7 +512,7 @@ class TestCollectUserInfoCustomScopes:
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return db_key(self.user_id, client_id, grant.id)
+        return session_key(self.user_id, client_id, grant.id)
 
     def test_collect_user_info_custom_scope(self):
         _req = OIDR.copy()
@@ -521,7 +521,7 @@ class TestCollectUserInfoCustomScopes:
 
         self._create_session(_req)
         session_id = self._do_grant(_req)
-        _uid, _cid, _gid = unpack_db_key(session_id)
+        _uid, _cid, _gid = unpack_session_key(session_id)
 
         _restriction = self.claims_interface.get_claims(client_id=_cid,
                                                         user_id=_uid,

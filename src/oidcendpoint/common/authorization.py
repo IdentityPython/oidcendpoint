@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 from oidcmsg.time_util import time_sans_frac
 
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.session_management import unpack_session_key
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
 from oidcmsg.message import Message
@@ -243,7 +243,7 @@ def create_authn_response(endpoint, request, sid):
             fragment_enc = False
 
             grant = _mngr.grants(sid)[0]
-            user_id, client_id = unpack_db_key(sid)
+            user_id, client_id = unpack_session_key(sid)
 
             if "code" in request["response_type"]:
                 _code = grant.mint_token(

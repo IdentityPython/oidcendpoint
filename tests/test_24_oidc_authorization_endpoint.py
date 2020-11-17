@@ -11,7 +11,7 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
 
 from oidcendpoint.grant import Grant
-from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import session_key
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.oidc.authorization import Authorization
@@ -268,7 +268,7 @@ class TestEndpoint(object):
         ae = create_authn_event(self.user_id, self.session_manager.salt)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req):
         client_id = auth_req['client_id']
@@ -277,7 +277,7 @@ class TestEndpoint(object):
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return db_key(self.user_id, client_id, grant.id)
+        return session_key(self.user_id, client_id, grant.id)
 
     def test_parse(self):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)

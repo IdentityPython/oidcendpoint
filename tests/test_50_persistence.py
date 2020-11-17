@@ -3,7 +3,6 @@ import os
 import shutil
 
 from cryptojwt.jwt import utc_time_sans_frac
-from oidcendpoint.session_management import unpack_db_key
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 import pytest
@@ -19,7 +18,8 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import session_key
+from oidcendpoint.session_management import unpack_session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -232,7 +232,7 @@ class TestEndpoint(object):
         self.session_manager[index].create_session(ae, auth_req, self.user_id, client_id=client_id,
                                                    sub_type=sub_type,
                                                    sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req, index=1):
         client_id = auth_req['client_id']
@@ -241,10 +241,10 @@ class TestEndpoint(object):
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager[index].set([self.user_id, client_id, grant.id], grant)
-        return grant, db_key(self.user_id, client_id, grant.id)
+        return grant, session_key(self.user_id, client_id, grant.id)
 
     def _mint_code(self, grant, client_id, index=1):
-        sid = db_key(self.user_id, client_id, grant.id)
+        sid = session_key(self.user_id, client_id, grant.id)
         usage_rules = get_usage_rules("authorization_code",
                                       self.endpoint[index].endpoint_context,
                                       grant, client_id)
@@ -425,7 +425,7 @@ class TestEndpoint(object):
             "userinfo": self.endpoint[1].endpoint_context.claims_interface.get_claims(
                 _auth_req["client_id"], self.user_id, _auth_req["scope"], "userinfo")
         }
-        self.session_manager[2].set(unpack_db_key(session_id), grant)
+        self.session_manager[2].set(unpack_session_key(session_id), grant)
 
         code = self._mint_code(grant, _auth_req["client_id"], index=2)
         access_token = self._mint_access_token(grant, session_id, code, 2)

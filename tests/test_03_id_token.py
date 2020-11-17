@@ -1,6 +1,5 @@
 import json
 import os
-import time
 
 from cryptojwt.jws import jws
 from cryptojwt.jwt import JWT
@@ -19,8 +18,7 @@ from oidcendpoint.id_token import get_sign_and_encrypt_algorithms
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import SessionManager
-from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -127,7 +125,7 @@ class TestEndpoint(object):
         ae = create_authn_event(self.user_id, self.session_manager.salt)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req):
         client_id = auth_req['client_id']
@@ -136,7 +134,7 @@ class TestEndpoint(object):
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return db_key(self.user_id, client_id, grant.id)
+        return session_key(self.user_id, client_id, grant.id)
 
     def _mint_code(self, grant):
         # Constructing an authorization code is now done
@@ -151,7 +149,7 @@ class TestEndpoint(object):
         return grant.mint_token(
             'access_token',
             value=self.session_manager.token_handler["access_token"](
-                db_key(self.user_id, client_id, grant.id),
+                session_key(self.user_id, client_id, grant.id),
                 client_id=client_id,
                 aud=grant.resources,
                 user_claims=None,
@@ -235,7 +233,8 @@ class TestEndpoint(object):
         self._create_session(AREQ)
         session_id = self._do_grant(AREQ)
 
-        _token = self.endpoint_context.idtoken.sign_encrypt(session_id, AREQ['client_id'], sign=True)
+        _token = self.endpoint_context.idtoken.sign_encrypt(session_id, AREQ['client_id'],
+                                                            sign=True)
         assert _token
 
         _jws = jws.factory(_token)
@@ -319,7 +318,7 @@ class TestEndpoint(object):
         self._create_session(AREQ)
         session_id = self._do_grant(AREQ)
         grant = self.session_manager[session_id]
-        grant.claims = {"id_token":{"foobar": None}}
+        grant.claims = {"id_token": {"foobar": None}}
 
         req = {"client_id": "client_1"}
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -446,4 +445,3 @@ class TestEndpoint(object):
         assert "email" in res
         assert "address" not in res
         assert "nickname" not in res
-
