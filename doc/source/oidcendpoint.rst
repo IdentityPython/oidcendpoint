@@ -110,7 +110,7 @@ oidcendpoint\.session_management module
     :undoc-members:
     :show-inheritance:
 
-oidcendpoint\.session_storgae module
+oidcendpoint\.session_storage module
 ------------------------------------
 
 .. automodule:: oidcendpoint.session_management
