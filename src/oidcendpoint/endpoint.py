@@ -39,24 +39,25 @@ do_response
             - post_construct (*)
     - update_http_args
 
-do_response returns a dictionary that can look like this:
-{
-  'response':
-    _response as a string or as a Message instance_
-  'http_headers': [
-    ('Content-type', 'application/json'),
-    ('Pragma', 'no-cache'),
-    ('Cache-Control', 'no-store')
-  ],
-  'cookie': _list of cookies_,
-  'response_placement': 'body'
-}
+do_response returns a dictionary that can look like this::
+
+    {
+      'response':
+        _response as a string or as a Message instance_
+      'http_headers': [
+        ('Content-type', 'application/json'),
+        ('Pragma', 'no-cache'),
+        ('Cache-Control', 'no-store')
+      ],
+      'cookie': _list of cookies_,
+      'response_placement': 'body'
+    }
 
 "response" MUST be present
 "http_headers" MAY be present
 "cookie": MAY be present
 "response_placement": If absent defaults to the endpoints response_placement
-    parameter value or if that is also missing 'url'
+parameter value or if that is also missing 'url'
 """
 
 

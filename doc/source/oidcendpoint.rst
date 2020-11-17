@@ -62,6 +62,14 @@ oidcendpoint\.id_token module
     :undoc-members:
     :show-inheritance:
 
+oidcendpoint\.grant module
+--------------------------
+
+.. automodule:: oidcendpoint.grant
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 oidcendpoint\.in_memory_db module
 ---------------------------------
 
@@ -86,18 +94,26 @@ oidcendpoint\.login_hint module
     :undoc-members:
     :show-inheritance:
 
-oidcendpoint\.session module
-----------------------------
+oidcendpoint\.scopes module
+---------------------------
 
-.. automodule:: oidcendpoint.session
+.. automodule:: oidcendpoint.scopes
     :members:
     :undoc-members:
     :show-inheritance:
 
-oidcendpoint\.sso_db module
----------------------------
+oidcendpoint\.session_management module
+---------------------------------------
 
-.. automodule:: oidcendpoint.sso_db
+.. automodule:: oidcendpoint.session_management
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+oidcendpoint\.session_storgae module
+------------------------------------
+
+.. automodule:: oidcendpoint.session_management
     :members:
     :undoc-members:
     :show-inheritance:
