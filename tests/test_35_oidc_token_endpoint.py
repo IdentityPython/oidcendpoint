@@ -144,11 +144,11 @@ def conf():
             },
             "authorization_code": {
                 "expires_in": 300,
-                "can_mint": ["access_token", "refresh_token", "id_token"]
+                "supports_minting": ["access_token", "refresh_token", "id_token"]
             },
             "refresh_token": {
                 "expires_in": 86400,
-                "can_mint": ["access_token", "refresh_token", "id_token"]
+                "supports_minting": ["access_token", "refresh_token", "id_token"]
             },
 
         }
