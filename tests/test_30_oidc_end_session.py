@@ -31,8 +31,8 @@ from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.session import do_front_channel_logout_iframe
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import db_key
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.session_management import session_key
+from oidcendpoint.session_management import unpack_session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -206,7 +206,7 @@ class TestEndpoint(object):
         self.session_manager.create_session(ae, auth_req, user_id, client_id=client_id,
                                             sub_type=sub_type,
                                             sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req, user_id=''):
         if not user_id:
@@ -217,7 +217,7 @@ class TestEndpoint(object):
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager.set([user_id, client_id, grant.id], grant)
-        return db_key(user_id, client_id, grant.id)
+        return session_key(user_id, client_id, grant.id)
 
     def _mint_code(self, grant, session_id):
         # Constructing an authorization code is now done
@@ -323,8 +323,8 @@ class TestEndpoint(object):
         resp_args, _session_id = self._auth_with_id_token("1234567")
         id_token = resp_args["id_token"]
 
-        _uid, _cid, _gid = unpack_db_key(_session_id)
-        cookie = self._create_cookie(db_key(_uid, "client_66", _gid))
+        _uid, _cid, _gid = unpack_session_key(_session_id)
+        cookie = self._create_cookie(session_key(_uid, "client_66", _gid))
 
         with pytest.raises(ValueError):
             self.session_endpoint.process_request({"state": "foo"}, cookie=cookie)
@@ -334,8 +334,8 @@ class TestEndpoint(object):
         resp_args, _session_id = self._auth_with_id_token("1234567")
         id_token = resp_args["id_token"]
 
-        _uid, _cid, _gid = unpack_db_key(_session_id)
-        cookie = self._create_cookie(db_key(_uid, "client_66", _gid))
+        _uid, _cid, _gid = unpack_session_key(_session_id)
+        cookie = self._create_cookie(session_key(_uid, "client_66", _gid))
 
         msg = Message(id_token=id_token)
         verify_id_token(msg, keyjar=self.session_endpoint.endpoint_context.keyjar)
@@ -559,7 +559,7 @@ class TestEndpoint(object):
 
         # both should be revoked
         assert _session_info["client_session_info"].is_revoked()
-        _cinfo = self.session_manager[db_key(self.user_id, "client_2")]
+        _cinfo = self.session_manager[session_key(self.user_id, "client_2")]
         assert _cinfo.is_revoked()
 
     def test_do_verified_logout(self):
@@ -582,8 +582,8 @@ class TestEndpoint(object):
         _session_info = self.session_manager.get_session_info_by_token(_code)
         self._code_auth2("abcdefg")
 
-        _uid, _cid, _gid = unpack_db_key(_session_info["session_id"])
-        _sid = db_key('babs', _cid, _gid)
+        _uid, _cid, _gid = unpack_session_key(_session_info["session_id"])
+        _sid = session_key('babs', _cid, _gid)
         with pytest.raises(KeyError):
             res = self.session_endpoint.logout_all_clients(_sid, "client_1")
 
@@ -603,7 +603,7 @@ class TestEndpoint(object):
         ] = "https://example.com/fc_logout"
         self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
 
-        _uid, _cid, _gid = unpack_db_key(_session_info["session_id"])
+        _uid, _cid, _gid = unpack_session_key(_session_info["session_id"])
         self.session_endpoint.endpoint_context.session_manager.delete([_uid, _cid])
 
         with pytest.raises(ValueError):

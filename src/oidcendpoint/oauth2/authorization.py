@@ -7,24 +7,16 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
-from oidcendpoint.session_management import Revoked
-
-from oidcendpoint.session_management import db_key
-
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcmsg.time_util import time_sans_frac
-
-from oidcendpoint.session_management import unpack_db_key
 from oidcmsg import oauth2
 from oidcmsg.exception import ParameterError
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
+from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint import rndstr
-from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import AllowedAlgorithms
+from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import authn_args_gather
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
@@ -41,11 +33,13 @@ from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.session_management import ClientSessionInfo
+from oidcendpoint.session_management import Revoked
+from oidcendpoint.session_management import session_key
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.user_authn.authn_context import pick_auth
 
 logger = logging.getLogger(__name__)
-
 
 # For the time being. This is JAR specific and should probably be configurable.
 ALG_PARAMS = {
@@ -76,7 +70,7 @@ def check_unknown_scopes_policy(request_info, cinfo, endpoint_context):
     # this prevents that authz would be released for unavailable scopes
     for scope in request_info['scope']:
         if op_capabilities.get('deny_unknown_scopes') and \
-           scope not in client_allowed_scopes:
+                scope not in client_allowed_scopes:
             _msg = '{} requested an unauthorized scope ({})'
             logger.warning(_msg.format(cinfo['client_id'],
                                        scope))
@@ -497,7 +491,7 @@ class Authorization(Endpoint):
                 response_info, "access_denied", "{}".format(err.args)
             )
         else:
-            session_id = db_key(user, request["client_id"], grant.id)
+            session_id = session_key(user, request["client_id"], grant.id)
             try:
                 self.endpoint_context.session_manager.set([user, request["client_id"],
                                                            grant.id], grant)
@@ -560,7 +554,7 @@ class Authorization(Endpoint):
         )
 
         _mngr.set([user_id, client_id], client_info)
-        return db_key(user_id, client_id)
+        return session_key(user_id, client_id)
 
     def authz_part2(
         self,

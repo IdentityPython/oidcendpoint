@@ -23,7 +23,7 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -242,7 +242,7 @@ class TestEndpoint(object):
         ae = create_authn_event(self.user_id, self.session_manager.salt)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
-        return db_key(self.user_id, client_id)
+        return session_key(self.user_id, client_id)
 
     def _do_grant(self, auth_req):
         client_id = auth_req['client_id']
@@ -254,7 +254,7 @@ class TestEndpoint(object):
         return grant
 
     def _mint_code(self, grant, client_id):
-        sid = db_key(self.user_id, client_id, grant.id)
+        sid = session_key(self.user_id, client_id, grant.id)
         usage_rules = get_usage_rules("authorization_code", self.endpoint.endpoint_context,
                                       grant, client_id)
         _exp_in = usage_rules.get("expires_in")

@@ -230,7 +230,7 @@ The grant identifier.
 Token
 +++++
 
-As mention above there are presently only 3 tokens that are defined:
+As mention above there are presently only 3 token types that are defined:
 
 - authorization_code,
 - access_token and
@@ -318,3 +318,32 @@ token was minted based on the grant it belongs to.
 id
 ::
 Token identifier
+
+
+Usage
+-----
+
+Creating a new session is done by running the create_session method of
+the class SessionManager. The create_session methods takes the following
+arguments.
+
+authn_event
+    An AuthnEvent class instance that describes the authentication event.
+
+auth_req
+    The Authentication request
+
+client_id
+    The client Identifier
+
+user_id
+    The user identifier
+
+sector_identifier
+    A possible sector identifier to be used when constructing a pairwise
+    subject identifier
+
+sub_type
+    The type of subject identifier that should be constructed. It can either be
+    *pairwise* or *public*.
+

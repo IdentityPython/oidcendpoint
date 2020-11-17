@@ -7,9 +7,7 @@ from urllib.parse import urlparse
 from cryptojwt import as_unicode
 from cryptojwt import b64d
 from cryptojwt.jwe.aes import AES_GCMEncrypter
-from cryptojwt.jwe.jwe_hmac import JWE_SYM
 from cryptojwt.jwe.utils import split_ctx_and_tag
-from cryptojwt.jwk.hmac import SYMKey
 from cryptojwt.jws.exception import JWSException
 from cryptojwt.jws.jws import factory
 from cryptojwt.jws.utils import alg2keytype
@@ -29,8 +27,7 @@ from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.endpoint_context import add_path
-from oidcendpoint.session_management import db_key
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.session_management import session_key
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +162,7 @@ class Session(Endpoint):
             if "backchannel_logout_uri" in _cdb[_client_id]:
                 _sub = _mngr.get([_user_id, _client_id])["sub"]
                 # grant = _mngr.get_grant(_user_id, _client_id)
-                _sid = db_key(_user_id, _client_id)
+                _sid = session_key(_user_id, _client_id)
                 _rel_sid.append(_sid)
                 _spec = self.do_back_channel_logout(_cdb[_client_id], _sub, _sid)
                 if _spec:
@@ -173,7 +170,7 @@ class Session(Endpoint):
             elif "frontchannel_logout_uri" in _cdb[_client_id]:
                 # Construct an IFrame
                 # grant = _mngr.get_grant(_user_id, _client_id)
-                _sid = db_key(_user_id, _client_id)
+                _sid = session_key(_user_id, _client_id)
                 _rel_sid.append(_sid)
                 _spec = do_front_channel_logout_iframe(_cdb[_client_id], _iss, _sid)
                 if _spec:

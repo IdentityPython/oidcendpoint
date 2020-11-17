@@ -18,11 +18,11 @@ class Revoked(Exception):
     pass
 
 
-def db_key(*args):
+def session_key(*args):
     return ':'.join(args)
 
 
-def unpack_db_key(key):
+def unpack_session_key(key):
     return key.split(':')
 
 
@@ -153,13 +153,13 @@ class Database(object):
         if _userinfo:
             if client_id:
                 if client_id in _userinfo['subordinate']:
-                    _cid_key = db_key(uid, client_id)
-                    _cid_info = self._db[db_key(uid, client_id)]
+                    _cid_key = session_key(uid, client_id)
+                    _cid_info = self._db[session_key(uid, client_id)]
                     # if _cid_info.is_revoked():
                     #     raise Revoked("Session is revoked")
                     if _cid_info:
                         if grant_id:
-                            _gid_key = db_key(uid, client_id, grant_id)
+                            _gid_key = session_key(uid, client_id, grant_id)
                             if grant_id in _cid_info['subordinate']:
                                 _gid_info = self._db[_gid_key]
                                 if not _gid_info:
@@ -176,7 +176,7 @@ class Database(object):
                             _cid_info = ClientSessionInfo()
                             _cid_info.add_subordinate(grant_id)
                             self._db[_cid_key] = _cid_info
-                            self._db[db_key(uid, client_id, grant_id)] = value
+                            self._db[session_key(uid, client_id, grant_id)] = value
                         else:
                             _cid_info = ClientSessionInfo()
                             self._db[_cid_key] = _cid_info
@@ -187,11 +187,11 @@ class Database(object):
                     if grant_id:
                         _cid_info = ClientSessionInfo()
                         _cid_info.add_subordinate(grant_id)
-                        self._db[db_key(uid, client_id, grant_id)] = value
+                        self._db[session_key(uid, client_id, grant_id)] = value
                     else:
                         _cid_info = value
 
-                    _cid_key = db_key(uid, client_id)
+                    _cid_key = session_key(uid, client_id)
                     self._db[_cid_key] = _cid_info
             else:
                 self._db[uid] = value
@@ -202,10 +202,10 @@ class Database(object):
                 if grant_id:
                     _cid_info = ClientSessionInfo()
                     _cid_info.add_subordinate(grant_id)
-                    self._db[db_key(uid, client_id, grant_id)] = value
+                    self._db[session_key(uid, client_id, grant_id)] = value
                 else:
                     _cid_info = value
-                self._db[db_key(uid, client_id)] = _cid_info
+                self._db[session_key(uid, client_id)] = _cid_info
             else:
                 _user_info = value
 
@@ -228,7 +228,7 @@ class Database(object):
                 raise ValueError('No session from that client for that user')
             else:
                 try:
-                    client_session_info = self._db[db_key(uid, client_id)]
+                    client_session_info = self._db[session_key(uid, client_id)]
                 except KeyError:
                     return {}
                 else:
@@ -242,7 +242,7 @@ class Database(object):
                         raise ValueError('No such grant for that user and client')
                     else:
                         try:
-                            return self._db[db_key(uid, client_id, grant_id)]
+                            return self._db[session_key(uid, client_id, grant_id)]
                         except KeyError:
                             return {}
 
@@ -256,17 +256,17 @@ class Database(object):
             if client_id:
                 if client_id in _dic['subordinate']:
                     try:
-                        _cinfo = self._db[db_key(uid, client_id)]
+                        _cinfo = self._db[session_key(uid, client_id)]
                     except KeyError:
                         pass
                     else:
                         if grant_id:
                             if grant_id in _cinfo['subordinate']:
-                                self._db.__delitem__(db_key(uid, client_id, grant_id))
+                                self._db.__delitem__(session_key(uid, client_id, grant_id))
                         else:
                             for grant_id in _cinfo['subordinate']:
-                                self._db.__delitem__(db_key(uid, client_id, grant_id))
-                            self._db.__delitem__(db_key(uid, client_id))
+                                self._db.__delitem__(session_key(uid, client_id, grant_id))
+                            self._db.__delitem__(session_key(uid, client_id))
 
                     _dic["subordinate"].remove(client_id)
                     self._db[uid] = _dic
@@ -309,7 +309,7 @@ class SessionManager(Database):
         :param token_value:
         :return:
         """
-        user_id, client_id, grant_id = unpack_db_key(session_id)
+        user_id, client_id, grant_id = unpack_session_key(session_id)
         grant = self.get([user_id, client_id, grant_id])
         for token in grant.issued_token:
             if token.value == token_value:
@@ -355,7 +355,7 @@ class SessionManager(Database):
         :param new_information:
         :return:
         """
-        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
         _client_info = self.get([_user_id, _client_id])
         _client_info.update(new_information)
         self.set([_user_id, _client_id], _client_info)
@@ -369,16 +369,16 @@ class SessionManager(Database):
         :param subject_type: 'pairwise'/'public'
         :return:
         """
-        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
         sub = self.sub_func[subject_type](_user_id, salt=self.salt, sector_identifier=sector_id)
         self._update_client_info(session_id, {'sub': sub})
         return sub
 
     def __getitem__(self, item):
-        return self.get(unpack_db_key(item))
+        return self.get(unpack_session_key(item))
 
     def get_client_session_info(self, session_id):
-        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
         self.get([_user_id, _client_id])
 
     def _revoke_dependent(self, grant, token):
@@ -399,10 +399,10 @@ class SessionManager(Database):
 
     def get_sids_by_user_id(self, user_id):
         user_info = self.get([user_id])
-        return [db_key(user_id, c) for c in user_info['subordinate']]
+        return [session_key(user_id, c) for c in user_info['subordinate']]
 
     def get_authentication_event(self, session_id):
-        _user_id = unpack_db_key(session_id)[0]
+        _user_id = unpack_session_key(session_id)[0]
         try:
             user_info = self.get([_user_id])
         except KeyError:
@@ -411,7 +411,7 @@ class SessionManager(Database):
         return user_info["authentication_event"]
 
     def revoke_client_session(self, session_id):
-        parts = unpack_db_key(session_id)
+        parts = unpack_session_key(session_id)
         if len(parts) == 2:
             _user_id, _client_id = parts
         elif len(parts) == 3:
@@ -423,18 +423,18 @@ class SessionManager(Database):
         self.set([_user_id, _client_id], _info.revoke())
 
     def revoke_grant(self, session_id):
-        _path = unpack_db_key(session_id)
+        _path = unpack_session_key(session_id)
         _info = self.get(_path)
         _info.revoke()
         self.set(_path, _info)
 
     def grants(self, session_id):
-        uid, cid, _gid = unpack_db_key(session_id)
+        uid, cid, _gid = unpack_session_key(session_id)
         _csi = self.get([uid, cid])
         return [self.get([uid, cid, gid]) for gid in _csi['subordinate']]
 
     def get_session_info(self, session_id):
-        _user_id, _client_id, _grant_id = unpack_db_key(session_id)
+        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
         return {
             "session_id": session_id,
             "user_id": _user_id,
@@ -484,17 +484,3 @@ class SessionManager(Database):
 def create_session_manager(endpoint_context, token_handler_args, db=None, sub_func=None):
     _token_handler = token_handler.factory(endpoint_context, **token_handler_args)
     return SessionManager(db, _token_handler, sub_func=sub_func)
-
-
-class JSON:
-    def serialize(self, instance):
-        return instance.to_json()
-
-    def deserialize(self, js):
-        args = json.loads(js)
-        if args["type"] == "UserSessionInfo":
-            return UserSessionInfo().from_json(js)
-        elif args["type"] == "ClientSessionInfo":
-            return ClientSessionInfo().from_json(js)
-        elif args["type"] == "grant":
-            return Grant().from_json(js)

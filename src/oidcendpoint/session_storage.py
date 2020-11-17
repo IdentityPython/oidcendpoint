@@ -2,7 +2,6 @@ import json
 
 from oidcendpoint.grant import Grant
 from oidcendpoint.session_management import ClientSessionInfo
-
 from oidcendpoint.session_management import UserSessionInfo
 
 

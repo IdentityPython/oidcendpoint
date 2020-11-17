@@ -21,9 +21,9 @@ from oidcendpoint.oidc.token import Token
 from oidcendpoint.session_management import ClientSessionInfo
 from oidcendpoint.session_management import SessionManager
 from oidcendpoint.session_management import UserSessionInfo
-from oidcendpoint.session_management import db_key
+from oidcendpoint.session_management import session_key
 from oidcendpoint.session_management import public_id
-from oidcendpoint.session_management import unpack_db_key
+from oidcendpoint.session_management import unpack_session_key
 from oidcendpoint.token_handler import DefaultToken
 from oidcendpoint.token_handler import TokenHandler
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
@@ -126,7 +126,7 @@ class TestSession():
         # token I can easily find the grant
 
         # client_info = self.session_manager.get([user_id, TOKEN_REQ['client_id']])
-        session_id = db_key(user_id, TOKEN_REQ['client_id'], _grant_id)
+        session_id = session_key(user_id, TOKEN_REQ['client_id'], _grant_id)
         tok = self.session_manager.find_token(session_id,
                                               TOKEN_REQ['code'])
 
@@ -169,7 +169,7 @@ class TestSession():
             scope=["openid", "mail", "offline_access"]
         )
 
-        session_id = db_key(user_id, REFRESH_TOKEN_REQ['client_id'], _grant_id)
+        session_id = session_key(user_id, REFRESH_TOKEN_REQ['client_id'], _grant_id)
         reftok = self.session_manager.find_token(session_id,
                                                  REFRESH_TOKEN_REQ['refresh_token'])
 
@@ -357,7 +357,7 @@ class TestSessionJWTToken():
         code = grant.mint_token(
             'authorization_code',
             value=self.session_manager.token_handler["code"](
-                db_key(user_id, AUTH_REQ['client_id'], grant.id)),
+                session_key(user_id, AUTH_REQ['client_id'], grant.id)),
             expires_at=time_sans_frac() + 300  # 5 minutes from now
         )
 
@@ -380,7 +380,7 @@ class TestSessionJWTToken():
 
         # parse the token
         session_id = self.session_manager.token_handler.sid(TOKEN_REQ['code'])
-        user_id, client_id, grant_id = unpack_db_key(session_id)
+        user_id, client_id, grant_id = unpack_session_key(session_id)
 
         # Now given I have the client_id from the request and the user_id from the
         # token I can easily find the grant
@@ -442,7 +442,7 @@ class TestSessionJWTToken():
             scope=["openid", "mail", "offline_access"]
         )
 
-        session_id = db_key(user_id, REFRESH_TOKEN_REQ['client_id'], grant_id)
+        session_id = session_key(user_id, REFRESH_TOKEN_REQ['client_id'], grant_id)
         reftok = self.session_manager.find_token(session_id,
                                                         REFRESH_TOKEN_REQ['refresh_token'])
 
