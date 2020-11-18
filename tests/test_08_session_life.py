@@ -70,7 +70,6 @@ class TestSession():
         # User info is stored in the Session DB
         authn_event = create_authn_event(
             user_id,
-            self.session_manager.salt,
             authn_info=INTERNETPROTOCOLPASSWORD,
             authn_time=time_sans_frac(),
         )
@@ -332,7 +331,6 @@ class TestSessionJWTToken():
         salt = "natriumklorid"
         authn_event = create_authn_event(
             user_id,
-            salt,
             authn_info=INTERNETPROTOCOLPASSWORD,
             authn_time=time_sans_frac(),
         )

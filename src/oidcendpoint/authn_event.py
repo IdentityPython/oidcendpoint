@@ -8,7 +8,7 @@ DEFAULT_AUTHN_EXPIRES_IN = 3600
 class AuthnEvent(Message):
     c_param = {
         "uid": SINGLE_REQUIRED_STRING,
-        "salt": SINGLE_REQUIRED_STRING,
+        # "salt": SINGLE_REQUIRED_STRING,
         "authn_info": SINGLE_REQUIRED_STRING,
         "authn_time": SINGLE_OPTIONAL_INT,
         "valid_until": SINGLE_OPTIONAL_INT,
@@ -24,30 +24,36 @@ class AuthnEvent(Message):
         return self["valid_until"] - time_sans_frac()
 
 
-def create_authn_event(uid, salt, authn_info=None, **kwargs):
+def create_authn_event(uid, authn_info=None, authn_time: int = 0,
+                       valid_until: int = 0, expires_in: int = 0, **kwargs):
     """
 
+    :param authn_time:
     :param uid:
-    :param salt:
     :param authn_info:
+    :param valid_until:
+    :param expires_in:
     :param kwargs:
     :return:
     """
 
-    args = {"uid": uid, "salt": salt, "authn_info": authn_info}
+    args = {"uid": uid, "authn_info": authn_info}
 
-    try:
-        args["authn_time"] = int(kwargs["authn_time"])
-    except KeyError:
-        try:
-            args["authn_time"] = int(kwargs["timestamp"])
-        except KeyError:
+    if authn_time:
+        args["authn_time"] = authn_time
+    else:
+        _ts = kwargs.get("timestamp")
+        if _ts:
+            args["authn_time"] = _ts
+        else:
             args["authn_time"] = time_sans_frac()
 
-    try:
-        args["valid_until"] = kwargs["valid_until"]
-    except KeyError:
-        _expires_in = kwargs.get("expires_in", DEFAULT_AUTHN_EXPIRES_IN)
-        args["valid_until"] = args["authn_time"] + _expires_in
+    if valid_until:
+        args["valid_until"] = valid_until
+    else:
+        if expires_in:
+            args["valid_until"] = args["authn_time"] + expires_in
+        else:
+            args["valid_until"] = args["authn_time"] + DEFAULT_AUTHN_EXPIRES_IN
 
     return AuthnEvent(**args)

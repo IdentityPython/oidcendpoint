@@ -269,7 +269,7 @@ class TestCollectUserInfo:
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
         client_id = auth_req['client_id']
-        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        ae = create_authn_event(self.user_id)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
         return session_key(self.user_id, client_id)
@@ -500,7 +500,7 @@ class TestCollectUserInfoCustomScopes:
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
         client_id = auth_req['client_id']
-        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        ae = create_authn_event(self.user_id)
         self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
                                             sub_type=sub_type, sector_identifier=sector_identifier)
         return session_key(self.user_id, client_id)

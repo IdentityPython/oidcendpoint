@@ -342,7 +342,6 @@ class Authorization(Endpoint):
 
         authn_event = create_authn_event(
             identity["uid"],
-            identity.get("salt", ""),
             authn_info=authn_class_ref,
             time_stamp=_ts,
         )
