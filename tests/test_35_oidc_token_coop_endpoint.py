@@ -8,6 +8,7 @@ from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.oidc import ResponseMessage
+from oidcmsg.oidc import TokenErrorResponse
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.client_authn import verify_client
@@ -211,6 +212,17 @@ class TestEndpoint(object):
         assert exception_info.typename == "ProcessError"
         assert "Token Endpoint" in str(exception_info.value)
 
+    def test_signing_alg_values(self):
+        """
+        According to
+        https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+        The value "none" MUST NOT be used for the
+        token_endpoint_auth_signing_alg_values_supported field.
+        """
+        assert "none" not in self.endpoint.endpoint_info[
+            "token_endpoint_auth_signing_alg_values_supported"
+        ]
+
     def test_parse(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ, uid="user")
         _token_request = TOKEN_REQ_DICT.copy()
@@ -250,11 +262,31 @@ class TestEndpoint(object):
         _token_request["code"] = _context.sdb[session_id]["code"]
         _context.sdb.update(session_id, user="diana")
         _req = self.endpoint.parse_request(_token_request)
+        self.endpoint.process_request(request=_req)
+
+        _resp = self.endpoint.parse_request(_token_request)
+        assert isinstance(_resp, TokenErrorResponse)
+        assert _resp["error"] == "invalid_grant"
+        assert _resp["error_description"] == "Code is already used"
+
+    def test_process_request_using_invalid_code(self):
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = "code"
+        _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
-        # 2nd time used
-        with pytest.raises(MultipleCodeUsage):
-            self.endpoint.parse_request(_token_request)
+        assert isinstance(_resp, TokenErrorResponse)
+        assert _resp["error"] == "invalid_grant"
+        assert _resp["error_description"] == "Invalid code"
+
+    def test_process_request_using_no_code(self):
+        _token_request = TOKEN_REQ_DICT.copy()
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        assert isinstance(_resp, TokenErrorResponse)
+        assert _resp["error"] == "invalid_request"
+        assert _resp["error_description"] == "Missing code"
 
     def test_do_response(self):
         session_id = setup_session(
