@@ -117,6 +117,14 @@ def construct_endpoint_info(default_capabilities, **kwargs):
                     _info[attr] = default_val
                 elif "signing_alg_values_supported" in attr:
                     _info[attr] = assign_algorithms("signing_alg")
+                    if (
+                        attr
+                        == "token_endpoint_auth_signing_alg_values_supported"
+                    ):
+                        # none must not be in
+                        # token_endpoint_auth_signing_alg_values_supported
+                        if "none" in _info[attr]:
+                            _info[attr].remove("none")
                 elif "encryption_alg_values_supported" in attr:
                     _info[attr] = assign_algorithms("encryption_alg")
                 elif "encryption_enc_values_supported" in attr:
