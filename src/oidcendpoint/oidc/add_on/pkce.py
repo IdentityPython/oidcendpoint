@@ -5,9 +5,6 @@ from cryptojwt.utils import b64e
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oidc import TokenErrorResponse
 
-from oidcendpoint.exception import MultipleCodeUsage
-from oidcendpoint.token_handler import UnknownToken
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -95,9 +92,12 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
     if isinstance(request, AuthorizationErrorResponse):
         return request
 
-    # We can be sure that the code is there. The flow would have failed
-    # earlier if it wasn't
-    _info = endpoint_context.sdb[request["code"]]
+    try:
+        _info = endpoint_context.sdb[request["code"]]
+    except KeyError:
+        return TokenErrorResponse(
+            error="invalid_grant", error_description="Unknown access grant"
+        )
     _authn_req = _info["authn_req"]
 
     if "code_challenge" in _authn_req:

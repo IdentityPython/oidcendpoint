@@ -15,11 +15,9 @@ from oidcmsg.storage import importer
 from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.exception import MultipleCodeUsage
 from oidcendpoint.exception import ProcessError
 from oidcendpoint.token_handler import AccessCodeUsed
 from oidcendpoint.token_handler import ExpiredToken
-from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.userinfo import by_schema
 
 logger = logging.getLogger(__name__)
@@ -69,28 +67,17 @@ class AccessToken(TokenEndpointHelper):
         if "state" not in request:
             return
 
-        if "code" not in request:
-            return self.endpoint.error_cls(
-                error="invalid_request", error_description="Missing code"
-            )
-
         try:
             sinfo = self.endpoint.endpoint_context.sdb[request["code"]]
-        except (KeyError, UnknownToken):
+        except KeyError:
             logger.error("Code not present in SessionDB")
-            return self.endpoint.error_cls(
-                error="invalid_grant", error_description="Invalid code"
-            )
-        except MultipleCodeUsage:
-            return self.endpoint.error_cls(
-                error="invalid_grant", error_description="Code is already used"
-            )
+            return self.endpoint.error_cls(error="unauthorized_client")
         else:
             state = sinfo["authn_req"]["state"]
 
         if state != request["state"]:
             logger.error("State value mismatch")
-            return self.endpoint.error_cls(error="invalid_request")
+            return self.endpoint.error_cls(error="unauthorized_client")
 
     def process_request(self, req, **kwargs):
         _context = self.endpoint.endpoint_context
@@ -104,9 +91,13 @@ class AccessToken(TokenEndpointHelper):
                 error="invalid_request", error_description="Missing code"
             )
 
-        # We can be sure that the code is there. The flow would have failed
-        # earlier if it wasn't
-        _info = _sdb[_access_code]
+        # Session might not exist or _access_code malformed
+        try:
+            _info = _sdb[_access_code]
+        except KeyError:
+            return self.endpoint.error_cls(
+                error="invalid_grant", error_description="Code is invalid"
+            )
 
         _authn_req = _info["authn_req"]
 
