@@ -190,7 +190,7 @@ class TestEndpoint:
         if not user_id:
             user_id = self.user_id
         client_id = auth_req['client_id']
-        ae = create_authn_event(self.user_id, self.session_manager.salt)
+        ae = create_authn_event(self.user_id)
         self.session_manager.create_session(ae, auth_req, user_id, client_id=client_id,
                                             sub_type=sub_type,
                                             sector_identifier=sector_identifier)

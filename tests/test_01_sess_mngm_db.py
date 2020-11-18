@@ -57,7 +57,7 @@ class TestDB:
         salt = "natriumklorid"
         # store user info
         self.db.set(['diana'],
-                    UserSessionInfo(authentication_event=create_authn_event('diana', salt)))
+                    UserSessionInfo(authentication_event=create_authn_event('diana')))
         # Client specific information
         self.db.set(['diana', 'client_1'], ClientSessionInfo(sub=public_id(
             'diana', salt)))

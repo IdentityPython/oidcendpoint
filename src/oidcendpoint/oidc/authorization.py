@@ -381,7 +381,6 @@ class Authorization(Endpoint):
         if authn_event is None:
             authn_event = create_authn_event(
                 identity["uid"],
-                _mngr.salt,
                 authn_info=authn_class_ref,
                 time_stamp=_ts,
             )
