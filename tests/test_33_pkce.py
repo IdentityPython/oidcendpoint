@@ -14,7 +14,6 @@ from oidcmsg.oidc import TokenErrorResponse
 
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.exception import MultipleCodeUsage
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.add_on.pkce import CC_METHOD
 from oidcendpoint.oidc.authorization import Authorization
@@ -120,9 +119,6 @@ def conf():
         "verify_ssl": False,
         "capabilities": CAPABILITIES,
         "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
-        "userinfo": {
-            "class": "oidcendpoint.user_info.UserInfo",
-        },
         "id_token": {
             "class": IDToken,
             "kwargs": {
@@ -247,54 +243,6 @@ class TestEndpoint(object):
         _req = self.token_endpoint.parse_request(_token_request)
 
         assert isinstance(_req, AccessTokenRequest)
-
-    def test_reuse_code(self):
-        """
-        Parsing should no fail because of pkce if the code is reused
-        """
-        _cc_info = _code_challenge()
-        _authn_req = AUTH_REQ.copy()
-        _authn_req["code_challenge"] = _cc_info["code_challenge"]
-        _authn_req["code_challenge_method"] = _cc_info["code_challenge_method"]
-
-        _pr_resp = self.authn_endpoint.parse_request(_authn_req.to_dict())
-        resp = self.authn_endpoint.process_request(_pr_resp)
-
-        assert isinstance(resp["response_args"], AuthorizationResponse)
-
-        _token_request = TOKEN_REQ.copy()
-        _token_request["code"] = resp["response_args"]["code"]
-        _token_request["code_verifier"] = _cc_info["code_verifier"]
-        _req = self.token_endpoint.parse_request(_token_request)
-        self.token_endpoint.process_request(_req)
-
-        _req = self.token_endpoint.parse_request(_token_request)
-        resp = self.token_endpoint.process_request(_req)
-        assert isinstance(resp, TokenErrorResponse)
-
-    def test_invalid_code(self):
-        """
-        Parsing should no fail because of pkce if the code is invalid
-        """
-        _cc_info = _code_challenge()
-        _authn_req = AUTH_REQ.copy()
-        _authn_req["code_challenge"] = _cc_info["code_challenge"]
-        _authn_req["code_challenge_method"] = _cc_info["code_challenge_method"]
-
-        _pr_resp = self.authn_endpoint.parse_request(_authn_req.to_dict())
-        resp = self.authn_endpoint.process_request(_pr_resp)
-
-        assert isinstance(resp["response_args"], AuthorizationResponse)
-
-        _token_request = TOKEN_REQ.copy()
-        _token_request["code"] = resp["response_args"]["code"]
-        _token_request["code_verifier"] = _cc_info["code_verifier"]
-        _req = self.token_endpoint.parse_request(_token_request)
-        self.token_endpoint.process_request(_req)
-
-        _req = self.token_endpoint.parse_request(_token_request)
-        resp = self.token_endpoint.process_request(_req)
-        assert isinstance(resp, TokenErrorResponse)
 
     def test_no_code_challenge_method(self):
         _cc_info = _code_challenge()
