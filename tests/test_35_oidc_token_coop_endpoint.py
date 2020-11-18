@@ -211,6 +211,17 @@ class TestEndpoint(object):
         assert exception_info.typename == "ProcessError"
         assert "Token Endpoint" in str(exception_info.value)
 
+    def test_signing_alg_values(self):
+        """
+        According to
+        https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+        The value "none" MUST NOT be used for the
+        token_endpoint_auth_signing_alg_values_supported field.
+        """
+        assert "none" not in self.endpoint.endpoint_info[
+            "token_endpoint_auth_signing_alg_values_supported"
+        ]
+
     def test_parse(self):
         session_id = setup_session(self.endpoint.endpoint_context, AUTH_REQ, uid="user")
         _token_request = TOKEN_REQ_DICT.copy()
