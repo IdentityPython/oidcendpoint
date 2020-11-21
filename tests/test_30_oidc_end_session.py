@@ -18,12 +18,12 @@ from oidcmsg.oidc import verify_id_token
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import join_query
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.grant import Grant
+from oidcendpoint.oauth2.authorization import join_query
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration

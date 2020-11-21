@@ -1,42 +1,13 @@
-import json
 import logging
 from urllib.parse import urlsplit
 
-from cryptojwt import BadSyntax
-from cryptojwt.jwt import utc_time_sans_frac
-from cryptojwt.utils import as_bytes
-from cryptojwt.utils import as_unicode
-from cryptojwt.utils import b64d
-from cryptojwt.utils import b64e
 from oidcmsg import oidc
-from oidcmsg.exception import ParameterError
 from oidcmsg.oidc import Claims
 from oidcmsg.oidc import verified_claim_name
 
-from oidcendpoint import rndstr
-from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common import authorization
-from oidcendpoint.common.authorization import FORM_POST
-from oidcendpoint.common.authorization import AllowedAlgorithms
-from oidcendpoint.common.authorization import authn_args_gather
-from oidcendpoint.common.authorization import get_uri
-from oidcendpoint.common.authorization import inputs
-from oidcendpoint.common.authorization import max_age
-from oidcendpoint.cookie import append_cookie
-from oidcendpoint.cookie import compute_session_state
-from oidcendpoint.cookie import new_cookie
-from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.exception import InvalidRequest
-from oidcendpoint.exception import NoSuchAuthentication
-from oidcendpoint.exception import RedirectURIError
-from oidcendpoint.exception import TamperAllert
-from oidcendpoint.exception import ToOld
-from oidcendpoint.oauth2.authorization import check_unknown_scopes_policy
+from oidcendpoint.oauth2 import authorization
 from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import UserSessionInfo
 from oidcendpoint.session_management import session_key
-from oidcendpoint.session_management import unpack_session_key
-from oidcendpoint.token_handler import UnknownToken
 
 logger = logging.getLogger(__name__)
 
@@ -172,4 +143,3 @@ class Authorization(authorization.Authorization):
                         _login_hint
                     ]
         return kwargs
-
