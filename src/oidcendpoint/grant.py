@@ -3,10 +3,10 @@ import time
 from typing import Optional
 from uuid import uuid1
 
-from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
+from oidcmsg.message import Message
 from oidcmsg.time_util import utc_time_sans_frac
 
 

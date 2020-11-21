@@ -1,13 +1,13 @@
 import json
 import os
 
+import pytest
 from cryptojwt.jws import jws
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RegistrationResponse
 from oidcmsg.time_util import time_sans_frac
-import pytest
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client

@@ -31,7 +31,7 @@ CAPABILITIES = {
         "private_key_jwt",
     ],
     "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise""ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",

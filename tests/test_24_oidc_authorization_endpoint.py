@@ -4,17 +4,14 @@ import os
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+import pytest
+import responses
+import yaml
 from cryptojwt import JWT
 from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
 from cryptojwt.utils import b64e
-
-from oidcendpoint.grant import Grant
-from oidcendpoint.session_management import session_key
-
-from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.oidc.authorization import Authorization
 from oidcmsg.exception import ParameterError
 from oidcmsg.exception import URIError
 from oidcmsg.oauth2 import AuthorizationErrorResponse
@@ -23,10 +20,8 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
-import pytest
-import responses
-import yaml
 
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.common.authorization import FORM_POST
 from oidcendpoint.common.authorization import join_query
@@ -40,9 +35,11 @@ from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.login_hint import LoginHint2Acrs
 from oidcendpoint.oidc import userinfo
+from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.authorization import acr_claims
 from oidcendpoint.oidc.authorization import get_uri
 from oidcendpoint.oidc.authorization import inputs
@@ -50,6 +47,7 @@ from oidcendpoint.oidc.authorization import re_authenticate
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
+from oidcendpoint.session_management import session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_authn.authn_context import UNSPECIFIED
 from oidcendpoint.user_authn.authn_context import init_method
@@ -76,7 +74,7 @@ RESPONSE_TYPES_SUPPORTED = [
 ]
 
 CAPABILITIES = {
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",

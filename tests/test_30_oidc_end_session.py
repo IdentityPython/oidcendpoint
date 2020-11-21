@@ -4,6 +4,8 @@ import os
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+import pytest
+import responses
 from cryptojwt import as_unicode
 from cryptojwt import b64d
 from cryptojwt.key_jar import build_keyjar
@@ -14,8 +16,6 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc import verify_id_token
 from oidcmsg.time_util import time_sans_frac
-import pytest
-import responses
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.common.authorization import join_query
@@ -69,7 +69,7 @@ CAPABILITIES = {
         "private_key_jwt",
     ],
     "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",

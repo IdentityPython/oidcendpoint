@@ -2,7 +2,6 @@ import logging
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
-from oidcendpoint.session_management import unpack_session_key
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import RefreshAccessTokenRequest
@@ -16,6 +15,7 @@ from oidcendpoint.exception import ProcessError
 from oidcendpoint.grant import AuthorizationCode
 from oidcendpoint.grant import RefreshToken
 from oidcendpoint.grant import get_usage_rules
+from oidcendpoint.session_management import unpack_session_key
 
 logger = logging.getLogger(__name__)
 

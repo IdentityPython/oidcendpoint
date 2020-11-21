@@ -1,11 +1,11 @@
 import os
 
+import pytest
 from cryptojwt.key_jar import init_key_jar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.time_util import time_sans_frac
-import pytest
 
 from oidcendpoint import user_info
 from oidcendpoint.authn_event import create_authn_event
@@ -21,8 +21,8 @@ from oidcendpoint.oidc.token import Token
 from oidcendpoint.session_management import ClientSessionInfo
 from oidcendpoint.session_management import SessionManager
 from oidcendpoint.session_management import UserSessionInfo
-from oidcendpoint.session_management import session_key
 from oidcendpoint.session_management import public_id
+from oidcendpoint.session_management import session_key
 from oidcendpoint.session_management import unpack_session_key
 from oidcendpoint.token_handler import DefaultToken
 from oidcendpoint.token_handler import TokenHandler
@@ -212,7 +212,7 @@ CAPABILITIES = {
         "private_key_jwt",
     ],
     "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",

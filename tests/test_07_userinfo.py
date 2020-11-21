@@ -1,8 +1,8 @@
 import json
 import os
 
-from oidcmsg.oidc import OpenIDRequest
 import pytest
+from oidcmsg.oidc import OpenIDRequest
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext

@@ -48,7 +48,29 @@ The information structure
 -------------------------
 
 As stated above there are 3 layers: user session information, client session
-information and grants.
+information and grants. But first the keys to the information.
+
+Session key
++++++++++++
+
+A key to the session information is a list. The first item being the user
+identifier, the second the client identifier and the third the grant identifier.
+If you only want the user session information then the key is a list with one
+item the user id. If you want the client session information the key is a
+list with 2 items (user_id, client_id). And lastly if you want the grant then
+the key is a list with 3 elements (user_id, client_id, grant_id).
+
+A session identifier is constructed using the **session_key** function.
+It takes input the 3 elements list.::
+
+    session_id = session_key(user_id, client_id, grant_id)
+
+
+Using the function **unpack_session_key** you can get the elements of a
+session_id.::
+
+    user_id, client_id, grant_id = unpack_session_id(session_id)
+
 
 User session information
 ++++++++++++++++++++++++
@@ -347,3 +369,10 @@ sub_type
     The type of subject identifier that should be constructed. It can either be
     *pairwise* or *public*.
 
+So a typical command would look like this::
+
+
+    authn_event = create_authn_event(self.user_id)
+    session_manager.create_session(authn_event=authn_event, auth_req=auth_req,
+                                   user_id=self.user_id, client_id=client_id,
+                                   sub_type=sub_type, sector_identifier=sector_identifier)

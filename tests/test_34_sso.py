@@ -5,17 +5,12 @@ import os
 import pytest
 import yaml
 from cryptojwt import KeyJar
-from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg.oidc import AuthorizationRequest
 
-from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
-from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_authn.authn_context import UNSPECIFIED
 from oidcendpoint.user_authn.user import NoAuthn
-from oidcendpoint.user_authn.user import UserPassJinja2
-from oidcendpoint.util import JSONDictDB
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -34,7 +29,7 @@ RESPONSE_TYPES_SUPPORTED = [
 ]
 
 CAPABILITIES = {
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",

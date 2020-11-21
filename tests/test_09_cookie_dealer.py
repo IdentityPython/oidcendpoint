@@ -1,10 +1,10 @@
-from http.cookies import SimpleCookie
 import json
 import time
+from http.cookies import SimpleCookie
 
+import pytest
 from cryptojwt.jwk.hmac import SYMKey
 from cryptojwt.key_jar import init_key_jar
-import pytest
 
 from oidcendpoint import rndstr
 from oidcendpoint.cookie import CookieDealer

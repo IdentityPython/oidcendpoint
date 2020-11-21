@@ -4,8 +4,8 @@ import inspect
 import logging
 import sys
 import time
-from urllib.parse import unquote
 import warnings
+from urllib.parse import unquote
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT

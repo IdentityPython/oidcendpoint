@@ -6,9 +6,12 @@ import time
 
 import pytest
 
+from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.jwt_token import JWTToken
 from oidcendpoint.token_handler import Crypt
 from oidcendpoint.token_handler import DefaultToken
 from oidcendpoint.token_handler import TokenHandler
+from oidcendpoint.token_handler import factory
 from oidcendpoint.token_handler import is_expired
 
 
@@ -153,3 +156,63 @@ class TestTokenHandler(object):
 
     def test_keys(self):
         assert set(self.handler.keys()) == {"access_token", "code", "refresh_token"}
+
+
+class DummyEndpointContext():
+    def __init__(self):
+        self.keyjar = None
+        self.issuer = "issuer"
+        self.cdb = {}
+
+
+def test_token_handler_from_config():
+    conf = {
+        "token_handler_args": {
+            "jwks_def": {
+                "private_path": "private/token_jwks.json",
+                "read_only": False,
+                "key_defs": [
+                    {"type": "oct", "bytes": "24", "use": ["enc"], "kid": "code"}
+                ],
+            },
+            "code": {"lifetime": 600},
+            "token": {
+                "class": "oidcendpoint.jwt_token.JWTToken",
+                "kwargs": {
+                    "lifetime": 3600,
+                    "add_claims": True,
+                    "add_claim_by_scope": True,
+                    "aud": ["https://example.org/appl"],
+                },
+            },
+            "refresh": {
+                "class": "oidcendpoint.jwt_token.JWTToken",
+                "kwargs": {
+                    "lifetime": 3600,
+                    "aud": ["https://example.org/appl"],
+                }
+            }
+        }
+    }
+
+    token_handler = factory(DummyEndpointContext(), **conf["token_handler_args"])
+    assert token_handler
+    assert len(token_handler.handler) == 3
+    assert set(token_handler.handler.keys()) == {"code", "access_token", "refresh_token"}
+    assert isinstance(token_handler.handler["code"], DefaultToken)
+    assert isinstance(token_handler.handler["access_token"], JWTToken)
+    assert isinstance(token_handler.handler["refresh_token"], JWTToken)
+
+    assert token_handler.handler["code"].lifetime == 600
+
+    assert token_handler.handler["access_token"].add_claims is True
+    assert token_handler.handler["access_token"].alg == "ES256"
+    assert token_handler.handler["access_token"].args == {"add_claim_by_scope": True}
+    assert token_handler.handler["access_token"].lifetime == 3600
+    assert token_handler.handler["access_token"].def_aud == ["https://example.org/appl"]
+
+    assert token_handler.handler["refresh_token"].add_claims is False
+    assert token_handler.handler["refresh_token"].alg == "ES256"
+    assert token_handler.handler["refresh_token"].args == {}
+    assert token_handler.handler["refresh_token"].lifetime == 3600
+    assert token_handler.handler["refresh_token"].def_aud == ["https://example.org/appl"]

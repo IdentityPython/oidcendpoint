@@ -1,17 +1,17 @@
 import io
 import json
 import os
-from secrets import choice
 import string
+from secrets import choice
 
+import pytest
+import yaml
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import TokenErrorResponse
-import pytest
-import yaml
 
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
