@@ -58,7 +58,7 @@ CAPABILITIES = {
         "private_key_jwt",
     ],
     "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",
@@ -202,7 +202,6 @@ class TestAuthnBrokerEC:
 def test_authn_event():
     an = AuthnEvent(
         uid="uid",
-        salt="_salt_",
         valid_until=time_sans_frac() + 1,
         authn_info="authn_class_ref",
     )

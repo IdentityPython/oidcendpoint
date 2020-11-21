@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import uuid
 
 from oidcmsg.message import Message
 
@@ -8,7 +9,6 @@ from oidcendpoint import rndstr
 from oidcendpoint import token_handler
 from oidcendpoint.grant import AccessToken
 from oidcendpoint.grant import AuthorizationCode
-from oidcendpoint.grant import Grant
 from oidcendpoint.token_handler import UnknownToken
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,10 @@ def pairwise_id(uid, sector_identifier, salt="", **kwargs):
 
 def public_id(uid, salt="", **kwargs):
     return hashlib.sha256("{}{}".format(uid, salt).encode("utf-8")).hexdigest()
+
+
+def ephemeral_id(uid, **kwargs):
+    return uuid.uuid4().hex
 
 
 class SessionInfo(object):
@@ -291,13 +295,19 @@ class SessionManager(Database):
         # this allows the subject identifier minters to be defined by someone
         # else then me.
         if sub_func is None:
-            self.sub_func = {"public": public_id, "pairwise": pairwise_id}
+            self.sub_func = {
+                "public": public_id,
+                "pairwise": pairwise_id,
+                "ephemeral": ephemeral_id
+            }
         else:
             self.sub_func = sub_func
             if "public" not in sub_func:
                 self.sub_func["public"] = public_id
             if "pairwise" not in sub_func:
                 self.sub_func["pairwise"] = pairwise_id
+            if "ephemeral" not in sub_func:
+                self.sub_func["ephemeral"] = ephemeral_id
 
     def get_user_info(self, uid):
         return self.get(uid)
@@ -348,31 +358,31 @@ class SessionManager(Database):
 
         self.set([user_id, client_id], client_info)
 
-    def _update_client_info(self, session_id, new_information):
-        """
-
-        :param session_id:
-        :param new_information:
-        :return:
-        """
-        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
-        _client_info = self.get([_user_id, _client_id])
-        _client_info.update(new_information)
-        self.set([_user_id, _client_id], _client_info)
-
-    def do_sub(self, session_id, sector_id="", subject_type="public"):
-        """
-        Create and store a subject identifier
-
-        :param session_id: Session ID
-        :param sector_id: For pairwise identifiers, an Identifier for the RP group
-        :param subject_type: 'pairwise'/'public'
-        :return:
-        """
-        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
-        sub = self.sub_func[subject_type](_user_id, salt=self.salt, sector_identifier=sector_id)
-        self._update_client_info(session_id, {'sub': sub})
-        return sub
+    # def _update_client_info(self, session_id, new_information):
+    #     """
+    #
+    #     :param session_id:
+    #     :param new_information:
+    #     :return:
+    #     """
+    #     _user_id, _client_id, _grant_id = unpack_session_key(session_id)
+    #     _client_info = self.get([_user_id, _client_id])
+    #     _client_info.update(new_information)
+    #     self.set([_user_id, _client_id], _client_info)
+    #
+    # def do_sub(self, session_id, sector_id="", subject_type="public"):
+    #     """
+    #     Create and store a subject identifier
+    #
+    #     :param session_id: Session ID
+    #     :param sector_id: For pairwise identifiers, an Identifier for the RP group
+    #     :param subject_type: 'pairwise'/'public'/'ephemeral'
+    #     :return:
+    #     """
+    #     _user_id, _client_id, _grant_id = unpack_session_key(session_id)
+    #     sub = self.sub_func[subject_type](_user_id, salt=self.salt, sector_identifier=sector_id)
+    #     self._update_client_info(session_id, {'sub': sub})
+    #     return sub
 
     def __getitem__(self, item):
         return self.get(unpack_session_key(item))

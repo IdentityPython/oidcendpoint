@@ -1,10 +1,12 @@
-from http.cookies import SimpleCookie
 import io
 import json
 import os
+from http.cookies import SimpleCookie
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+import pytest
+import yaml
 from cryptojwt import KeyJar
 from cryptojwt.jwt import utc_time_sans_frac
 from cryptojwt.utils import as_bytes
@@ -15,8 +17,6 @@ from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
-import pytest
-import yaml
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.common.authorization import FORM_POST

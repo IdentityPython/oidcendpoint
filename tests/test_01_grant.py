@@ -1,7 +1,7 @@
 from oidcendpoint.grant import AuthorizationCode
-from oidcendpoint.grant import find_token
 from oidcendpoint.grant import Grant
 from oidcendpoint.grant import Token
+from oidcendpoint.grant import find_token
 
 
 def test_access_code():

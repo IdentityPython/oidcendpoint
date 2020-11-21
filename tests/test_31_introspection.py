@@ -2,6 +2,7 @@ import base64
 import json
 import os
 
+import pytest
 from cryptojwt import JWT
 from cryptojwt import as_unicode
 from cryptojwt.key_jar import build_keyjar
@@ -11,7 +12,6 @@ from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
 from oidcmsg.time_util import utc_time_sans_frac
-import pytest
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client
@@ -50,7 +50,7 @@ CAPABILITIES = {
         "private_key_jwt",
     ],
     "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",

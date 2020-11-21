@@ -72,7 +72,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": {
-                "subject_types_supported": ["public", "pairwise"],
+                "subject_types_supported": ["public", "pairwise", "ephemeral"],
                 "grant_types_supported": [
                     "authorization_code",
                     "implicit",
