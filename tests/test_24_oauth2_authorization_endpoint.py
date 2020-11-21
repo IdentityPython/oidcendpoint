@@ -19,11 +19,6 @@ from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import FORM_POST
-from oidcendpoint.common.authorization import get_uri
-from oidcendpoint.common.authorization import inputs
-from oidcendpoint.common.authorization import join_query
-from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import InvalidRequest
@@ -34,7 +29,12 @@ from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
+from oidcendpoint.oauth2.authorization import FORM_POST
 from oidcendpoint.oauth2.authorization import Authorization
+from oidcendpoint.oauth2.authorization import get_uri
+from oidcendpoint.oauth2.authorization import inputs
+from oidcendpoint.oauth2.authorization import join_query
+from oidcendpoint.oauth2.authorization import verify_uri
 from oidcendpoint.session_management import session_key
 from oidcendpoint.user_info import UserInfo
 

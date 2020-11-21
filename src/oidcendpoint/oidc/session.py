@@ -23,10 +23,10 @@ from oidcmsg.oidc.session import EndSessionRequest
 
 from oidcendpoint import rndstr
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
-from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.endpoint_context import add_path
+from oidcendpoint.oauth2.authorization import verify_uri
 from oidcendpoint.session_management import session_key
 
 logger = logging.getLogger(__name__)
