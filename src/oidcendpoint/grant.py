@@ -79,6 +79,9 @@ class Item:
 
         return True
 
+    def revoke(self):
+        self.revoked = True
+
 
 class Token(Item):
     attributes = ["type", "issued_at", "not_before", "expires_at", "revoked", "value",
@@ -86,9 +89,9 @@ class Token(Item):
 
     def __init__(self,
                  type: str = '',
+                 value: str = '',
                  based_on: Optional[str] = None,
                  usage_rules: Optional[dict] = None,
-                 value: Optional[str] = '',
                  issued_at: int = 0,
                  expires_at: int = 0,
                  not_before: int = 0,
@@ -239,7 +242,8 @@ class Grant(Item):
 
         return self
 
-    def mint_token(self, token_type: str, based_on: Optional[Token] = None, **kwargs) -> Token:
+    def mint_token(self, token_type: str, value: str, based_on: Optional[Token] = None,
+                   **kwargs) -> Token:
         if based_on:
             if based_on.supports_minting(token_type) and based_on.is_active():
                 _base_on_ref = based_on.value
@@ -251,7 +255,7 @@ class Grant(Item):
         if not "usage_rules" in kwargs and token_type in self.usage_rules:
             kwargs["usage_rules"] = self.usage_rules[token_type]
 
-        item = TOKEN_MAP[token_type](type=token_type, based_on=_base_on_ref, **kwargs)
+        item = TOKEN_MAP[token_type](type=token_type, value=value, based_on=_base_on_ref, **kwargs)
         self.issued_token.append(item)
 
         return item
