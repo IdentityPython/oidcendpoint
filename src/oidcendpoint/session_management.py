@@ -9,6 +9,7 @@ from oidcendpoint import rndstr
 from oidcendpoint import token_handler
 from oidcendpoint.grant import AccessToken
 from oidcendpoint.grant import AuthorizationCode
+from oidcendpoint.grant import Grant
 from oidcendpoint.token_handler import UnknownToken
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,9 @@ class SessionInfo(object):
 
     def items(self):
         return self._db.items()
+
+    def __len__(self):
+        return len(self._db)
 
     def __contains__(self, item):
         return item in self._db
@@ -330,6 +334,8 @@ class SessionManager(Database):
     def create_session(self, authn_event, auth_req, user_id, client_id="",
                        sub_type="public", sector_identifier='', **kwargs):
         """
+        Create part of a user session. The parts added are user and client
+        information. The missing part is the grant.
 
         :param authn_event:
         :param auth_req: Authorization Request
@@ -358,36 +364,16 @@ class SessionManager(Database):
 
         self.set([user_id, client_id], client_info)
 
-    # def _update_client_info(self, session_id, new_information):
-    #     """
-    #
-    #     :param session_id:
-    #     :param new_information:
-    #     :return:
-    #     """
-    #     _user_id, _client_id, _grant_id = unpack_session_key(session_id)
-    #     _client_info = self.get([_user_id, _client_id])
-    #     _client_info.update(new_information)
-    #     self.set([_user_id, _client_id], _client_info)
-    #
-    # def do_sub(self, session_id, sector_id="", subject_type="public"):
-    #     """
-    #     Create and store a subject identifier
-    #
-    #     :param session_id: Session ID
-    #     :param sector_id: For pairwise identifiers, an Identifier for the RP group
-    #     :param subject_type: 'pairwise'/'public'/'ephemeral'
-    #     :return:
-    #     """
-    #     _user_id, _client_id, _grant_id = unpack_session_key(session_id)
-    #     sub = self.sub_func[subject_type](_user_id, salt=self.salt, sector_identifier=sector_id)
-    #     self._update_client_info(session_id, {'sub': sub})
-    #     return sub
-
     def __getitem__(self, item):
         return self.get(unpack_session_key(item))
 
     def get_client_session_info(self, session_id):
+        """
+        Return client connected information for a user session.
+
+        :param session_id: Session identifier
+        :return: UserSessionInfo instance
+        """
         _user_id, _client_id, _grant_id = unpack_session_key(session_id)
         self.get([_user_id, _client_id])
 
@@ -398,6 +384,14 @@ class SessionManager(Database):
                 self._revoke_dependent(grant, t)
 
     def revoke_token(self, session_id, token_value, recursive=False):
+        """
+        Revoke a specific token that belongs to a specific user session.
+
+        :param session_id: Session identifier
+        :param token_value: Token value
+        :param recursive: Revoke all tokens that was minted using this token or
+            tokens minted by this token. Recursively.
+        """
         token = self.find_token(session_id, token_value)
         if token is None:
             raise UnknownToken()
@@ -408,10 +402,23 @@ class SessionManager(Database):
             self._revoke_dependent(grant, token)
 
     def get_sids_by_user_id(self, user_id):
+        """
+        Find and return all session identifiers for a user.
+
+        :param user_id: User identifier
+        :return: Possibly empty list of session identifiers
+        """
         user_info = self.get([user_id])
         return [session_key(user_id, c) for c in user_info['subordinate']]
 
     def get_authentication_event(self, session_id):
+        """
+        Return the authentication event as a AuthnEvent instance coupled to a
+        user session.
+
+        :param session_id: A session identifier
+        :return: None if no authentication event could be found or an AuthnEvent instance.
+        """
         _user_id = unpack_session_key(session_id)[0]
         try:
             user_info = self.get([_user_id])
@@ -421,6 +428,11 @@ class SessionManager(Database):
         return user_info["authentication_event"]
 
     def revoke_client_session(self, session_id):
+        """
+        Revokes a client session
+
+        :param session_id: Session identifier
+        """
         parts = unpack_session_key(session_id)
         if len(parts) == 2:
             _user_id, _client_id = parts
@@ -433,12 +445,23 @@ class SessionManager(Database):
         self.set([_user_id, _client_id], _info.revoke())
 
     def revoke_grant(self, session_id):
+        """
+        Revokes the grant pointed to by a session identifier.
+
+        :param session_id: A session identifier
+        """
         _path = unpack_session_key(session_id)
         _info = self.get(_path)
         _info.revoke()
         self.set(_path, _info)
 
     def grants(self, session_id):
+        """
+        Find all grant connected to a user session
+
+        :param session_id: A session identifier
+        :return: A list of grants
+        """
         uid, cid, _gid = unpack_session_key(session_id)
         _csi = self.get([uid, cid])
         return [self.get([uid, cid, gid]) for gid in _csi['subordinate']]
@@ -458,6 +481,23 @@ class SessionManager(Database):
         _token_info = self.token_handler.info(token_value)
         return self.get_session_info(_token_info["sid"])
 
+    def add_grant(self, user_id, client_id, **kwargs):
+        """
+        Creates and adds a grant to a user session.
+
+        :param user_id: User identifier
+        :param client_id: Client identifier
+        :param kwargs: Keyword arguments to the Grant class initialization
+        :return: A Grant instance
+        """
+        args = {k: v for k, v in kwargs.items() if k in Grant.parameters}
+        _grant = Grant(**args)
+        self.set([user_id, client_id, _grant.id], _grant)
+        _client_session_info = self.get([user_id, client_id])
+        _client_session_info["subordinate"].append(_grant.id)
+        self.set([user_id, client_id], _client_session_info)
+        return _grant
+
     @staticmethod
     def _pick_grant(client_info, token_type):
         if len(client_info["subordinate"]) == 1:
@@ -468,13 +508,13 @@ class SessionManager(Database):
             for _token in grant.issued_token:
                 for _class in token_type:
                     if isinstance(_token, _class):
-                        match +=1
+                        match += 1
                         break
             if match == len(token_type):
                 return grant
         return None
 
-    def get_grant(self, user_id, client_id):
+    def get_grant_by_response_type(self, user_id, client_id):
         _client_info = self.get([user_id, client_id])
         response_type = _client_info["authorization_request"]["response_type"]
         if response_type == ["code"]:
@@ -483,7 +523,7 @@ class SessionManager(Database):
             return self._pick_grant(_client_info, [AccessToken])
         elif response_type == ["id_token"]:
             for grant in _client_info["subordinate"]:
-                if grant.issued_token == []:
+                if not grant.issued_token:
                     return grant
         elif response_type == ["code", "token"] or response_type == ["code", "token", "id_token"]:
             return self._pick_grant(_client_info, [AuthorizationCode, AccessToken])
