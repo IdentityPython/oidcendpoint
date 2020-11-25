@@ -1,3 +1,4 @@
+from oidcendpoint.session_management import session_key
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
 import pytest
@@ -171,7 +172,42 @@ class TestSessionManager:
         with pytest.raises(MintingNotAllowed):
             grant.mint_token("access_token", 'xxxxxxx', based_on=code)
 
-        grant.revoke_all_based_on(code.value)
+        grant.revoke_token(based_on=code.value)
 
         assert access_token.revoked == True
         assert refresh_token.revoked == True
+
+    def test_add_grant(self):
+        self.session_manager.create_session(authn_event=self.authn_event,
+                                            auth_req=AUTH_REQ,
+                                            user_id='diana',
+                                            client_id="client_1")
+
+        grant = self.session_manager.add_grant(
+            user_id="diana", client_id="client_1",
+            scope=["openid", "phoe"],
+            claims={"userinfo": {"given_name": None}})
+
+        assert grant.scope == ["openid", "phoe"]
+
+        _grant = self.session_manager.get(['diana', 'client_1', grant.id])
+
+        assert _grant.scope == ["openid", "phoe"]
+
+    def test_find_token(self):
+        self.session_manager.create_session(authn_event=self.authn_event,
+                                            auth_req=AUTH_REQ,
+                                            user_id='diana',
+                                            client_id="client_1")
+
+        grant = self.session_manager.add_grant(user_id="diana",
+                                               client_id="client_1")
+
+        code = grant.mint_token("authorization_code", value="ABCD")
+        access_token = grant.mint_token("access_token", value="007", based_on=code)
+
+        _session_key = session_key('diana', 'client_1', grant.id)
+        _token = self.session_manager.find_token(_session_key, access_token.value)
+
+        assert _token.type == "access_token"
+        assert _token.id == access_token.id
