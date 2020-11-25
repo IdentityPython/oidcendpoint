@@ -1,8 +1,39 @@
 Session Management
 ==================
 
-Introduction
-------------
+- `About session management`_
+    - `Design criteria`_
+    - `Database layout`_
+- `The information structure`_
+    - `Session key`_
+    - `User session information`_
+    - `Client session information`_
+    - `Grant information`_
+    - `Token`_
+- `Session Info API`_
+- `Grant API`_
+- `Token API`_
+
+- `Session Manager API`_
+    - `create_session`_
+    - `add_grant`_
+    - `find_token`_
+    - `get_authentication_event`_
+    - `get_client_session_info`_
+    - `get_grant_by_response_type`_
+    - `get_session_info`_
+    - `get_session_info_by_token`_
+    - `get_sids_by_user_id`_
+    - `get_user_info`_
+    - `grants`_
+    - `revoke_client_session`_
+    - `revoke_grant`_
+    - `revoke_token`_
+
+
+About session management
+------------------------
+.. _`About session management`:
 
 The OIDC Session Management draft defines session to be:
 
@@ -18,13 +49,14 @@ shared between the sessions.
 
 Design criteria
 +++++++++++++++
+.. _`Design criteria`:
 
 So a session is defined by a user and a Relying Party. If one adds to that
 that a user can have several sessions active at the same time each one against
 a unique Relying Party we have the bases for session management.
 
 Furthermore the user may well decide on different rules for different
-relaying parties for releasing user
+relying parties for releasing user
 attributes, where and how issued access tokens could be used and whether
 refresh tokens should be issued or not.
 
@@ -33,40 +65,43 @@ such that we can easily revoked a suite of tokens all with a common ancestor.
 
 Database layout
 +++++++++++++++
+.. _`Database layout`:
 
 The database is organized in 3 levels. The top one being the users.
-Below that the Relaying Parties and at the bottom what is called grants.
+Below that the Relying Parties and at the bottom what is called grants.
 
 Grants organize authorization codes, access tokens and refresh tokens (and
-possibly other types of tokens) in a
-comprehensive way. More about that below.
+possibly other types of tokens) in a comprehensive way. More about that below.
 
-There may be many Relaying Parties below a user and many grants below a
-Relaying Party.
+There may be many Relying Parties below a user and many grants below a
+Relying Party.
 
 The information structure
 -------------------------
+.. _`The information structure`:
 
 As stated above there are 3 layers: user session information, client session
 information and grants. But first the keys to the information.
 
 Session key
 +++++++++++
+.. _`Session key`:
 
-A key to the session information is a list. The first item being the user
-identifier, the second the client identifier and the third the grant identifier.
+A key to the session information is based on a list. The first item being the
+user identifier, the second the client identifier and the third the grant
+identifier.
 If you only want the user session information then the key is a list with one
 item the user id. If you want the client session information the key is a
-list with 2 items (user_id, client_id). And lastly if you want the grant then
+list with 2 items (user_id, client_id). And lastly if you want a grant then
 the key is a list with 3 elements (user_id, client_id, grant_id).
 
-A session identifier is constructed using the **session_key** function.
-It takes input the 3 elements list.::
+A *session identifier* is constructed using the **session_key** function.
+It takes as input the 3 elements list.::
 
     session_id = session_key(user_id, client_id, grant_id)
 
 
-Using the function **unpack_session_key** you can get the elements of a
+Using the function **unpack_session_key** you can get the elements from a
 session_id.::
 
     user_id, client_id, grant_id = unpack_session_id(session_id)
@@ -74,9 +109,10 @@ session_id.::
 
 User session information
 ++++++++++++++++++++++++
+.. _`User session information`:
 
 Houses the authentication event information which is the same for all session
-connected to one user.
+connected to a user.
 Here we also have a list of all the clients that this user has a session with.
 Expressed as a dictionary this can look like this::
 
@@ -93,6 +129,7 @@ Expressed as a dictionary this can look like this::
 
 Client session information
 ++++++++++++++++++++++++++
+.. _`Client session information`:
 
 The client specific information of the session information.
 Presently only the authorization request and the subject identifier (sub).
@@ -113,6 +150,8 @@ The subordinates to this set of information are the grants::
 
 Grant information
 +++++++++++++++++
+.. _`Grant information`:
+
 Grants are created by an authorization subsystem in an OP. If the grant is
 created in connection with an user authentication the authorization system
 might normally ask the user for usage consent and then base the construction
@@ -190,8 +229,7 @@ scope
 :::::
 
 This is the scope that was chosen for this grant. Either by the user or by
-some rules that the Authorization Server runs by. This scope is a subset of
-the scope specified in the authorisation request.
+some rules that the Authorization Server runs by.
 
 authorization_details
 :::::::::::::::::::::
@@ -205,13 +243,13 @@ claims
 The set of claims that should be returned in different circumstances. The
 syntax that is defined in
 https://openid.net/specs/openid-connect-core-1_0.html#ClaimsParameter
-is used. With one addition, beside userinfo and id_token we have added
-introspection.
+is used. With one addition, beside *userinfo* and *id_token* we have added
+*introspection*.
 
 resources
 :::::::::
 
-This is the resource servers and other entities that should be accepted
+This are the resource servers and other entities that should be accepted
 as users of issued access tokens.
 
 issued_at
@@ -222,7 +260,7 @@ of seconds from 1970-01-01T0:0:0Z as measured in UTC until the date/time.
 
 not_before
 ::::::::::
-If the usage of the grant should be delay, this is until when.
+If the usage of the grant should be delay, this is when it can start being used.
 Its value is a JSON number representing the number
 of seconds from 1970-01-01T0:0:0Z as measured in UTC until the date/time.
 
@@ -251,6 +289,7 @@ The grant identifier.
 
 Token
 +++++
+.. _`Token`:
 
 As mention above there are presently only 3 token types that are defined:
 
@@ -341,9 +380,49 @@ id
 ::
 Token identifier
 
+Session Info API
+----------------
+.. _`Session Info API`:
 
-Usage
------
+add_subordinate
++++++++++++++++
+.. _`add_subordinate`:
+
+remove_subordinate
+++++++++++++++++++
+.. _`removed_subordinate`:
+
+revoke
+++++++
+.. _`revoke`:
+
+is_revoked
+++++++++++
+.. _`is_revoked`:
+
+to_json
++++++++
+.. _`to_json`:
+
+from_json
++++++++++
+.. _`from_json`:
+
+Grant API
+---------
+.. _`Grant API`:
+
+Token API
+---------
+.. _`Token API`:
+
+Session Manager API
+-------------------
+.. _`Session Manager API`:
+
+create_session
+++++++++++++++
+.. _create_session:
 
 Creating a new session is done by running the create_session method of
 the class SessionManager. The create_session methods takes the following
@@ -376,3 +455,82 @@ So a typical command would look like this::
     session_manager.create_session(authn_event=authn_event, auth_req=auth_req,
                                    user_id=self.user_id, client_id=client_id,
                                    sub_type=sub_type, sector_identifier=sector_identifier)
+
+add_grant
++++++++++
+.. _add_grant:
+
+add_grant(self, user_id, client_id, **kwargs)
+
+find_token
+++++++++++
+.. _find_token:
+
+find_token(self, session_id, token_value)
+
+get_authentication_event
+++++++++++++++++++++++++
+.. _get_authentication_event:
+
+get_authentication_event(self, session_id)
+
+
+get_client_session_info
++++++++++++++++++++++++
+.. _get_client_session_info:
+
+get_client_session_info(self, session_id)
+
+get_grant_by_response_type
+++++++++++++++++++++++++++
+.. _get_grant_by_response_type:
+
+get_grant_by_response_type(self, user_id, client_id)
+
+get_session_info
+++++++++++++++++
+.. _get_session_info:
+
+get_session_info(self, session_id)
+
+get_session_info_by_token
++++++++++++++++++++++++++
+.. _get_session_info_by_token:
+
+get_session_info_by_token(self, token_value)
+
+get_sids_by_user_id
++++++++++++++++++++
+.. _get_sids_by_user_id:
+
+get_sids_by_user_id(self, user_id)
+
+get_user_info
++++++++++++++
+.. _get_user_info:
+
+get_user_info(self, uid)
+
+grants
+++++++
+.. _grants:
+
+grants(self, session_id)
+
+revoke_client_session
++++++++++++++++++++++
+.. _revoke_client_session:
+
+revoke_client_session(self, session_id)
+
+revoke_grant
+++++++++++++
+.. _revoke_grant:
+
+revoke_grant(self, session_id)
+
+revoke_token
+++++++++++++
+.. _revoke_token:
+
+revoke_token(self, session_id, token_value, recursive=False)

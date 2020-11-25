@@ -3,10 +3,10 @@ import time
 from typing import Optional
 from uuid import uuid1
 
+from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
-from oidcmsg.message import Message
 from oidcmsg.time_util import utc_time_sans_frac
 
 
@@ -85,7 +85,8 @@ class Item:
 
 class Token(Item):
     attributes = ["type", "issued_at", "not_before", "expires_at", "revoked", "value",
-                  "usage_rules", "used", "based_on", "id"]
+                  "usage_rules", "used", "based_on", "id", "scope", "claims",
+                  "resources"]
 
     def __init__(self,
                  type: str = '',
@@ -97,7 +98,10 @@ class Token(Item):
                  not_before: int = 0,
                  revoked: bool = False,
                  used: int = 0,
-                 id: str = ""
+                 id: str = "",
+                 scope: Optional[list] = None,
+                 claims: Optional[dict] = None,
+                 resources: Optional[list] = None,
                  ):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at,
                       not_before=not_before, revoked=revoked, used=used)
@@ -107,6 +111,9 @@ class Token(Item):
         self.based_on = based_on
         self.id = id or uuid1().hex
         self.set_defaults()
+        self.scope = scope or []
+        self.claims = claims or {}  # default is to not release any user information
+        self.resources = resources or []
 
     def set_defaults(self):
         pass
@@ -128,7 +135,10 @@ class Token(Item):
             "usage_rules": self.usage_rules,
             "used": self.used,
             "based_on": self.based_on,
-            "id": self.id
+            "id": self.id,
+            "scope": self.scope,
+            "claims": self.claims,
+            "resources": self.resources
         }
         return json.dumps(d)
 
@@ -173,38 +183,71 @@ TOKEN_MAP = {
 
 
 class Grant(Item):
+    parameters = ["scope", "claim", "resources", "authorization_details",
+                  "issued_token", "usage_rules", "revoked", "issued_at",
+                  "expires_at"]
+
     def __init__(self,
                  scope: Optional[list] = None,
                  claim: Optional[dict] = None,
                  resources: Optional[list] = None,
                  authorization_details: Optional[dict] = None,
-                 token: Optional[list] = None,
+                 issued_token: Optional[list] = None,
                  usage_rules: Optional[dict] = None,
                  issued_at: int = 0,
                  expires_at: int = 0,
-                 revoked: bool = False):
-        Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at)
+                 revoked: bool = False,
+                 token_map: Optional[dict] = None):
+        Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at,
+                      revoked=revoked)
         self.scope = scope or []
         self.authorization_details = authorization_details or None
         self.claims = claim or {}  # default is to not release any user information
         self.resources = resources or []
-        self.issued_token = token or []
+        self.issued_token = issued_token or []
         self.id = uuid1().hex
 
-    def update(self, item: dict):
-        for attr in ['scope', 'authorization_details', 'claims', 'resources']:
-            val = item.get(attr)
-            if val:
-                setattr(self, attr, val)
+        if token_map is None:
+            self.token_map = TOKEN_MAP
+        else:
+            self.token_map = token_map
 
-    def replace(self, item: dict):
-        for attr in ['scope', 'authorization_details', 'claims', 'resources']:
-            setattr(self, attr, item.get(attr))
+    def _update_dict(self, attr, val):
+        _old = getattr(self, attr)
+        if _old:
+            _old.update(val)
+            setattr(self, attr, _old)
+        else:
+            setattr(self, attr, val)
 
-    def revoke_all(self):
-        self.revoked = True
-        for t in self.issued_token:
-            t.revoked = True
+    def _update_set(self, attr, val):
+        _old = getattr(self, attr)
+        if _old:
+            _new = list(set(_old).union(set(val)))
+            setattr(self, attr, _new)
+        else:
+            setattr(self, attr, list(set(val)))
+
+    def update(self,
+               authorization_details: Optional[dict] = None,
+               claims: Optional[dict] = None,
+               scope: Optional[list] = None,
+               resources: Optional[list] = None):
+
+        if authorization_details:
+            self._update_dict("authorization_details", authorization_details)
+        if claims:
+            self._update_dict("claims", claims)
+        if scope:
+            self._update_set("scope", scope)
+        if resources:
+            self._update_set("resources", resources)
+
+    def replace(self, **kwargs):
+        for attr in ['scope', 'authorization_details', 'claims', 'resources']:
+            new = kwargs.get(attr)
+            if new:
+                setattr(self, attr, new)
 
     def get(self):
         return GrantMessage(scope=self.scope, claims=self.claims,
@@ -229,8 +272,8 @@ class Grant(Item):
 
     def from_json(self, json_str):
         d = json.loads(json_str)
-        for attr in ["scope", "authorization_details", "claims", "resources", "issued_at",
-                     "not_before", "expires_at", "revoked", "id"]:
+        for attr in ["scope", "authorization_details", "claims", "resources",
+                     "issued_at", "not_before", "expires_at", "revoked", "id"]:
             if attr in d:
                 setattr(self, attr, d[attr])
         if "issued_token" in d:
@@ -242,8 +285,12 @@ class Grant(Item):
 
         return self
 
-    def mint_token(self, token_type: str, value: str, based_on: Optional[Token] = None,
-                   **kwargs) -> Token:
+    def mint_token(self, token_type: str, value: str,
+                   based_on: Optional[Token] = None,
+                   **kwargs) -> Optional[Token]:
+        if self.is_active() is False:
+            return None
+
         if based_on:
             if based_on.supports_minting(token_type) and based_on.is_active():
                 _base_on_ref = based_on.value
@@ -255,27 +302,38 @@ class Grant(Item):
         if not "usage_rules" in kwargs and token_type in self.usage_rules:
             kwargs["usage_rules"] = self.usage_rules[token_type]
 
-        item = TOKEN_MAP[token_type](type=token_type, value=value, based_on=_base_on_ref, **kwargs)
+        item = self.token_map[token_type](type=token_type,
+                                          value=value,
+                                          based_on=_base_on_ref,
+                                          **kwargs)
         self.issued_token.append(item)
-
+        self.used += 1
         return item
 
-    def revoke_all_based_on(self, id):
+    def get_token(self, value: str) -> Optional[Token]:
         for t in self.issued_token:
-            if t.based_on == id:
-                t.revoked = True
-                self.revoke_all_based_on(t.id)
-
-    def get_token(self, val):
-        for t in self.issued_token:
-            if t.value == val:
+            if t.value == value:
                 return t
         return None
 
-    def revoke_token(self, val):
+    def revoke_token(self,
+                     value: Optional[str] = "",
+                     based_on: Optional[str] = "",
+                     recursive: bool = True):
         for t in self.issued_token:
-            if t.value == val:
+            if not value and not based_on:
                 t.revoked = True
+            elif value and based_on:
+                if value == t.value and based_on == t.based_on:
+                    t.revoked = True
+            elif value and t.value == value:
+                t.revoked = True
+                if recursive:
+                    self.revoke_token(based_on=t.value)
+            elif based_on and t.based_on == based_on:
+                t.revoked = True
+                if recursive:
+                    self.revoke_token(based_on=t.value)
 
 
 DEFAULT_USAGE = {
