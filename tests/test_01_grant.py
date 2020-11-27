@@ -1,5 +1,8 @@
+import pytest
+
 from oidcendpoint.grant import AuthorizationCode
 from oidcendpoint.grant import Grant
+from oidcendpoint.grant import TOKEN_MAP
 from oidcendpoint.grant import Token
 from oidcendpoint.grant import find_token
 
@@ -66,13 +69,11 @@ def test_get_token():
                                     based_on=code,
                                     scope=["openid", "foo", "bar"])
 
-
     _code = grant.get_token(code.value)
     assert _code.id == code.id
 
     _token = grant.get_token(access_token.value)
     assert _token.id == access_token.id
-
 
 
 def test_grant_revoked_based_on():
@@ -139,3 +140,58 @@ def test_revoke():
     assert code.is_active() is False
     assert access_token_2.is_active() is False
 
+
+def test_json():
+    grant = Grant()
+    code = grant.mint_token("authorization_code", value="ABCD")
+    access_token = grant.mint_token("access_token", value="1234", based_on=code)
+
+    _jstr = grant.to_json()
+
+    _grant_copy = Grant().from_json(_jstr)
+
+    assert len(_grant_copy.issued_token) == 2
+
+    tt = {"code": 0, "access_token": 0}
+    for token in _grant_copy.issued_token:
+        if token.type == "authorization_code":
+            tt["code"] += 1
+        if token.type == "access_token":
+            tt["access_token"] += 1
+
+    assert tt == {"code": 1, "access_token": 1}
+
+
+def test_json_no_token_map():
+    grant = Grant(token_map={})
+    with pytest.raises(ValueError):
+        grant.mint_token("authorization_code", value="ABCD")
+
+
+class MyToken(Token):
+    pass
+
+
+def test_json_custom_token_map():
+    token_map = TOKEN_MAP.copy()
+    token_map["my_token"] = MyToken
+
+    grant = Grant(token_map=token_map)
+    code = grant.mint_token("authorization_code", value="ABCD")
+    access_token = grant.mint_token("access_token", value="1234", based_on=code)
+    my_token = grant.mint_token("my_token", value="A1B2C3")
+
+    _jstr = grant.to_json()
+
+    _grant_copy = Grant().from_json(_jstr)
+
+    assert len(_grant_copy.issued_token) == 3
+
+    tt = {k: 0 for k, v in grant.token_map.items()}
+
+    for token in _grant_copy.issued_token:
+        for _type in tt.keys():
+            if token.type == _type:
+                tt[_type] += 1
+
+    assert tt == {'access_token': 1, 'authorization_code': 1, 'my_token': 1, 'refresh_token': 0}
