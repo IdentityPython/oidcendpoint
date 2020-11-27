@@ -1,9 +1,15 @@
 import hashlib
-import json
 import logging
 import uuid
 
 from oidcmsg.message import Message
+from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
+from oidcmsg.message import OPTIONAL_MESSAGE
+from oidcmsg.message import SINGLE_OPTIONAL_STRING
+from oidcmsg.message import SINGLE_REQUIRED_BOOLEAN
+from oidcmsg.message import SINGLE_REQUIRED_STRING
+from oidcmsg.message import list_deserializer
+from oidcmsg.message import list_serializer
 
 from oidcendpoint import rndstr
 from oidcendpoint import token_handler
@@ -39,91 +45,59 @@ def ephemeral_id(uid, **kwargs):
     return uuid.uuid4().hex
 
 
-class SessionInfo(object):
+class SessionInfo(Message):
+    c_param = {
+        "subordinate": ([str], False, list_serializer, list_deserializer, True),
+        "revoked": SINGLE_REQUIRED_BOOLEAN,
+        "type": SINGLE_REQUIRED_STRING
+    }
+
     def __init__(self, **kwargs):
-        self._db = kwargs or {}
-        self._revoked = False
-        if "subordinate" not in self._db:
-            self._db["subordinate"] = []
-
-    def set(self, key, value):
-        self._db[key] = value
-
-    def get(self, key):
-        return self._db[key]
-
-    def update(self, ava):
-        self._db.update(ava)
-        return self
+        Message.__init__(self, **kwargs)
+        if "subordinate" not in self:
+            self["subordinate"] = []
+        self["revoked"] = False
 
     def add_subordinate(self, value):
-        self._db["subordinate"].append(value)
+        self["subordinate"].append(value)
         return self
 
     def remove_subordinate(self, value):
-        self._db["subordinate"].remove(value)
+        self["subordinate"].remove(value)
         return self
 
-    def __setitem__(self, key, value):
-        self._db[key] = value
-
-    def __getitem__(self, key):
-        return self._db[key]
-
-    def keys(self):
-        return self._db.keys()
-
-    def values(self):
-        return self._db.values()
-
-    def items(self):
-        return self._db.items()
-
-    def __len__(self):
-        return len(self._db)
-
-    def __contains__(self, item):
-        return item in self._db
-
     def revoke(self):
-        self._revoked = True
+        self["revoked"] = True
         return self
 
     def is_revoked(self):
-        return self._revoked
-
-    def to_json(self):
-        _tdb = {}
-        for k, v in self._db.items():
-            if isinstance(v, Message):
-                _tdb[k] = v.to_dict()
-            else:
-                _tdb[k] = v
-
-        d = {
-            "db": _tdb,
-            "revoked": self._revoked,
-            "type": self.__class__.__name__
-        }
-        return json.dumps(d)
-
-    def from_json(self, js):
-        data = json.loads(js)
-        self._db = data["db"]
-        self._revoked = data["revoked"]
-        return self
+        return self["revoked"]
 
 
 class UserSessionInfo(SessionInfo):
+    c_param = SessionInfo.c_param.copy()
+    c_param.update({
+        "authentication_event": OPTIONAL_MESSAGE,
+    })
+
     def __init__(self, **kwargs):
         SessionInfo.__init__(self, **kwargs)
-        if "logout_sid" not in self._db:
-            self._db["logout_sid"] = {}
+        self["type"] = "UserSessionInfo"
 
 
 class ClientSessionInfo(SessionInfo):
+    c_param = SessionInfo.c_param.copy()
+    c_param.update({
+        "authorization_request": OPTIONAL_MESSAGE,
+        "sub": SINGLE_OPTIONAL_STRING
+    })
+
+    def __init__(self, **kwargs):
+        SessionInfo.__init__(self, **kwargs)
+        self["type"] = "ClientSessionInfo"
+
     def find_grant(self, val):
-        for grant in self._db["subordinate"]:
+        for grant in self["subordinate"]:
             token = grant.get_token(val)
             if token:
                 return grant, token
@@ -375,7 +349,7 @@ class SessionManager(Database):
         :return: UserSessionInfo instance
         """
         _user_id, _client_id, _grant_id = unpack_session_key(session_id)
-        self.get([_user_id, _client_id])
+        return self.get([_user_id, _client_id])
 
     def _revoke_dependent(self, grant, token):
         for t in grant.issued_token:

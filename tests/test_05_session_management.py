@@ -1,7 +1,6 @@
-from oidcendpoint.session_management import session_key
+import pytest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
-import pytest
 
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.grant import AccessToken
@@ -9,7 +8,9 @@ from oidcendpoint.grant import AuthorizationCode
 from oidcendpoint.grant import Grant
 from oidcendpoint.grant import MintingNotAllowed
 from oidcendpoint.grant import RefreshToken
+from oidcendpoint.session_management import ClientSessionInfo
 from oidcendpoint.session_management import SessionManager
+from oidcendpoint.session_management import session_key
 from oidcendpoint.token_handler import factory
 
 AUTH_REQ = AuthorizationRequest(
@@ -211,3 +212,81 @@ class TestSessionManager:
 
         assert _token.type == "access_token"
         assert _token.id == access_token.id
+
+    def test_get_authentication_event(self):
+        self.session_manager.create_session(authn_event=self.authn_event,
+                                            auth_req=AUTH_REQ,
+                                            user_id='diana',
+                                            client_id="client_1")
+
+        grant = self.session_manager.add_grant(user_id="diana",
+                                               client_id="client_1")
+
+        _session_id = session_key('diana', 'client_1', grant.id)
+        authn_event = _token = self.session_manager.get_authentication_event(_session_id)
+
+        assert isinstance(authn_event, AuthnEvent)
+        assert authn_event["uid"] == "uid"
+        assert authn_event["authn_info"] == "authn_class_ref"
+
+    def test_get_client_session_info(self):
+        self.session_manager.create_session(authn_event=self.authn_event,
+                                            auth_req=AUTH_REQ,
+                                            user_id='diana',
+                                            client_id="client_1")
+
+        grant = self.session_manager.add_grant(user_id="diana",
+                                               client_id="client_1")
+
+        _session_id = session_key('diana', 'client_1', grant.id)
+        csi = self.session_manager.get_client_session_info(_session_id)
+
+        assert isinstance(csi, ClientSessionInfo)
+
+        # There MUST be a subject ID
+        assert csi["sub"]
+        assert csi["authorization_request"] == AUTH_REQ
+
+    def test_get_session_info(self):
+        self.session_manager.create_session(authn_event=self.authn_event,
+                                            auth_req=AUTH_REQ,
+                                            user_id='diana',
+                                            client_id="client_1")
+
+        grant = self.session_manager.add_grant(user_id="diana",
+                                               client_id="client_1")
+
+        _session_id = session_key('diana', 'client_1', grant.id)
+        _session_info = self.session_manager.get_session_info(_session_id)
+
+        assert set(_session_info.keys()) == {'client_id',
+                                             'client_session_info',
+                                             'grant',
+                                             'session_id',
+                                             'user_id',
+                                             'user_session_info'}
+        assert _session_info["user_id"] == "diana"
+        assert _session_info["client_id"] == "client_1"
+
+    def test_get_session_info_by_token(self):
+        self.session_manager.create_session(authn_event=self.authn_event,
+                                            auth_req=AUTH_REQ,
+                                            user_id='diana',
+                                            client_id="client_1")
+
+        grant = self.session_manager.add_grant(user_id="diana",
+                                               client_id="client_1")
+
+        _session_id = session_key('diana', 'client_1', grant.id)
+        cval = self.session_manager.token_handler.handler["code"](_session_id)
+        code = grant.mint_token("authorization_code", value=cval)
+        _session_info = self.session_manager.get_session_info_by_token(code.value)
+
+        assert set(_session_info.keys()) == {'client_id',
+                                             'client_session_info',
+                                             'grant',
+                                             'session_id',
+                                             'user_id',
+                                             'user_session_info'}
+        assert _session_info["user_id"] == "diana"
+        assert _session_info["client_id"] == "client_1"
