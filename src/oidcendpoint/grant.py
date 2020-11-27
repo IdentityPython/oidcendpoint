@@ -3,11 +3,13 @@ import time
 from typing import Optional
 from uuid import uuid1
 
+from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
-from oidcmsg.message import Message
 from oidcmsg.time_util import utc_time_sans_frac
+
+from oidcendpoint.util import importer
 
 
 class MintingNotAllowed(Exception):
@@ -266,7 +268,9 @@ class Grant(Item):
             "expires_at": self.expires_at,
             "revoked": self.revoked,
             "issued_token": [t.to_json() for t in self.issued_token],
-            "id": self.id
+            "id": self.id,
+            "token_map": {k: ".".join([v.__module__, v.__name__]) for k, v in
+                          self.token_map.items()}
         }
         return json.dumps(d)
 
@@ -276,12 +280,19 @@ class Grant(Item):
                      "issued_at", "not_before", "expires_at", "revoked", "id"]:
             if attr in d:
                 setattr(self, attr, d[attr])
+
+        if "token_map" in d:
+            self.token_map = {k: importer(v) for k, v in d["token_map"].items()}
+        else:
+            self.token_map = TOKEN_MAP
+
         if "issued_token" in d:
             _it = []
             for js in d["issued_token"]:
                 args = json.loads(js)
-                _it.append(TOKEN_MAP[args["type"]](**args))
+                _it.append(self.token_map[args["type"]](**args))
             setattr(self, "issued_token", _it)
+
 
         return self
 
@@ -302,10 +313,15 @@ class Grant(Item):
         if not "usage_rules" in kwargs and token_type in self.usage_rules:
             kwargs["usage_rules"] = self.usage_rules[token_type]
 
-        item = self.token_map[token_type](type=token_type,
-                                          value=value,
-                                          based_on=_base_on_ref,
-                                          **kwargs)
+        token_class = self.token_map.get(token_type)
+        if token_class:
+            item = token_class(type=token_type,
+                               value=value,
+                               based_on=_base_on_ref,
+                               **kwargs)
+        else:
+            raise ValueError("Can not mint that kind of token")
+
         self.issued_token.append(item)
         self.used += 1
         return item
