@@ -3,10 +3,10 @@ import time
 from typing import Optional
 from uuid import uuid1
 
-from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
+from oidcmsg.message import Message
 from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.util import importer
@@ -191,7 +191,7 @@ class Grant(Item):
 
     def __init__(self,
                  scope: Optional[list] = None,
-                 claim: Optional[dict] = None,
+                 claims: Optional[dict] = None,
                  resources: Optional[list] = None,
                  authorization_details: Optional[dict] = None,
                  issued_token: Optional[list] = None,
@@ -204,7 +204,7 @@ class Grant(Item):
                       revoked=revoked)
         self.scope = scope or []
         self.authorization_details = authorization_details or None
-        self.claims = claim or {}  # default is to not release any user information
+        self.claims = claims or {}  # default is to not release any user information
         self.resources = resources or []
         self.issued_token = issued_token or []
         self.id = uuid1().hex
@@ -214,49 +214,12 @@ class Grant(Item):
         else:
             self.token_map = token_map
 
-    def _update_dict(self, attr, val):
-        _old = getattr(self, attr)
-        if _old:
-            _old.update(val)
-            setattr(self, attr, _old)
-        else:
-            setattr(self, attr, val)
-
-    def _update_set(self, attr, val):
-        _old = getattr(self, attr)
-        if _old:
-            _new = list(set(_old).union(set(val)))
-            setattr(self, attr, _new)
-        else:
-            setattr(self, attr, list(set(val)))
-
-    def update(self,
-               authorization_details: Optional[dict] = None,
-               claims: Optional[dict] = None,
-               scope: Optional[list] = None,
-               resources: Optional[list] = None):
-
-        if authorization_details:
-            self._update_dict("authorization_details", authorization_details)
-        if claims:
-            self._update_dict("claims", claims)
-        if scope:
-            self._update_set("scope", scope)
-        if resources:
-            self._update_set("resources", resources)
-
-    def replace(self, **kwargs):
-        for attr in ['scope', 'authorization_details', 'claims', 'resources']:
-            new = kwargs.get(attr)
-            if new:
-                setattr(self, attr, new)
-
-    def get(self):
+    def get(self) -> object:
         return GrantMessage(scope=self.scope, claims=self.claims,
                             authorization_details=self.authorization_details,
                             resources=self.resources)
 
-    def to_json(self):
+    def to_json(self) -> str:
         d = {
             "type": "grant",
             "scope": self.scope,
@@ -274,7 +237,7 @@ class Grant(Item):
         }
         return json.dumps(d)
 
-    def from_json(self, json_str):
+    def from_json(self, json_str) -> Item:
         d = json.loads(json_str)
         for attr in ["scope", "authorization_details", "claims", "resources",
                      "issued_at", "not_before", "expires_at", "revoked", "id"]:
@@ -292,7 +255,6 @@ class Grant(Item):
                 args = json.loads(js)
                 _it.append(self.token_map[args["type"]](**args))
             setattr(self, "issued_token", _it)
-
 
         return self
 
@@ -350,6 +312,21 @@ class Grant(Item):
                 t.revoked = True
                 if recursive:
                     self.revoke_token(based_on=t.value)
+
+    def get_spec(self, token: Token) -> Optional[dict]:
+        if self.is_active() is False or token.is_active is False:
+            return None
+
+        res = {}
+        for attr in ["scope", "claims", "resources"]:
+            _val = getattr(token, attr)
+            if _val:
+                res[attr] = _val
+            else:
+                _val = getattr(self, attr)
+                if _val:
+                    res[attr] = _val
+        return res
 
 
 DEFAULT_USAGE = {

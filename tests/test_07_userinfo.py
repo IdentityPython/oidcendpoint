@@ -384,6 +384,7 @@ class TestCollectUserInfo:
         del self.endpoint_context.endpoint["userinfo"].kwargs["base_claims"]
 
         self.endpoint_context.cdb[_req["client_id"]]["userinfo_claims"] = {"phone_number": None}
+
         _userinfo_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
                                                                  scopes=_req["scope"],
                                                                  usage="userinfo")

@@ -2,12 +2,11 @@ import hashlib
 import logging
 import uuid
 
-from oidcmsg.message import Message
-from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import OPTIONAL_MESSAGE
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_REQUIRED_BOOLEAN
 from oidcmsg.message import SINGLE_REQUIRED_STRING
+from oidcmsg.message import Message
 from oidcmsg.message import list_deserializer
 from oidcmsg.message import list_serializer
 

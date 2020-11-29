@@ -161,7 +161,6 @@ class Session(Endpoint):
         for _client_id in _session_info["user_session_info"]["subordinate"]:
             if "backchannel_logout_uri" in _cdb[_client_id]:
                 _sub = _mngr.get([_user_id, _client_id])["sub"]
-                # grant = _mngr.get_grant(_user_id, _client_id)
                 _sid = session_key(_user_id, _client_id)
                 _rel_sid.append(_sid)
                 _spec = self.do_back_channel_logout(_cdb[_client_id], _sub, _sid)
@@ -169,7 +168,6 @@ class Session(Endpoint):
                     bc_logouts[_client_id] = _spec
             elif "frontchannel_logout_uri" in _cdb[_client_id]:
                 # Construct an IFrame
-                # grant = _mngr.get_grant(_user_id, _client_id)
                 _sid = session_key(_user_id, _client_id)
                 _rel_sid.append(_sid)
                 _spec = do_front_channel_logout_iframe(_cdb[_client_id], _iss, _sid)
