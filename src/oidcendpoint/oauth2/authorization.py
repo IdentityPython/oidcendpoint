@@ -581,9 +581,12 @@ class Authorization(Endpoint):
             )
             _mngr.set([identity["uid"]], UserSessionInfo(authentication_event=authn_event))
 
-        _exp_in = authn.kwargs.get("expires_in")
-        if _exp_in and "valid_until" in authn_event:
-            authn_event["valid_until"] = utc_time_sans_frac() + _exp_in
+            _exp_in = authn.kwargs.get("expires_in")
+            if _exp_in and "valid_until" in authn_event:
+                authn_event["valid_until"] = utc_time_sans_frac() + _exp_in
+        else: # verify that the authn_event is still active
+            if authn_event.is_valid() is False: # if not valid, do new login
+                return {"function": authn, "args": authn_args}
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
