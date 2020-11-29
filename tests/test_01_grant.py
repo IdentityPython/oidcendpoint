@@ -194,4 +194,34 @@ def test_json_custom_token_map():
             if token.type == _type:
                 tt[_type] += 1
 
-    assert tt == {'access_token': 1, 'authorization_code': 1, 'my_token': 1, 'refresh_token': 0}
+    assert tt == {
+        'access_token': 1, 'authorization_code': 1,
+        'my_token': 1, 'refresh_token': 0
+    }
+
+
+def test_get_spec():
+    grant = Grant(scope=["openid", "email", "address"],
+                  claims={"userinfo": {"given_name": None, "email": None}},
+                  resources=["https://api.example.com"]
+                  )
+    code = grant.mint_token("authorization_code", value="ABCD")
+    access_token = grant.mint_token("access_token", value="1234", based_on=code,
+                                    scope=["openid", "email", "eduperson"],
+                                    claims={
+                                        "userinfo": {
+                                            "given_name": None,
+                                            "eduperson_affiliation": None
+                                        }
+                                    })
+
+    spec = grant.get_spec(access_token)
+    assert set(spec.keys()) == {"scope", "claims", "resources"}
+    assert spec["scope"] == ["openid", "email", "eduperson"]
+    assert spec["claims"] == {
+        "userinfo": {
+            "given_name": None,
+            "eduperson_affiliation": None
+        }
+    }
+    assert spec["resources"] == ["https://api.example.com"]
