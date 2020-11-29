@@ -22,7 +22,7 @@ class AuthzHandling(object):
             args["scope"] = scope
         claims = request.get("claims")
         if claims:
-            args["claim"] = claims.to_dict()
+            args["claims"] = claims.to_dict()
         return Grant(**args)
 
 
