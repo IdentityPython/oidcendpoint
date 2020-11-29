@@ -91,37 +91,6 @@ def test_grant_revoked_based_on():
     assert refresh_token.is_active() is False
 
 
-def test_grant_update():
-    grant = Grant()
-    user_info_claims = {"given_name": None, "email": None}
-    grant.update(claims={"userinfo": user_info_claims})
-    id_token_claims = {"email": None}
-    grant.update(claims={"id_token": id_token_claims})
-    introspection_claims = {"affiliation": None}
-    grant.update(claims={"introspection": introspection_claims})
-
-    assert set(grant.claims.keys()) == {"userinfo", "id_token", "introspection"}
-
-    grant.update(resources=["https://api.example.com"])
-    assert grant.resources == ["https://api.example.com"]
-
-    grant.update(resources=["https://api.example.com",
-                            "https://api.example.org"])
-
-    assert set(grant.resources) == {"https://api.example.com",
-                                    "https://api.example.org"}
-
-
-def test_grant_replace():
-    grant = Grant()
-    grant.update(resources=["https://api.example.com"])
-    assert grant.resources == ["https://api.example.com"]
-
-    grant.replace(resources=["https://api.example.org"])
-
-    assert set(grant.resources) == {"https://api.example.org"}
-
-
 def test_revoke():
     grant = Grant()
     code = grant.mint_token("authorization_code", value="ABCD")
