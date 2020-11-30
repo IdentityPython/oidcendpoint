@@ -89,6 +89,12 @@ class ClaimsInterface:
 
         return claims
 
+    def get_claims_all_usage(self, client_id: str, user_id: str, scopes: str) -> dict:
+        _claims = {}
+        for usage in ["userinfo", "introspection", "id_token", "token"]:
+            _claims.update(self.get_claims(client_id, user_id, scopes, usage))
+        return _claims
+
     def get_user_claims(self, user_id: str, claims_restriction: dict) -> dict:
         """
 
