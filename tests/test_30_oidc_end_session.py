@@ -492,7 +492,7 @@ class TestEndpoint(object):
         ] = "https://example.com/bc_logout"
         self.session_endpoint.endpoint_context.cdb["client_1"]["client_id"] = "client_1"
 
-        res = self.session_endpoint.logout_from_client(_session_info["session_id"], "client_1")
+        res = self.session_endpoint.logout_from_client(_session_info["session_id"])
         assert set(res.keys()) == {"blu"}
         assert set(res["blu"].keys()) == {"client_1"}
         _spec = res["blu"]["client_1"]
@@ -518,7 +518,7 @@ class TestEndpoint(object):
         ] = "https://example.com/fc_logout"
         self.session_endpoint.endpoint_context.cdb["client_1"]["client_id"] = "client_1"
 
-        res = self.session_endpoint.logout_from_client(_session_info["session_id"], "client_1")
+        res = self.session_endpoint.logout_from_client(_session_info["session_id"])
         assert set(res.keys()) == {"flu"}
         assert set(res["flu"].keys()) == {"client_1"}
         _spec = res["flu"]["client_1"]
@@ -542,7 +542,7 @@ class TestEndpoint(object):
         ] = "https://example.com/fc_logout"
         self.session_endpoint.endpoint_context.cdb["client_2"]["client_id"] = "client_2"
 
-        res = self.session_endpoint.logout_all_clients(_session_info["session_id"], "client_1")
+        res = self.session_endpoint.logout_all_clients(_session_info["session_id"])
 
         assert res
         assert set(res.keys()) == {"blu", "flu"}
@@ -573,7 +573,7 @@ class TestEndpoint(object):
             _cdb["client_1"]["backchannel_logout_uri"] = "https://example.com/bc_logout"
             _cdb["client_1"]["client_id"] = "client_1"
 
-            res = self.session_endpoint.do_verified_logout(_session_info["session_id"], "client_1")
+            res = self.session_endpoint.do_verified_logout(_session_info["session_id"])
             assert res == []
 
     def test_logout_from_client_unknow_sid(self):
@@ -585,7 +585,7 @@ class TestEndpoint(object):
         _uid, _cid, _gid = unpack_session_key(_session_info["session_id"])
         _sid = session_key('babs', _cid, _gid)
         with pytest.raises(KeyError):
-            res = self.session_endpoint.logout_all_clients(_sid, "client_1")
+            res = self.session_endpoint.logout_all_clients(_sid)
 
     def test_logout_from_client_no_session(self):
         _resp = self._code_auth("1234567")
@@ -607,4 +607,4 @@ class TestEndpoint(object):
         self.session_endpoint.endpoint_context.session_manager.delete([_uid, _cid])
 
         with pytest.raises(ValueError):
-            self.session_endpoint.logout_all_clients(_session_info["session_id"], "client_1")
+            self.session_endpoint.logout_all_clients(_session_info["session_id"])

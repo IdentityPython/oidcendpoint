@@ -147,7 +147,7 @@ class Session(Endpoint):
         for sid in usids:
             self.endpoint_context.session_manager.revoke_client_session(sid)
 
-    def logout_all_clients(self, sid, client_id):
+    def logout_all_clients(self, sid):
         _mngr = self.endpoint_context.session_manager
         _session_info = self.endpoint_context.session_manager.get_session_info(sid)
 
@@ -197,23 +197,24 @@ class Session(Endpoint):
         else:
             raise ValueError("Not a signed JWT")
 
-    def logout_from_client(self, sid, client_id):
+    def logout_from_client(self, sid):
         _cdb = self.endpoint_context.cdb
         _session_information = self.endpoint_context.session_manager.get_session_info(sid)
+        _client_id = _session_information["client_id"]
 
         res = {}
-        if "backchannel_logout_uri" in _cdb[client_id]:
+        if "backchannel_logout_uri" in _cdb[_client_id]:
             _sub = _session_information["client_session_info"]["sub"]
-            _spec = self.do_back_channel_logout(_cdb[client_id], _sub, sid)
+            _spec = self.do_back_channel_logout(_cdb[_client_id], _sub, sid)
             if _spec:
-                res["blu"] = {client_id: _spec}
-        elif "frontchannel_logout_uri" in _cdb[client_id]:
+                res["blu"] = {_client_id: _spec}
+        elif "frontchannel_logout_uri" in _cdb[_client_id]:
             # Construct an IFrame
             _spec = do_front_channel_logout_iframe(
-                _cdb[client_id], self.endpoint_context.issuer, sid
+                _cdb[_client_id], self.endpoint_context.issuer, sid
             )
             if _spec:
-                res["flu"] = {client_id: _spec}
+                res["flu"] = {_client_id: _spec}
 
         self.clean_sessions([sid])
         return res
@@ -364,11 +365,11 @@ class Session(Endpoint):
 
         return request
 
-    def do_verified_logout(self, sid, client_id, alla=False, **kwargs):
+    def do_verified_logout(self, sid, alla=False, **kwargs):
         if alla:
-            _res = self.logout_all_clients(sid=sid, client_id=client_id)
+            _res = self.logout_all_clients(sid=sid)
         else:
-            _res = self.logout_from_client(sid=sid, client_id=client_id)
+            _res = self.logout_from_client(sid=sid)
 
         bcl = _res.get("blu")
         if bcl:
