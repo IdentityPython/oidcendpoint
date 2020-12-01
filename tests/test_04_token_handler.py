@@ -180,8 +180,7 @@ def test_token_handler_from_config():
                 "class": "oidcendpoint.jwt_token.JWTToken",
                 "kwargs": {
                     "lifetime": 3600,
-                    "add_claims": True,
-                    "add_claim_by_scope": True,
+                    "add_claims_by_scope": True,
                     "aud": ["https://example.org/appl"],
                 },
             },
@@ -205,14 +204,12 @@ def test_token_handler_from_config():
 
     assert token_handler.handler["code"].lifetime == 600
 
-    assert token_handler.handler["access_token"].add_claims is True
     assert token_handler.handler["access_token"].alg == "ES256"
-    assert token_handler.handler["access_token"].args == {"add_claim_by_scope": True}
+    assert token_handler.handler["access_token"].kwargs == {"add_claims_by_scope": True}
     assert token_handler.handler["access_token"].lifetime == 3600
     assert token_handler.handler["access_token"].def_aud == ["https://example.org/appl"]
 
-    assert token_handler.handler["refresh_token"].add_claims is False
     assert token_handler.handler["refresh_token"].alg == "ES256"
-    assert token_handler.handler["refresh_token"].args == {}
+    assert token_handler.handler["refresh_token"].kwargs == {}
     assert token_handler.handler["refresh_token"].lifetime == 3600
     assert token_handler.handler["refresh_token"].def_aud == ["https://example.org/appl"]

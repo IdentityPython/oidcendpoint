@@ -74,7 +74,7 @@ class Token(object):
     def __init__(self, typ, lifetime=300, **kwargs):
         self.type = typ
         self.lifetime = lifetime
-        self.args = kwargs
+        self.kwargs = kwargs
 
     def __call__(self, sid, **kwargs):
         """
@@ -169,7 +169,7 @@ class DefaultToken(Token):
         # order: rnd, type, sid
         return lv_unpack(plain)
 
-    def info(self, token):
+    def info(self, token: str) -> dict:
         """
         Return token information.
 
@@ -183,7 +183,7 @@ class DefaultToken(Token):
             _res["handler"] = self
             return _res
 
-    def is_expired(self, token, when=0):
+    def is_expired(self, token: str, when: int = 0):
         _exp = self.info(token)["exp"]
         if _exp == "-1":
             return False
@@ -194,7 +194,7 @@ class DefaultToken(Token):
 
 class TokenHandler(object):
     def __init__(
-        self, access_token_handler=None, code_handler=None, refresh_token_handler=None
+            self, access_token_handler=None, code_handler=None, refresh_token_handler=None
     ):
 
         self.handler = {"code": code_handler, "access_token": access_token_handler}
@@ -262,7 +262,7 @@ def init_token_handler(ec, spec, typ):
             )
         _kwargs = spec
 
-    return cls(typ=typ, ec=ec, **_kwargs)
+    return cls(typ=typ, endpoint_context=ec, **_kwargs)
 
 
 def _add_passwd(keyjar, conf, kid):

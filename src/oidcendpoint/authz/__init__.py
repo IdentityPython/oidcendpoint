@@ -1,6 +1,10 @@
 import inspect
 import logging
 import sys
+from typing import Optional
+from typing import Union
+
+from oidcmsg.message import Message
 
 from oidcendpoint.grant import Grant
 
@@ -14,24 +18,42 @@ class AuthzHandling(object):
         self.endpoint_context = endpoint_context
         self.cookie_dealer = endpoint_context.cookie_dealer
         self.kwargs = kwargs
+        self.grant_config = kwargs.get("grant_config", {})
 
-    def __call__(self, user_id, client_id, request):
-        args = {}
+    def __call__(self, user_id: str, client_id: str, request: Union[dict, Message],
+                 resources: Optional[list] = None) -> Grant:
+        args = self.grant_config.copy()
+
         scope = request.get("scope")
         if scope:
             args["scope"] = scope
+
         claims = request.get("claims")
         if claims:
             args["claims"] = claims.to_dict()
-        return Grant(**args)
+
+        if resources is None:
+            args["resources"] = [client_id]
+        else:
+            args["resources"] = resources
+
+        grant = Grant(**args)
+        # This is where user consent should be handled
+        for interface in ["userinfo", "introspection", "id_token", "token"]:
+            grant.claims[interface] = self.endpoint_context.claims_interface.get_claims(
+                client_id=client_id, user_id=user_id, scopes=request["scope"], usage=interface
+            )
+        return grant
 
 
 class Implicit(AuthzHandling):
-    def __init__(self, endpoint_context):
-        AuthzHandling.__init__(self, endpoint_context)
+    def __init__(self, endpoint_context, **kwargs):
+        AuthzHandling.__init__(self, endpoint_context, **kwargs)
 
-    def __call__(self, user_id, client_id, request):
-        return Grant()
+    def __call__(self, user_id: str, client_id: str, request: Union[dict, Message],
+                 resources: Optional[list] = None) -> Grant:
+        args = self.grant_config.copy()
+        return Grant(**args)
 
 
 def factory(msgtype, endpoint_context, **kwargs):

@@ -24,53 +24,44 @@ class JWTToken(Token):
             aud: Optional[list] = None,
             alg: str = "ES256",
             lifetime: int = 300,
-            ec=None,
+            endpoint_context=None,
             token_type: str = "Bearer",
-            add_claims: bool = False,
             add_scope: bool = False,
-            claims: Optional[list] = None,
             **kwargs
     ):
         Token.__init__(self, typ, **kwargs)
         self.token_type = token_type
         self.lifetime = lifetime
 
-        self.args = kwargs
-        self.key_jar = keyjar or ec.keyjar
-        self.issuer = issuer or ec.issuer
-        self.cdb = ec.cdb
-        self.endpoint_context = ec
+        self.kwargs = kwargs
+        self.key_jar = keyjar or endpoint_context.keyjar
+        self.issuer = issuer or endpoint_context.issuer
+        self.cdb = endpoint_context.cdb
+        self.endpoint_context = endpoint_context
 
         self.def_aud = aud or []
         self.alg = alg
         self.add_scope = add_scope
-        self.add_claims = add_claims
-        self.claims = claims or []
 
-    def __call__(
-            self,
-            sid: str,
-            **kwargs
-    ):
+    def __call__(self, session_id: str, **kwargs):
         """
         Return a token.
 
         :param endpoint_context:
-        :param sid: Session id
+        :param session_id: Session id
         :return: Signed JSON Web Token
         """
 
-        payload = {"sid": sid, "ttype": self.type, "sub": kwargs['sub']}
+        session_info = self.endpoint_context.session_manager.get_session_info(session_id)
+        sub = session_info["client_session_info"]["sub"]
+        payload = {"sid": session_id, "ttype": self.type, "sub": sub}
 
-        session_info = self.endpoint_context.session_manager.get_session_info(sid)
-
-        if self.add_claims:
-            grant = session_info["grant"]
-            _claims_restriction = grant.claims.get("introspection")
-            if _claims_restriction:
-                user_info = self.endpoint_context.claims_interface.get_user_claims(
-                    session_info["user_id"], _claims_restriction)
-                payload.update(user_info)
+        grant = session_info["grant"]
+        _claims_restriction = grant.claims.get("token")
+        if _claims_restriction:
+            user_info = self.endpoint_context.claims_interface.get_user_claims(
+                session_info["user_id"], _claims_restriction)
+            payload.update(user_info)
         if self.add_scope:
             payload["scope"] = self.claims_interface.endpoint_context.scopes_handler.filter_scopes(
                 client_id, self.claims_interface.endpoint_context, scopes
@@ -86,10 +77,10 @@ class JWTToken(Token):
 
         _aud = kwargs.get('aud')
         if _aud is None:
-            _aud = self.def_aud
+            _aud = grant.resources
         else:
             _aud = _aud if isinstance(_aud, list) else [_aud]
-            _aud.extend(self.def_aud)
+            _aud.extend(grant.resources)
 
         return signer.pack(payload, aud=_aud)
 

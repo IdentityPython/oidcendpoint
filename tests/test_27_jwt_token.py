@@ -1,17 +1,17 @@
 import os
 
-import pytest
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import init_key_jar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
+import pytest
 
 from oidcendpoint import user_info
 from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.introspection import Introspection
 from oidcendpoint.oidc.authorization import Authorization
@@ -95,17 +95,9 @@ class TestEndpoint(object):
         conf = {
             "issuer": ISSUER,
             "password": "mycket hemligt",
-            "token_expires_in": 600,
-            "grant_expires_in": 300,
-            "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
-            "claims": {
-                "userinfo": {"email": None, "phone_number": None},
-                "id_token": {"email": None},
-                "introspection": {"email": None, "email_verified": True}
-            },
             "token_handler_args": {
                 "jwks_def": {
                     "private_path": "private/token_jwks.json",
@@ -119,8 +111,8 @@ class TestEndpoint(object):
                     "class": "oidcendpoint.jwt_token.JWTToken",
                     "kwargs": {
                         "lifetime": 3600,
-                        "add_claims": True,
-                        "add_claim_by_scope": True,
+                        "base_claims": {"eduperson_scoped_affiliation": None},
+                        "add_claims_by_scope": True,
                         "aud": ["https://example.org/appl"],
                     },
                 },
@@ -169,6 +161,24 @@ class TestEndpoint(object):
                 "kwargs": {"db_file": full_path("users.json")},
             },
             "id_token": {"class": IDToken},
+            "authz": {
+                "class": AuthzHandling,
+                "kwargs": {
+                    "grant_config": {
+                        "usage_rules": {
+                            "authorization_code": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                                "max_usage": 1
+                            },
+                            "access_token": {},
+                            "refresh_token": {
+                                'supports_minting': ["access_token", "refresh_token"],
+                            }
+                        },
+                        "expires_in": 43200
+                    }
+                }
+            },
         }
 
         self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
@@ -193,7 +203,8 @@ class TestEndpoint(object):
     def _do_grant(self, auth_req):
         client_id = auth_req['client_id']
         # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
+        grant = self.endpoint_context.authz(self.user_id, client_id, auth_req)
+        # grant = Grant(scope=auth_req['scope'], resources=[client_id])
 
         # the grant is assigned to a session (user_id, client_id)
         self.session_manager.set([self.user_id, client_id, grant.id], grant)
@@ -204,22 +215,26 @@ class TestEndpoint(object):
         return grant.mint_token(
             'authorization_code',
             value=self.session_manager.token_handler["code"](self.user_id),
-            expires_at=time_sans_frac() + 300  # 5 minutes from now
+            expires_in=300  # 5 minutes from now
         )
 
     def _mint_access_token(self, grant, session_id, token_ref=None):
         _session_info = self.session_manager.get_session_info(session_id)
+        at_handler = self.session_manager.token_handler["access_token"]
         return grant.mint_token(
             'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_id,
-                client_id=_session_info["client_id"],
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=_session_info["client_session_info"]['sub']
-            ),
-            expires_at=time_sans_frac() + 900,  # 15 minutes from now
+            value=at_handler(session_id),
+            expires_in=at_handler.lifetime,
+            based_on=token_ref  # Means the token (tok) was used to mint this token
+        )
+
+    def _mint_refresh_token(self, grant, session_id, token_ref=None):
+        _session_info = self.session_manager.get_session_info(session_id)
+        rt_handler = self.session_manager.token_handler["refresh_token"]
+        return grant.mint_token(
+            'refresh_token',
+            value=rt_handler(session_id),
+            expires_in=rt_handler.lifetime,
             based_on=token_ref  # Means the token (tok) was used to mint this token
         )
 
@@ -227,14 +242,6 @@ class TestEndpoint(object):
         self._create_session(AUTH_REQ)
         session_id = self._do_grant(AUTH_REQ)
         grant = self.session_manager[session_id]
-        grant.claims = {
-            "introspection": {
-                "email": None,
-                "email_verified": None,
-                "phone_number": None,
-                "phone_number_verified": None
-            }
-        }
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
 
@@ -242,8 +249,8 @@ class TestEndpoint(object):
         _info = _verifier.unpack(access_token.value)
 
         assert _info["ttype"] == "T"
-        assert _info["phone_number"] == "+46907865000"
-        assert set(_info["aud"]) == {"client_1", "https://example.org/appl"}
+        assert _info["eduperson_scoped_affiliation"] == ["staff@example.org"]
+        assert set(_info["aud"]) == {"client_1"}
 
     def test_info(self):
         self._create_session(AUTH_REQ)
@@ -257,20 +264,15 @@ class TestEndpoint(object):
         assert _info["sid"] == session_id
 
     @pytest.mark.parametrize("enable_claims_per_client", [True, False])
-    def test_client_claims(self, enable_claims_per_client):
-        self.endpoint.endpoint_context.cdb["client_1"]["introspection_claims"] = {"address": None}
+    def test_enable_claims_per_client(self, enable_claims_per_client):
+        # Set up configuration
+        self.endpoint.endpoint_context.cdb["client_1"]["token_claims"] = {"address": None}
+        self.endpoint_context.session_manager.token_handler.handler["access_token"].kwargs[
+            "enable_claims_per_client"] = enable_claims_per_client
 
-        self.endpoint_context.endpoint[
-            "introspection"].kwargs["enable_claims_per_client"] = enable_claims_per_client
         self._create_session(AUTH_REQ)
         session_id = self._do_grant(AUTH_REQ)
         grant = self.session_manager[session_id]
-        grant.claims = {
-            "introspection": self.endpoint_context.claims_interface.get_claims("client_1",
-                                                                               "diana",
-                                                                               AUTH_REQ["scope"],
-                                                                               usage="introspection")
-        }
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
 
