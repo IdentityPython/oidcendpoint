@@ -3,10 +3,11 @@ import time
 from typing import Optional
 from uuid import uuid1
 
+from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
-from oidcmsg.message import Message
+from oidcmsg.time_util import time_sans_frac
 from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.util import importer
@@ -43,14 +44,19 @@ class Item:
     def __init__(self,
                  usage_rules: Optional[dict] = None,
                  issued_at: int = 0,
+                 expires_in: int = 0,
                  expires_at: int = 0,
                  not_before: int = 0,
                  revoked: bool = False,
                  used: int = 0
                  ):
-        self.issued_at = issued_at or utc_time_sans_frac()
+        self.issued_at = issued_at or time_sans_frac()
         self.not_before = not_before
-        self.expires_at = expires_at
+        if expires_at == 0 and expires_in != 0:
+            self.expires_at = time_sans_frac() + expires_in
+        else:
+            self.expires_at = expires_at
+
         self.revoked = revoked
         self.used = used
         self.usage_rules = usage_rules or {}
@@ -69,7 +75,7 @@ class Item:
             return False
 
         if now == 0:
-            now = time.time()
+            now = time_sans_frac()
 
         if self.not_before:
             if now < self.not_before:
@@ -96,6 +102,7 @@ class Token(Item):
                  based_on: Optional[str] = None,
                  usage_rules: Optional[dict] = None,
                  issued_at: int = 0,
+                 expires_in: int = 0,
                  expires_at: int = 0,
                  not_before: int = 0,
                  revoked: bool = False,
@@ -105,8 +112,8 @@ class Token(Item):
                  claims: Optional[dict] = None,
                  resources: Optional[list] = None,
                  ):
-        Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at,
-                      not_before=not_before, revoked=revoked, used=used)
+        Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_in=expires_in,
+                      expires_at=expires_at, not_before=not_before, revoked=revoked, used=used)
 
         self.type = type
         self.value = value
@@ -197,11 +204,12 @@ class Grant(Item):
                  issued_token: Optional[list] = None,
                  usage_rules: Optional[dict] = None,
                  issued_at: int = 0,
+                 expires_in: int = 0,
                  expires_at: int = 0,
                  revoked: bool = False,
                  token_map: Optional[dict] = None):
-        Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_at=expires_at,
-                      revoked=revoked)
+        Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at,
+                      expires_in=expires_in, expires_at=expires_at,revoked=revoked)
         self.scope = scope or []
         self.authorization_details = authorization_details or None
         self.claims = claims or {}  # default is to not release any user information
@@ -237,7 +245,7 @@ class Grant(Item):
         }
         return json.dumps(d)
 
-    def from_json(self, json_str) -> Item:
+    def from_json(self, json_str) -> 'Grant':
         d = json.loads(json_str)
         for attr in ["scope", "authorization_details", "claims", "resources",
                      "issued_at", "not_before", "expires_at", "revoked", "id"]:
@@ -260,6 +268,7 @@ class Grant(Item):
 
     def mint_token(self, token_type: str, value: str,
                    based_on: Optional[Token] = None,
+                   usage_rules: Optional[dict] = None,
                    **kwargs) -> Optional[Token]:
         if self.is_active() is False:
             return None
@@ -272,15 +281,16 @@ class Grant(Item):
         else:
             _base_on_ref = None
 
-        if not "usage_rules" in kwargs and token_type in self.usage_rules:
-            kwargs["usage_rules"] = self.usage_rules[token_type]
+        if usage_rules is None and token_type in self.usage_rules:
+            usage_rules = self.usage_rules[token_type]
 
         token_class = self.token_map.get(token_type)
         if token_class:
             item = token_class(type=token_type,
                                value=value,
                                based_on=_base_on_ref,
-                               **kwargs)
+                               usage_rules=usage_rules,
+                               ** kwargs)
         else:
             raise ValueError("Can not mint that kind of token")
 

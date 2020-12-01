@@ -29,9 +29,7 @@ class TestUserAuthn(object):
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
-            "token_expires_in": 600,
             "grant_expires_in": 300,
-            "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "endpoint": {},
             "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},

@@ -159,9 +159,11 @@ class TestEndpoint(object):
             "id_token": {
                 "class": IDToken,
                 "kwargs": {
-                    "available_claims": {
+                    "base_claims": {
                         "email": {"essential": True},
                         "email_verified": {"essential": True},
+                        "given_name": {"essential": True},
+                        "nickname": None
                     }
                 },
             },
@@ -223,7 +225,24 @@ class TestEndpoint(object):
             },
             "userinfo": {"class": UserInfo, "kwargs": {"db": USERINFO_db}},
             "template_dir": "template",
-            "authz": {"class": AuthzHandling, "kwargs": {}},
+            "authz": {
+                "class": AuthzHandling,
+                "kwargs": {
+                    "grant_config": {
+                        "usage_rules": {
+                            "authorization_code": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                                "max_usage": 1
+                            },
+                            "access_token": {},
+                            "refresh_token": {
+                                'supports_minting': ["access_token", "refresh_token"],
+                            }
+                        },
+                        "expires_in": 43200
+                    }
+                }
+            },
             "cookie_dealer": {
                 "class": CookieDealer,
                 "kwargs": {
@@ -387,14 +406,13 @@ class TestEndpoint(object):
         _req["nonce"] = "rnd_nonce"
         _pr_resp = self.endpoint.parse_request(_req)
         _resp = self.endpoint.process_request(_pr_resp)
-        idt = verify_id_token(
-            _resp["response_args"], keyjar=self.endpoint.endpoint_context.keyjar
-        )
+        idt = verify_id_token(_resp["response_args"], keyjar=self.endpoint.endpoint_context.keyjar)
         assert idt
-        # from claims
-        assert "given_name" in _resp["response_args"]["__verified_id_token"]
         # from config
+        assert "given_name" in _resp["response_args"]["__verified_id_token"]
         assert "nickname" in _resp["response_args"]["__verified_id_token"]
+        # Could have gotten email but didn't ask for it
+        assert "email" not in _resp["response_args"]["__verified_id_token"]
 
     def test_re_authenticate(self):
         request = {"prompt": "login"}
