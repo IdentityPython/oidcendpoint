@@ -17,9 +17,9 @@ from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import session_key
 from oidcendpoint.session.grant import Grant
-from oidcendpoint.session.manager import SessionManager
 from oidcendpoint.session.info import ClientSessionInfo
 from oidcendpoint.session.info import UserSessionInfo
+from oidcendpoint.session.manager import SessionManager
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 

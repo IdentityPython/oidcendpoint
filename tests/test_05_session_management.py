@@ -6,8 +6,8 @@ from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.session import MintingNotAllowed
 from oidcendpoint.session import session_key
 from oidcendpoint.session.grant import Grant
-from oidcendpoint.session.manager import SessionManager
 from oidcendpoint.session.info import ClientSessionInfo
+from oidcendpoint.session.manager import SessionManager
 from oidcendpoint.session.token import AccessToken
 from oidcendpoint.session.token import AuthorizationCode
 from oidcendpoint.session.token import RefreshToken

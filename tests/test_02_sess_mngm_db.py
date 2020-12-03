@@ -4,9 +4,9 @@ import pytest
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.session.database import Database
 from oidcendpoint.session.grant import Grant
-from oidcendpoint.session.manager import public_id
 from oidcendpoint.session.info import ClientSessionInfo
 from oidcendpoint.session.info import UserSessionInfo
+from oidcendpoint.session.manager import public_id
 from oidcendpoint.session.token import Token
 
 
