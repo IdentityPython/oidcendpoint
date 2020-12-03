@@ -20,10 +20,10 @@ from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import session_key
 from oidcendpoint.session import unpack_session_key
 from oidcendpoint.session.grant import Grant
-from oidcendpoint.session.manager import SessionManager
-from oidcendpoint.session.manager import public_id
 from oidcendpoint.session.info import ClientSessionInfo
 from oidcendpoint.session.info import UserSessionInfo
+from oidcendpoint.session.manager import SessionManager
+from oidcendpoint.session.manager import public_id
 from oidcendpoint.token import DefaultToken
 from oidcendpoint.token.handler import TokenHandler
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
