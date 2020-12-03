@@ -7,7 +7,6 @@ from cryptojwt.jws.jws import SIGNER_ALGS
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.message import Message
-from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint import sanitize
@@ -15,7 +14,7 @@ from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.client_authn import client_auth_setup
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.exception import UnAuthorizedClient
-from oidcendpoint.token_handler import UnknownToken
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = "Roland Hedberg"
@@ -193,7 +192,7 @@ class Endpoint(object):
         if _methods:
             self.client_authn_method = client_auth_setup(_methods, endpoint_context)
         elif (
-            _methods is not None
+                _methods is not None
         ):  # [] or '' or something not None but regarded as nothing.
             self.client_authn_method = [None]  # Ignore default value
         elif self.default_capabilities:
@@ -309,9 +308,9 @@ class Endpoint(object):
 
         LOGGER.debug("authn_info: %s", authn_info)
         if (
-            authn_info == {}
-            and self.client_authn_method
-            and len(self.client_authn_method)
+                authn_info == {}
+                and self.client_authn_method
+                and len(self.client_authn_method)
         ):
             LOGGER.debug("client_authn_method: %s", self.client_authn_method)
             raise UnAuthorizedClient("Authorization failed")

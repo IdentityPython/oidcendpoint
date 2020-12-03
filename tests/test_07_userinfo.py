@@ -6,20 +6,20 @@ from oidcmsg.oidc import OpenIDRequest
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.scopes import SCOPE2CLAIMS
-from oidcendpoint.scopes import STANDARD_CLAIMS
 from oidcendpoint.scopes import convert_scopes2claims
-from oidcendpoint.session_management import session_key
-from oidcendpoint.session_management import unpack_session_key
+from oidcendpoint.session import session_key
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.claims import STANDARD_CLAIMS
+from oidcendpoint.session.claims import ClaimsInterface
+from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
-from oidcendpoint.userinfo import ClaimsInterface
 
 CLAIMS = {
     "userinfo": {

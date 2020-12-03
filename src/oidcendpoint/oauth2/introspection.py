@@ -4,7 +4,7 @@ import logging
 from oidcmsg import oauth2
 
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.token_handler import UnknownToken
+from oidcendpoint.token.exception import UnknownToken
 
 LOGGER = logging.getLogger(__name__)
 
@@ -31,10 +31,17 @@ class Introspection(Endpoint):
         if not token.is_active():
             return None
 
+        scope = token.scope
+        if not scope:
+            scope = session_info["grant"].scope
+        aud = token.resources
+        if not aud:
+            aud = session_info["grant"].resources
+
         _csi = session_info["client_session_info"]
         ret = {
             "active": True,
-            "scope": " ".join(_csi["authorization_request"]["scope"]),
+            "scope": " ".join(scope),
             "client_id": session_info["client_id"],
             "token_type": token.type,
             "exp": token.expires_at,
@@ -42,7 +49,8 @@ class Introspection(Endpoint):
             "sub": _csi["sub"],
             "iss": self.endpoint_context.issuer
         }
-        # ret["aud"] =
+        if aud:
+            ret["aud"] = aud
 
         return ret
 

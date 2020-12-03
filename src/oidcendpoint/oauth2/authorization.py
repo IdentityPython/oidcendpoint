@@ -32,13 +32,13 @@ from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.grant import get_usage_rules
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import Revoked
-from oidcendpoint.session_management import UserSessionInfo
-from oidcendpoint.session_management import session_key
-from oidcendpoint.session_management import unpack_session_key
-from oidcendpoint.token_handler import UnknownToken
+from oidcendpoint.session import Revoked
+from oidcendpoint.session import session_key
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.grant import get_usage_rules
+from oidcendpoint.session.info import ClientSessionInfo
+from oidcendpoint.session.info import UserSessionInfo
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.util import split_uri
 
@@ -528,6 +528,7 @@ class Authorization(Endpoint):
 
         authn_args = authn_args_gather(request, authn_class_ref, cinfo, **kwargs)
         _mngr = self.endpoint_context.session_manager
+        _session_id = ""
 
         # To authenticate or Not
         if identity is None:  # No!
@@ -566,14 +567,14 @@ class Authorization(Endpoint):
                             return {"function": authn, "args": authn_args}
 
                 if "sid" in identity:
-                    session_id = identity["sid"]
-                    grant = _mngr[session_id]
+                    _session_id = identity["sid"]
+                    grant = _mngr[_session_id]
                     if grant.is_active() is False:
                         return {"function": authn, "args": authn_args}
 
-        authn_event = _mngr.get_authentication_event(user)
-
-        if authn_event is None:
+        try:
+            authn_event = _mngr.get_authentication_event(user_id=user)
+        except KeyError:
             authn_event = create_authn_event(
                 identity["uid"],
                 authn_info=authn_class_ref,

@@ -16,14 +16,14 @@ from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import UnAuthorizedClient
-from oidcendpoint.grant import Grant
-from oidcendpoint.grant import get_usage_rules
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import session_key
+from oidcendpoint.session import session_key
+from oidcendpoint.session.grant import Grant
+from oidcendpoint.session.grant import get_usage_rules
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 

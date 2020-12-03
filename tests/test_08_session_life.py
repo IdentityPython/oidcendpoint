@@ -11,21 +11,21 @@ from oidcendpoint import user_info
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import SessionManager
-from oidcendpoint.session_management import UserSessionInfo
-from oidcendpoint.session_management import public_id
-from oidcendpoint.session_management import session_key
-from oidcendpoint.session_management import unpack_session_key
-from oidcendpoint.token_handler import DefaultToken
-from oidcendpoint.token_handler import TokenHandler
+from oidcendpoint.session import session_key
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.grant import Grant
+from oidcendpoint.session.manager import SessionManager
+from oidcendpoint.session.manager import public_id
+from oidcendpoint.session.info import ClientSessionInfo
+from oidcendpoint.session.info import UserSessionInfo
+from oidcendpoint.token import DefaultToken
+from oidcendpoint.token.handler import TokenHandler
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 
@@ -253,7 +253,7 @@ class TestSessionJWTToken():
                 },
                 "code": {"lifetime": 600},
                 "token": {
-                    "class": "oidcendpoint.jwt_token.JWTToken",
+                    "class": "oidcendpoint.token.jwt_token.JWTToken",
                     "kwargs": {
                         "lifetime": 3600,
                         "add_claims": [
@@ -442,7 +442,7 @@ class TestSessionJWTToken():
 
         session_id = session_key(user_id, REFRESH_TOKEN_REQ['client_id'], grant_id)
         reftok = self.session_manager.find_token(session_id,
-                                                        REFRESH_TOKEN_REQ['refresh_token'])
+                                                 REFRESH_TOKEN_REQ['refresh_token'])
 
         # Can I use this token to mint another token ?
         assert grant.is_active()

@@ -27,7 +27,6 @@ from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.grant import Grant
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import FORM_POST
 from oidcendpoint.oauth2.authorization import Authorization
@@ -35,7 +34,8 @@ from oidcendpoint.oauth2.authorization import get_uri
 from oidcendpoint.oauth2.authorization import inputs
 from oidcendpoint.oauth2.authorization import join_query
 from oidcendpoint.oauth2.authorization import verify_uri
-from oidcendpoint.session_management import session_key
+from oidcendpoint.session import session_key
+from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
@@ -141,9 +141,6 @@ class TestEndpoint(object):
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt zebra",
-            "token_expires_in": 600,
-            "grant_expires_in": 300,
-            "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},

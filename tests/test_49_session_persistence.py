@@ -9,17 +9,17 @@ from oidcmsg.time_util import time_sans_frac
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.grant import Grant
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import SessionManager
-from oidcendpoint.session_management import UserSessionInfo
-from oidcendpoint.session_management import session_key
+from oidcendpoint.session import session_key
+from oidcendpoint.session.grant import Grant
+from oidcendpoint.session.manager import SessionManager
+from oidcendpoint.session.info import ClientSessionInfo
+from oidcendpoint.session.info import UserSessionInfo
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 

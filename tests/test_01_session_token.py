@@ -1,7 +1,7 @@
 from oidcmsg.time_util import time_sans_frac
 
-from oidcendpoint.grant import AccessToken
-from oidcendpoint.grant import AuthorizationCode
+from oidcendpoint.session.token import AccessToken
+from oidcendpoint.session.token import AuthorizationCode
 
 
 def test_authorization_code_default():

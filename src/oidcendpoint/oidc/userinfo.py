@@ -9,7 +9,7 @@ from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.token_handler import UnknownToken
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)

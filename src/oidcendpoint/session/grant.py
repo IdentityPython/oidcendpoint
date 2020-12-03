@@ -1,20 +1,19 @@
 import json
-import time
 from typing import Optional
 from uuid import uuid1
 
-from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
-from oidcmsg.time_util import time_sans_frac
-from oidcmsg.time_util import utc_time_sans_frac
+from oidcmsg.message import Message
 
+from oidcendpoint.session import MintingNotAllowed
+from oidcendpoint.session.token import AccessToken
+from oidcendpoint.session.token import AuthorizationCode
+from oidcendpoint.session.token import Item
+from oidcendpoint.session.token import RefreshToken
+from oidcendpoint.session.token import Token
 from oidcendpoint.util import importer
-
-
-class MintingNotAllowed(Exception):
-    pass
 
 
 class GrantMessage(Message):
@@ -40,150 +39,6 @@ def find_token(issued, id):
     return None
 
 
-class Item:
-    def __init__(self,
-                 usage_rules: Optional[dict] = None,
-                 issued_at: int = 0,
-                 expires_in: int = 0,
-                 expires_at: int = 0,
-                 not_before: int = 0,
-                 revoked: bool = False,
-                 used: int = 0
-                 ):
-        self.issued_at = issued_at or time_sans_frac()
-        self.not_before = not_before
-        if expires_at == 0 and expires_in != 0:
-            self.expires_at = time_sans_frac() + expires_in
-        else:
-            self.expires_at = expires_at
-
-        self.revoked = revoked
-        self.used = used
-        self.usage_rules = usage_rules or {}
-
-    def max_usage_reached(self):
-        if "max_usage" in self.usage_rules:
-            return self.used >= self.usage_rules['max_usage']
-        else:
-            return False
-
-    def is_active(self, now=0):
-        if self.max_usage_reached():
-            return False
-
-        if self.revoked:
-            return False
-
-        if now == 0:
-            now = time_sans_frac()
-
-        if self.not_before:
-            if now < self.not_before:
-                return False
-
-        if self.expires_at:
-            if now > self.expires_at:
-                return False
-
-        return True
-
-    def revoke(self):
-        self.revoked = True
-
-
-class Token(Item):
-    attributes = ["type", "issued_at", "not_before", "expires_at", "revoked", "value",
-                  "usage_rules", "used", "based_on", "id", "scope", "claims",
-                  "resources"]
-
-    def __init__(self,
-                 type: str = '',
-                 value: str = '',
-                 based_on: Optional[str] = None,
-                 usage_rules: Optional[dict] = None,
-                 issued_at: int = 0,
-                 expires_in: int = 0,
-                 expires_at: int = 0,
-                 not_before: int = 0,
-                 revoked: bool = False,
-                 used: int = 0,
-                 id: str = "",
-                 scope: Optional[list] = None,
-                 claims: Optional[dict] = None,
-                 resources: Optional[list] = None,
-                 ):
-        Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at, expires_in=expires_in,
-                      expires_at=expires_at, not_before=not_before, revoked=revoked, used=used)
-
-        self.type = type
-        self.value = value
-        self.based_on = based_on
-        self.id = id or uuid1().hex
-        self.set_defaults()
-        self.scope = scope or []
-        self.claims = claims or {}  # default is to not release any user information
-        self.resources = resources or []
-
-    def set_defaults(self):
-        pass
-
-    def register_usage(self):
-        self.used += 1
-
-    def has_been_used(self):
-        return self.used != 0
-
-    def to_json(self):
-        d = {
-            "type": self.type,
-            "issued_at": self.issued_at,
-            "not_before": self.not_before,
-            "expires_at": self.expires_at,
-            "revoked": self.revoked,
-            "value": self.value,
-            "usage_rules": self.usage_rules,
-            "used": self.used,
-            "based_on": self.based_on,
-            "id": self.id,
-            "scope": self.scope,
-            "claims": self.claims,
-            "resources": self.resources
-        }
-        return json.dumps(d)
-
-    def from_json(self, json_str):
-        d = json.loads(json_str)
-        for attr in self.attributes:
-            if attr in d:
-                setattr(self, attr, d[attr])
-        return self
-
-    def supports_minting(self, token_type):
-        _supports_minting = self.usage_rules.get("supports_minting")
-        if _supports_minting is None:
-            return False
-        else:
-            return token_type in _supports_minting
-
-
-class AccessToken(Token):
-    pass
-
-
-class AuthorizationCode(Token):
-    def set_defaults(self):
-        if "supports_minting" not in self.usage_rules:
-            self.usage_rules['supports_minting'] = ["access_token", "refresh_token"]
-
-        self.usage_rules['max_usage'] = 1
-
-
-class RefreshToken(Token):
-    def set_defaults(self):
-        if "supports_minting" not in self.usage_rules:
-            self.usage_rules['supports_minting'] = ["access_token", "refresh_token"]
-
-
 TOKEN_MAP = {
     "authorization_code": AuthorizationCode,
     "access_token": AccessToken,
@@ -195,6 +50,7 @@ class Grant(Item):
     parameters = ["scope", "claim", "resources", "authorization_details",
                   "issued_token", "usage_rules", "revoked", "issued_at",
                   "expires_at"]
+    type = "grant"
 
     def __init__(self,
                  scope: Optional[list] = None,
@@ -209,7 +65,7 @@ class Grant(Item):
                  revoked: bool = False,
                  token_map: Optional[dict] = None):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at,
-                      expires_in=expires_in, expires_at=expires_at,revoked=revoked)
+                      expires_in=expires_in, expires_at=expires_at, revoked=revoked)
         self.scope = scope or []
         self.authorization_details = authorization_details or None
         self.claims = claims or {}  # default is to not release any user information
@@ -229,7 +85,7 @@ class Grant(Item):
 
     def to_json(self) -> str:
         d = {
-            "type": "grant",
+            "type": self.type,
             "scope": self.scope,
             "authorization_details": self.authorization_details,
             "claims": self.claims,
@@ -290,7 +146,7 @@ class Grant(Item):
                                value=value,
                                based_on=_base_on_ref,
                                usage_rules=usage_rules,
-                               ** kwargs)
+                               **kwargs)
         else:
             raise ValueError("Can not mint that kind of token")
 
@@ -381,3 +237,37 @@ def get_usage_rules(token_type, endpoint_context, grant, client_id):
         _usage.update(_grant_usage)
 
     return _usage
+
+
+class ExchangeGrant(Grant):
+    parameters = Grant.parameters
+    parameters.append("users")
+    type = "exchange_grant"
+
+    def __init__(self,
+                 scope: Optional[list] = None,
+                 claims: Optional[dict] = None,
+                 resources: Optional[list] = None,
+                 authorization_details: Optional[dict] = None,
+                 issued_token: Optional[list] = None,
+                 usage_rules: Optional[dict] = None,
+                 issued_at: int = 0,
+                 expires_in: int = 0,
+                 expires_at: int = 0,
+                 revoked: bool = False,
+                 token_map: Optional[dict] = None,
+                 users: list = None):
+        Grant.__init__(self, scope=scope, claims=claims, resources=resources,
+                       authorization_details=authorization_details,
+                       issued_token=issued_token, usage_rules=usage_rules,
+                       issued_at=issued_at, expires_in=expires_in,
+                       expires_at=expires_at, revoked=revoked,
+                       token_map=token_map)
+
+        self.users = users or []
+        self.usage_rules = {
+            "access_token": {
+                "supports_minting": ["access_token"],
+                "expires_in": 60
+            }
+        }

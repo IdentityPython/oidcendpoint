@@ -10,16 +10,16 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcendpoint import user_info
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.grant import Grant
-from oidcendpoint.grant import get_usage_rules
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import session_key
-from oidcendpoint.session_management import unpack_session_key
+from oidcendpoint.session import session_key
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.grant import Grant
+from oidcendpoint.session.grant import get_usage_rules
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -164,7 +164,7 @@ ENDPOINT_CONTEXT_CONFIG = {
             "handler": "oidcmsg.storage.abfile.AbstractFileSystem",
             "fdir": "db/session",
             "key_conv": "oidcmsg.storage.converter.QPKey",
-            "value_conv": "oidcendpoint.session_storage.JSON",
+            "value_conv": "oidcendpoint.session.storage.JSON",
         },
         "client": {
             "handler": "oidcmsg.storage.abfile.AbstractFileSystem",

@@ -1,8 +1,9 @@
 import json
 
-from oidcendpoint.grant import Grant
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import UserSessionInfo
+from .grant import ExchangeGrant
+from .grant import Grant
+from .info import ClientSessionInfo
+from .info import UserSessionInfo
 
 
 class JSON:
@@ -17,3 +18,5 @@ class JSON:
             return ClientSessionInfo().from_json(js)
         elif args["type"] == "grant":
             return Grant().from_json(js)
+        elif args["type"] == "exchange_grant":
+            return ExchangeGrant().from_json(js)

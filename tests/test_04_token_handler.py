@@ -6,13 +6,12 @@ import time
 
 import pytest
 
-from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.jwt_token import JWTToken
-from oidcendpoint.token_handler import Crypt
-from oidcendpoint.token_handler import DefaultToken
-from oidcendpoint.token_handler import TokenHandler
-from oidcendpoint.token_handler import factory
-from oidcendpoint.token_handler import is_expired
+from oidcendpoint.token import Crypt
+from oidcendpoint.token import is_expired
+from oidcendpoint.token.handler import DefaultToken
+from oidcendpoint.token.handler import TokenHandler
+from oidcendpoint.token.handler import factory
+from oidcendpoint.token.jwt_token import JWTToken
 
 
 def test_is_expired():
@@ -177,7 +176,7 @@ def test_token_handler_from_config():
             },
             "code": {"lifetime": 600},
             "token": {
-                "class": "oidcendpoint.jwt_token.JWTToken",
+                "class": "oidcendpoint.token.jwt_token.JWTToken",
                 "kwargs": {
                     "lifetime": 3600,
                     "add_claims_by_scope": True,
@@ -185,7 +184,7 @@ def test_token_handler_from_config():
                 },
             },
             "refresh": {
-                "class": "oidcendpoint.jwt_token.JWTToken",
+                "class": "oidcendpoint.token.jwt_token.JWTToken",
                 "kwargs": {
                     "lifetime": 3600,
                     "aud": ["https://example.org/appl"],

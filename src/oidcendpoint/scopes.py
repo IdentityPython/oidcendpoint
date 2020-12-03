@@ -1,5 +1,4 @@
 # default set can be changed by configuration
-from oidcmsg.oidc import OpenIDSchema
 
 SCOPE2CLAIMS = {
     "openid": ["sub"],
@@ -25,9 +24,6 @@ SCOPE2CLAIMS = {
     "offline_access": [],
 }
 
-IGNORE = ["error", "error_description", "error_uri", "_claim_names", "_claim_sources"]
-STANDARD_CLAIMS = [c for c in OpenIDSchema.c_param.keys() if c not in IGNORE]
-
 
 def available_scopes(endpoint_context):
     _supported = endpoint_context.provider_info.get("scopes_supported")
@@ -35,14 +31,6 @@ def available_scopes(endpoint_context):
         return [s for s in endpoint_context.scope2claims.keys() if s in _supported]
     else:
         return [s for s in endpoint_context.scope2claims.keys()]
-
-
-def available_claims(endpoint_context):
-    _supported = endpoint_context.provider_info.get("claims_supported")
-    if _supported:
-        return _supported
-    else:
-        return STANDARD_CLAIMS
 
 
 def convert_scopes2claims(scopes, allowed_claims=None, map=None):
@@ -89,25 +77,3 @@ class Scopes:
     def filter_scopes(self, client_id, endpoint_context, scopes):
         allowed_scopes = self.allowed_scopes(client_id, endpoint_context)
         return [s for s in scopes if s in allowed_scopes]
-
-
-class Claims:
-    def __init__(self):
-        pass
-
-    def allowed_claims(self, client_id, endpoint_context):
-        """
-        Returns the set of claims that a specific client can use.
-
-        :param client_id: The client identifier
-        :param endpoint_context: A EndpointContext instance
-        :returns: List of claim names. Can be empty.
-        """
-        _cli = endpoint_context.cdb.get(client_id)
-        if _cli is not None:
-            _claims = _cli.get("allowed_claims")
-            if _claims:
-                return _claims
-            else:
-                return available_claims(endpoint_context)
-        return []

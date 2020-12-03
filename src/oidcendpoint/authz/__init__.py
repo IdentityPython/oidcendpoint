@@ -6,7 +6,7 @@ from typing import Union
 
 from oidcmsg.message import Message
 
-from oidcendpoint.grant import Grant
+from oidcendpoint.session.grant import Grant
 
 logger = logging.getLogger(__name__)
 

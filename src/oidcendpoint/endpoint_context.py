@@ -5,19 +5,17 @@ import requests
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 from oidcmsg.context import OidcContext
-from oidcmsg.oidc import IdToken
 
 from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.scopes import SCOPE2CLAIMS
-from oidcendpoint.scopes import STANDARD_CLAIMS
-from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import Scopes
-from oidcendpoint.session_management import create_session_manager
+from oidcendpoint.session.claims import STANDARD_CLAIMS
+from oidcendpoint.session.claims import ClaimsInterface
+from oidcendpoint.session.manager import create_session_manager
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
-from oidcendpoint.userinfo import ClaimsInterface
 from oidcendpoint.util import allow_refresh_token
 from oidcendpoint.util import build_endpoints
 from oidcendpoint.util import get_http_params
@@ -87,14 +85,12 @@ def get_token_handlers(conf):
 
 class EndpointContext(OidcContext):
     def __init__(
-        self,
-        conf,
-        keyjar=None,
-        cwd="",
-        cookie_dealer=None,
-        httpc=None,
-        cookie_name=None,
-        jwks_uri_path=None,
+            self,
+            conf,
+            keyjar=None,
+            cwd="",
+            cookie_dealer=None,
+            httpc=None,
     ):
         OidcContext.__init__(self, conf, keyjar, entity_id=conf.get("issuer", ""))
         self.conf = conf
@@ -130,7 +126,7 @@ class EndpointContext(OidcContext):
         self.jwks_uri = None
         self.sso_ttl = 14400  # 4h
         self.symkey = rndstr(24)
-        self.id_token_schema = IdToken
+        # self.id_token_schema = IdToken
         self.idtoken = None
         self.authn_broker = None
         self.authz = None
@@ -149,8 +145,7 @@ class EndpointContext(OidcContext):
             "sso_ttl",
             "symkey",
             "client_authn",
-            "id_token_schema",
-            "token_usage_rules"
+            # "id_token_schema",
         ]:
             try:
                 setattr(self, param, conf[param])
@@ -170,9 +165,7 @@ class EndpointContext(OidcContext):
         # has to be after the above
         self.set_session_db()
 
-        if cookie_name:
-            self.cookie_name = cookie_name
-        elif "cookie_name" in conf:
+        if "cookie_name" in conf:
             self.cookie_name = conf["cookie_name"]
         else:
             self.cookie_name = {
@@ -194,11 +187,7 @@ class EndpointContext(OidcContext):
             self.template_handler = Jinja2TemplateHandler(loader)
 
         self.setup = {}
-        if not jwks_uri_path:
-            try:
-                jwks_uri_path = conf["keys"]["uri_path"]
-            except KeyError:
-                pass
+        jwks_uri_path = conf["keys"]["uri_path"]
 
         try:
             if self.issuer.endswith("/"):
@@ -246,7 +235,7 @@ class EndpointContext(OidcContext):
             self.httpc_params = {"verify": conf.get("verify_ssl")}
 
         self.set_scopes_handler()
-        self.set_claims_handler()
+        # self.set_claims_handler()
 
         # If pushed authorization is supported
         if "pushed_authorization_request_endpoint" in self.provider_info:
@@ -269,14 +258,14 @@ class EndpointContext(OidcContext):
         else:
             self.scopes_handler = Scopes()
 
-    def set_claims_handler(self):
-        _spec = self.conf.get("claims_handler")
-        if _spec:
-            _kwargs = _spec.get("kwargs", {})
-            _cls = importer(_spec["class"])(**_kwargs)
-            self.claims_handler = _cls(_kwargs)
-        else:
-            self.claims_handler = Claims()
+    # def set_claims_handler(self):
+    #     _spec = self.conf.get("claims_handler")
+    #     if _spec:
+    #         _kwargs = _spec.get("kwargs", {})
+    #         _cls = importer(_spec["class"])(**_kwargs)
+    #         self.claims_handler = _cls(_kwargs)
+    #     else:
+    #         self.claims_handler = Claims()
 
     def set_session_db(self):
         self.do_session_manager()
@@ -365,7 +354,6 @@ class EndpointContext(OidcContext):
             self.session_manager = create_session_manager(
                 self, self.th_args, db=self.session_db, sub_func=self._sub_func
             )
-
 
     def do_endpoints(self):
         self.endpoint = build_endpoints(
