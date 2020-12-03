@@ -5,9 +5,9 @@ from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
 
 from oidcendpoint.endpoint import construct_endpoint_info
-from oidcendpoint.session_management import SessionInfo
-from oidcendpoint.session_management import unpack_session_key
-from oidcendpoint.userinfo import claims_match
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.claims import claims_match
+from oidcendpoint.session.info import SessionInfo
 
 logger = logging.getLogger(__name__)
 

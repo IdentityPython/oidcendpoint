@@ -17,11 +17,11 @@ from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import UnAuthorizedClient
-from oidcendpoint.grant import Grant
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.oauth2.introspection import Introspection
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import session_key
+from oidcendpoint.session import session_key
+from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -95,9 +95,6 @@ class TestEndpoint:
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
-            "token_expires_in": 600,
-            "grant_expires_in": 300,
-            "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
@@ -162,7 +159,7 @@ class TestEndpoint:
         }
         if jwt_token:
             conf["token_handler_args"]["token"] = {
-                "class": "oidcendpoint.jwt_token.JWTToken",
+                "class": "oidcendpoint.token.jwt_token.JWTToken",
                 "kwargs": {},
             }
         endpoint_context = EndpointContext(conf)
@@ -209,25 +206,20 @@ class TestEndpoint:
 
     def _mint_code(self, grant, session_id):
         # Constructing an authorization code is now done
+        c_handler = self.session_manager.token_handler["code"]
         return grant.mint_token(
             'authorization_code',
-            value=self.session_manager.token_handler["code"](session_id),
-            expires_at=time_sans_frac() + 300  # 5 minutes from now
+            value=c_handler(session_id),
+            expires_at=time_sans_frac() + c_handler.lifetime
         )
 
     def _mint_access_token(self, grant, session_id, token_ref=None):
         _session_info = self.session_manager.get_session_info(session_id)
+        at_handler = self.session_manager.token_handler["access_token"]
         return grant.mint_token(
             'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_id,
-                client_id=_session_info["client_id"],
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=_session_info["client_session_info"]['sub']
-            ),
-            expires_at=time_sans_frac() + 900,  # 15 minutes from now
+            value=at_handler(session_id),
+            expires_at=time_sans_frac() + at_handler.lifetime,
             based_on=token_ref  # Means the token (tok) was used to mint this token
         )
 
@@ -316,7 +308,8 @@ class TestEndpoint:
             "sub",
             "client_id",
             "exp",
-            "iat"
+            "iat",
+            "aud"
         }
         assert _payload["active"] is True
 

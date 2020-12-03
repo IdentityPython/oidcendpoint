@@ -3,15 +3,15 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.authn_event import AuthnEvent
-from oidcendpoint.grant import AccessToken
-from oidcendpoint.grant import AuthorizationCode
-from oidcendpoint.grant import Grant
-from oidcendpoint.grant import MintingNotAllowed
-from oidcendpoint.grant import RefreshToken
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import SessionManager
-from oidcendpoint.session_management import session_key
-from oidcendpoint.token_handler import factory
+from oidcendpoint.session import MintingNotAllowed
+from oidcendpoint.session import session_key
+from oidcendpoint.session.grant import Grant
+from oidcendpoint.session.manager import SessionManager
+from oidcendpoint.session.info import ClientSessionInfo
+from oidcendpoint.session.token import AccessToken
+from oidcendpoint.session.token import AuthorizationCode
+from oidcendpoint.session.token import RefreshToken
+from oidcendpoint.token.handler import factory
 
 AUTH_REQ = AuthorizationRequest(
     client_id="client_1",
@@ -43,7 +43,7 @@ class TestSessionManager:
                 },
                 "code": {"lifetime": 600},
                 "token": {
-                    "class": "oidcendpoint.jwt_token.JWTToken",
+                    "class": "oidcendpoint.token.jwt_token.JWTToken",
                     "kwargs": {
                         "lifetime": 3600,
                         "add_claims": True,
@@ -52,7 +52,7 @@ class TestSessionManager:
                     },
                 },
                 "refresh": {
-                    "class": "oidcendpoint.jwt_token.JWTToken",
+                    "class": "oidcendpoint.token.jwt_token.JWTToken",
                     "kwargs": {
                         "lifetime": 3600,
                         "aud": ["https://example.org/appl"],

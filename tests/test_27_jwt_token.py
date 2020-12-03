@@ -1,11 +1,11 @@
 import os
 
+import pytest
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import init_key_jar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
-import pytest
 
 from oidcendpoint import user_info
 from oidcendpoint.authn_event import create_authn_event
@@ -19,7 +19,7 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.session import Session
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session_management import session_key
+from oidcendpoint.session import session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 KEYDEFS = [
@@ -108,7 +108,7 @@ class TestEndpoint(object):
                 },
                 "code": {"lifetime": 600},
                 "token": {
-                    "class": "oidcendpoint.jwt_token.JWTToken",
+                    "class": "oidcendpoint.token.jwt_token.JWTToken",
                     "kwargs": {
                         "lifetime": 3600,
                         "base_claims": {"eduperson_scoped_affiliation": None},
@@ -117,7 +117,7 @@ class TestEndpoint(object):
                     },
                 },
                 "refresh": {
-                    "class": "oidcendpoint.jwt_token.JWTToken",
+                    "class": "oidcendpoint.token.jwt_token.JWTToken",
                     "kwargs": {
                         "lifetime": 3600,
                         "aud": ["https://example.org/appl"],

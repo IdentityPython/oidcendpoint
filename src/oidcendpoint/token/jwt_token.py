@@ -4,9 +4,10 @@ from cryptojwt import JWT
 from cryptojwt.jws.exception import JWSException
 
 from oidcendpoint.exception import ToOld
-from oidcendpoint.token_handler import Token
-from oidcendpoint.token_handler import UnknownToken
-from oidcendpoint.token_handler import is_expired
+
+from . import Token
+from . import is_expired
+from .exception import UnknownToken
 
 TYPE_MAP = {
     "A": "code",

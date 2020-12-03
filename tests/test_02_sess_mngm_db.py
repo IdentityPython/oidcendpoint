@@ -2,12 +2,12 @@
 import pytest
 
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.grant import Grant
-from oidcendpoint.grant import Token
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import Database
-from oidcendpoint.session_management import UserSessionInfo
-from oidcendpoint.session_management import public_id
+from oidcendpoint.session.database import Database
+from oidcendpoint.session.grant import Grant
+from oidcendpoint.session.manager import public_id
+from oidcendpoint.session.info import ClientSessionInfo
+from oidcendpoint.session.info import UserSessionInfo
+from oidcendpoint.session.token import Token
 
 
 class TestDB:

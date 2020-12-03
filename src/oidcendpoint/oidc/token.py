@@ -12,13 +12,12 @@ from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import ProcessError
-from oidcendpoint.grant import AuthorizationCode
-from oidcendpoint.grant import RefreshToken
-from oidcendpoint.grant import get_usage_rules
-from oidcendpoint.session_management import unpack_session_key
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.grant import AuthorizationCode
+from oidcendpoint.session.grant import RefreshToken
+from oidcendpoint.session.grant import get_usage_rules
 
 logger = logging.getLogger(__name__)
-
 
 
 class Token(Endpoint):

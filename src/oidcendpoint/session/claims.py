@@ -1,13 +1,25 @@
 import logging
-# from typing import Literal
 from typing import Optional
 from typing import Union
+
+from oidcmsg.oidc import OpenIDSchema
 
 from oidcendpoint.scopes import convert_scopes2claims
 
 logger = logging.getLogger(__name__)
 
 # USAGE = Literal["userinfo", "id_token", "introspection"]
+
+IGNORE = ["error", "error_description", "error_uri", "_claim_names", "_claim_sources"]
+STANDARD_CLAIMS = [c for c in OpenIDSchema.c_param.keys() if c not in IGNORE]
+
+
+def available_claims(endpoint_context):
+    _supported = endpoint_context.provider_info.get("claims_supported")
+    if _supported:
+        return _supported
+    else:
+        return STANDARD_CLAIMS
 
 
 class ClaimsInterface:

@@ -1,10 +1,10 @@
 import pytest
 
-from oidcendpoint.grant import AuthorizationCode
-from oidcendpoint.grant import Grant
-from oidcendpoint.grant import TOKEN_MAP
-from oidcendpoint.grant import Token
-from oidcendpoint.grant import find_token
+from oidcendpoint.session.grant import TOKEN_MAP
+from oidcendpoint.session.grant import Grant
+from oidcendpoint.session.grant import find_token
+from oidcendpoint.session.token import AuthorizationCode
+from oidcendpoint.session.token import Token
 
 
 def test_access_code():

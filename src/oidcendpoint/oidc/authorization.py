@@ -6,8 +6,8 @@ from oidcmsg.oidc import Claims
 from oidcmsg.oidc import verified_claim_name
 
 from oidcendpoint.oauth2 import authorization
-from oidcendpoint.session_management import ClientSessionInfo
-from oidcendpoint.session_management import session_key
+from oidcendpoint.session import session_key
+from oidcendpoint.session.info import ClientSessionInfo
 
 logger = logging.getLogger(__name__)
 
