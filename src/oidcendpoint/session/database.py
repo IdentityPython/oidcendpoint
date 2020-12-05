@@ -137,7 +137,7 @@ class Database(object):
                         except KeyError:
                             return SessionInfo()
 
-    def delete(self, path):
+    def delete(self, path: List[str]):
         uid, client_id, grant_id = self._eval_path(path)
         try:
             _dic = self._db[uid]

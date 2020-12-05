@@ -63,7 +63,7 @@ class TestSessionManager:
 
         token_handler = factory(DummyEndpointContext(), **conf["token_handler_args"])
 
-        self.session_manager = SessionManager({}, handler=token_handler)
+        self.session_manager = SessionManager(handler=token_handler)
         self.authn_event = AuthnEvent(uid="uid",
                                       valid_until=time_sans_frac() + 1,
                                       authn_info="authn_class_ref")

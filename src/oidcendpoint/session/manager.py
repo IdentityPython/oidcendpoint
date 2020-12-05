@@ -36,8 +36,8 @@ def ephemeral_id(*args, **kwargs):
 
 
 class SessionManager(Database):
-    def __init__(self, db, handler: TokenHandler, conf: Optional[dict] = None,
-                 sub_func: Optional[dict] = None):
+    def __init__(self, handler: TokenHandler, db: Optional[object] = None,
+                 conf: Optional[dict] = None, sub_func: Optional[dict] = None):
         Database.__init__(self, db)
         self.token_handler = handler
         self.salt = rndstr(32)
@@ -250,7 +250,7 @@ class SessionManager(Database):
         :param kwargs: Keyword arguments to the Grant class initialization
         :return: A Grant instance
         """
-        args = {k: v for k, v in kwargs.items() if k in Grant.parameters}
+        args = {k: v for k, v in kwargs.items() if k in Grant.attributes}
         _grant = Grant(**args)
         self.set([user_id, client_id, _grant.id], _grant)
         _client_session_info = self.get([user_id, client_id])
@@ -287,4 +287,4 @@ class SessionManager(Database):
 
 def create_session_manager(endpoint_context, token_handler_args, db=None, sub_func=None):
     _token_handler = handler.factory(endpoint_context, **token_handler_args)
-    return SessionManager(db, _token_handler, sub_func=sub_func)
+    return SessionManager(_token_handler, db=db, sub_func=sub_func)

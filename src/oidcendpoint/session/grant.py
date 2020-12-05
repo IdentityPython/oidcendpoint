@@ -47,7 +47,7 @@ TOKEN_MAP = {
 
 
 class Grant(Item):
-    parameters = ["scope", "claim", "resources", "authorization_details",
+    attributes = ["scope", "claim", "resources", "authorization_details",
                   "issued_token", "usage_rules", "revoked", "issued_at",
                   "expires_at"]
     type = "grant"
@@ -240,8 +240,8 @@ def get_usage_rules(token_type, endpoint_context, grant, client_id):
 
 
 class ExchangeGrant(Grant):
-    parameters = Grant.parameters
-    parameters.append("users")
+    attributes = Grant.attributes
+    attributes.append("users")
     type = "exchange_grant"
 
     def __init__(self,
