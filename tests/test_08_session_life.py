@@ -51,7 +51,7 @@ class TestSession():
             refresh_token_handler=refresh_token_handler,
         )
 
-        self.session_manager = SessionManager({}, handler=handler)
+        self.session_manager = SessionManager(handler=handler)
 
     def auth(self):
         # Start with an authentication request
@@ -305,7 +305,7 @@ class TestSessionJWTToken():
 
         self.endpoint_context = EndpointContext(conf, keyjar=KEYJAR)
         self.session_manager = self.endpoint_context.session_manager
-        # self.session_manager = SessionManager({}, handler=self.endpoint_context.sdb.handler)
+        # self.session_manager = SessionManager(handler=self.endpoint_context.sdb.handler)
         # self.endpoint_context.session_manager = self.session_manager
 
     def auth(self):

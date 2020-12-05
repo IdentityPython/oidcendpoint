@@ -255,7 +255,7 @@ class TestEndpoint(object):
 
         assert _db
 
-        _mngr = SessionManager(_db, handler=self.session_manager.token_handler,
+        _mngr = SessionManager(self.session_manager.token_handler, db=_db,
                                conf=self.session_manager.conf)
 
         _session_info = _mngr.get_session_info_by_token(access_token.value)
