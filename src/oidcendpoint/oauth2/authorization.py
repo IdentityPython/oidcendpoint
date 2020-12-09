@@ -530,18 +530,39 @@ class Authorization(Endpoint):
 
         return response_info
 
-    def authz_part2(self, user, authn_event, request, **kwargs):
+    def authz_part2(
+        self,
+        user,
+        authn_event,
+        request,
+        subject_type=None,
+        acr=None,
+        salt=None,
+        sector_id=None,
+        **kwargs,
+    ):
         """
         After the authentication this is where you should end up
 
         :param user:
+        :param authn_event: The Authorization Event
         :param request: The Authorization Request
-        :param sid: Session key
+        :param subject_type: The subject_type
+        :param acr: The acr
+        :param salt: The salt used to produce the sub
+        :param sector_id: The sector_id used to produce the sub
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """
         sid = setup_session(
-            self.endpoint_context, request, user, authn_event=authn_event
+            self.endpoint_context,
+            request,
+            user,
+            acr=acr,
+            salt=salt,
+            authn_event=authn_event,
+            subject_type=subject_type,
+            sector_id=sector_id,
         )
 
         try:

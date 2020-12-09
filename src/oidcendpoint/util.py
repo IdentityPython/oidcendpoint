@@ -4,6 +4,7 @@ import logging
 from urllib.parse import parse_qs
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
+from urllib.parse import urlparse
 
 from oidcendpoint.exception import OidcEndpointError
 
@@ -195,3 +196,20 @@ def allow_refresh_token(endpoint_context):
         raise OidcEndpointError('Grant type "refresh_token" lacks support')
 
     return False
+
+
+def sector_id_from_redirect_uris(uris):
+    if not uris:
+        return ""
+
+    hostname = urlparse(uris[0]).netloc
+    for uri in uris:
+        parsed = urlparse(uri)
+
+        if hostname != parsed.netloc:
+            raise OidcEndpointError(
+                "All redirect_uris must have the same hostname in order to "
+                "generate "
+            )
+
+    return hostname

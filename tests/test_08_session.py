@@ -111,7 +111,7 @@ class TestSessionDB(object):
     def test_create_authz_session(self):
         ae = create_authn_event("uid", "salt")
         sid = self.sdb.create_authz_session(ae, AREQ, client_id="client_id")
-        self.sdb.do_sub(sid, uid="user", client_salt="client_salt")
+        self.sdb.do_sub(sid, uid="user", salt="client_salt")
 
         info = self.sdb[sid]
         assert info["client_id"] == "client_id"
