@@ -19,6 +19,7 @@ from oidcendpoint.token_handler import ExpiredToken
 from oidcendpoint.token_handler import UnknownToken
 from oidcendpoint.token_handler import WrongTokenType
 from oidcendpoint.token_handler import is_expired
+from oidcendpoint.util import sector_id_from_redirect_uris
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,15 @@ def authn_event_deser(val, sformat="urlencoded"):
 
 
 def setup_session(
-    endpoint_context, areq, uid, client_id="", acr="", salt="salt", authn_event=None
+    endpoint_context,
+    areq,
+    uid,
+    client_id="",
+    acr="",
+    salt="salt",
+    authn_event=None,
+    subject_type=None,
+    sector_id=None
 ):
     """
     Setting up a user session
@@ -75,8 +84,15 @@ def setup_session(
         authn_event, areq, client_id=client_id, uid=uid
     )
 
-    client_salt = endpoint_context.cdb.get(client_id, {}).get("client_salt", salt)
-    endpoint_context.sdb.do_sub(sid, uid, client_salt)
+    client = endpoint_context.cdb.get(client_id)
+    endpoint_context.sdb.do_sub(
+        sid,
+        uid,
+        salt=salt,
+        sector_id=sector_id,
+        subject_type=subject_type,
+        client=client,
+    )
     return sid
 
 
@@ -267,21 +283,44 @@ class SessionDB(object):
             return _sess_info["access_token"]
 
     def do_sub(
-        self, sid, uid, client_salt, sector_id="", subject_type="public", user_salt=""
+        self,
+        sid,
+        uid,
+        salt=None,
+        sector_id=None,
+        subject_type=None,
+        client=None,
     ):
         """
         Create and store a subject identifier
 
         :param sid: Session ID
         :param uid: User ID
-        :param client_salt:
+        :param salt:
         :param sector_id: For pairwise identifiers, an Identifier for the RP group
         :param subject_type: 'pairwaise'/'public'
-        :param user_salt:
+        :param client_id:
         :return:
         """
+        if not client:
+            client = {}
+
+        salt = salt
+        if not salt:
+            salt = client.get("client_salt", salt)
+        if not subject_type:
+            # Default to public
+            subject_type = client.get("subject_type", "public")
+        if subject_type == "pairwise" and not sector_id:
+            sector_id = client.get("sector_identifier_uri")
+            # If no `sector_identifier_uri` is registered, then get the host
+            # component of the registered redirect_uri
+            if not sector_id:
+                uris = [uri[0] for uri in client.get("redirect_uris", [])]
+                sector_id = sector_id_from_redirect_uris(uris)
+
         sub = self.sub_func[subject_type](
-            uid, salt=client_salt or user_salt, sector_identifier=sector_id
+            uid, salt=salt, sector_identifier=sector_id
         )
 
         self.sso_db.map_sid2uid(sid, uid)
