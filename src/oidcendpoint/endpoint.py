@@ -206,6 +206,7 @@ class Endpoint(object):
         # This is for matching against aud in JWTs
         # By default the endpoint's endpoint URL is an allowed target
         self.allowed_targets = [self.name]
+        self.client_verification_method = []
 
     def parse_request(self, request, auth=None, **kwargs):
         """
