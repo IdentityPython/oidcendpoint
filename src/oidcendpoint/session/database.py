@@ -45,14 +45,22 @@ class Database(object):
             if client_id:
                 if client_id in _userinfo['subordinate']:
                     _cid_key = session_key(uid, client_id)
-                    _cid_info = self._db[session_key(uid, client_id)]
+                    try:
+                        _cid_info = self._db[session_key(uid, client_id)]
+                    except KeyError:
+                        _cid_info = None
+
                     # if _cid_info.is_revoked():
                     #     raise Revoked("Session is revoked")
                     if _cid_info:
                         if grant_id:
                             _gid_key = session_key(uid, client_id, grant_id)
                             if grant_id in _cid_info['subordinate']:
-                                _gid_info = self._db[_gid_key]
+                                try:
+                                    _gid_info = self._db[_gid_key]
+                                except KeyError:
+                                    _gid_info = None
+
                                 if not _gid_info:
                                     self._db[_cid_key] = _cid_info.add_subordinate(grant_id)
                                 self._db[_gid_key] = value
@@ -69,8 +77,8 @@ class Database(object):
                             self._db[_cid_key] = _cid_info
                             self._db[session_key(uid, client_id, grant_id)] = value
                         else:
-                            _cid_info = ClientSessionInfo()
-                            self._db[_cid_key] = _cid_info
+                            # _cid_info = ClientSessionInfo()
+                            self._db[_cid_key] = value
                         self._db[uid] = _userinfo
                 else:
                     _userinfo.add_subordinate(client_id)
@@ -153,7 +161,10 @@ class Database(object):
                     else:
                         if grant_id:
                             if grant_id in _cinfo['subordinate']:
-                                self._db.__delitem__(session_key(uid, client_id, grant_id))
+                                try:
+                                    self._db.__delitem__(session_key(uid, client_id, grant_id))
+                                except KeyError:
+                                    pass
                         else:
                             for grant_id in _cinfo['subordinate']:
                                 self._db.__delitem__(session_key(uid, client_id, grant_id))
