@@ -26,7 +26,8 @@ class SessionInfo(Message):
         self["revoked"] = False
 
     def add_subordinate(self, value: str) -> "SessionInfo":
-        self["subordinate"].append(value)
+        if value not in self["subordinate"]:
+            self["subordinate"].append(value)
         return self
 
     def remove_subordinate(self, value: str) -> 'SessionInfo':
