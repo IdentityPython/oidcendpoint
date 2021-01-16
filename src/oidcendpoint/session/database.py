@@ -36,79 +36,28 @@ class Database(object):
         :param path: a list of identifiers
         :param value: Class instance to be stored
         """
-        # Try loading the key, that's a good place to put a debugger to
-        #  import pdb; pdb.set_trace()
+
         uid, client_id, grant_id = self._eval_path(path)
 
-        _userinfo = self._db.get(uid)
-        if _userinfo:
-            if client_id:
-                if client_id in _userinfo['subordinate']:
-                    _cid_key = session_key(uid, client_id)
-                    try:
-                        _cid_info = self._db[session_key(uid, client_id)]
-                    except KeyError:
-                        _cid_info = None
+        if grant_id:
+            gid_key = session_key(uid, client_id, grant_id)
+            self._db[gid_key] = value
 
-                    # if _cid_info.is_revoked():
-                    #     raise Revoked("Session is revoked")
-                    if _cid_info:
-                        if grant_id:
-                            _gid_key = session_key(uid, client_id, grant_id)
-                            if grant_id in _cid_info['subordinate']:
-                                try:
-                                    _gid_info = self._db[_gid_key]
-                                except KeyError:
-                                    _gid_info = None
+        if client_id:
+            cid_key = session_key(uid, client_id)
+            cid_info = self._db.get(cid_key, ClientSessionInfo())
+            if not grant_id:
+                self._db[cid_key] = value
+            elif grant_id not in cid_info["subordinate"]:
+                cid_info.add_subordinate(grant_id)
+                self._db[cid_key] = cid_info
 
-                                if not _gid_info:
-                                    self._db[_cid_key] = _cid_info.add_subordinate(grant_id)
-                                self._db[_gid_key] = value
-                            else:
-                                self._db[_cid_key] = _cid_info.add_subordinate(grant_id)
-                                self._db[_gid_key] = value
-                        else:
-                            self._db[_cid_key] = value
-                    else:
-                        _userinfo.add_subordinate(client_id)
-                        if grant_id:
-                            _cid_info = ClientSessionInfo()
-                            _cid_info.add_subordinate(grant_id)
-                            self._db[_cid_key] = _cid_info
-                            self._db[session_key(uid, client_id, grant_id)] = value
-                        else:
-                            # _cid_info = ClientSessionInfo()
-                            self._db[_cid_key] = value
-                        self._db[uid] = _userinfo
-                else:
-                    _userinfo.add_subordinate(client_id)
-                    self._db[uid] = _userinfo
-                    if grant_id:
-                        _cid_info = ClientSessionInfo()
-                        _cid_info.add_subordinate(grant_id)
-                        self._db[session_key(uid, client_id, grant_id)] = value
-                    else:
-                        _cid_info = value
-
-                    _cid_key = session_key(uid, client_id)
-                    self._db[_cid_key] = _cid_info
-            else:
-                self._db[uid] = value
-        else:
-            if client_id:
-                _user_info = UserSessionInfo()
-                _user_info.add_subordinate(client_id)
-                if grant_id:
-                    _cid_info = ClientSessionInfo()
-                    _cid_info.add_subordinate(grant_id)
-                    self._db[session_key(uid, client_id, grant_id)] = value
-                else:
-                    _cid_info = value
-                self._db[session_key(uid, client_id)] = _cid_info
-            else:
-                _user_info = value
-
-            self._db[uid] = _user_info
+        userinfo = self._db.get(uid, UserSessionInfo())
+        if client_id is None:
+            self._db[uid] = value
+        if client_id and client_id not in userinfo["subordinate"]:
+            userinfo.add_subordinate(client_id)
+            self._db[uid] = userinfo
 
     def get(self, path: List[str]) -> Union[SessionInfo, Grant]:
         uid, client_id, grant_id = self._eval_path(path)
