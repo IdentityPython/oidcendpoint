@@ -64,8 +64,10 @@ class JWTToken(Token):
                 session_info["user_id"], _claims_restriction)
             payload.update(user_info)
         if self.add_scope:
-            payload["scope"] = self.claims_interface.endpoint_context.scopes_handler.filter_scopes(
-                client_id, self.claims_interface.endpoint_context, scopes
+            payload["scope"] = self.endpoint_context.scopes_handler.filter_scopes(
+                session_info["client_id"],
+                self.endpoint_context,
+                session_info["client_session_info"]["authorization_request"]["scope"]
             )
 
         # payload.update(kwargs)

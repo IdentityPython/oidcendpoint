@@ -5,8 +5,6 @@ from cryptojwt.utils import b64e
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oidc import TokenErrorResponse
 
-from oidcendpoint.exception import MultipleCodeUsage
-from oidcendpoint.token_handler import UnknownToken
 
 LOGGER = logging.getLogger(__name__)
 

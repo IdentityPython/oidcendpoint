@@ -16,6 +16,7 @@ from oidcendpoint.session import unpack_session_key
 from oidcendpoint.session.grant import AuthorizationCode
 from oidcendpoint.session.grant import RefreshToken
 from oidcendpoint.session.grant import get_usage_rules
+from oidcendpoint.token.exception import UnknownToken
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ class Token(Endpoint):
         }
 
         token = self._mint_token("access_token", grant, _session_info, code)
+
         _response["access_token"] = token.value
 
         if issue_refresh:
@@ -204,9 +206,14 @@ class Token(Endpoint):
         """
 
         _mngr = self.endpoint_context.session_manager
+        if "code" not in request:
+            return self.error_cls(
+                error="invalid_request", error_description="Missing code"
+            )
+
         try:
             _session_info = _mngr.get_session_info_by_token(request["code"])
-        except KeyError:
+        except (KeyError, UnknownToken):
             logger.error("Access Code invalid")
             return self.error_cls(error="invalid_grant",
                                   error_description="Unknown code")
@@ -214,12 +221,12 @@ class Token(Endpoint):
         code = _mngr.find_token(_session_info["session_id"], request["code"])
         if not isinstance(code, AuthorizationCode):
             return self.error_cls(
-                error="invalid_request", error_description="Wrong token type"
+                error="invalid_grant", error_description="Wrong token type"
             )
 
         if code.is_active() is False:
             return self.error_cls(
-                error="invalid_request", error_description="Code inactive"
+                error="invalid_grant", error_description="Code inactive"
             )
 
         _auth_req = _session_info["client_session_info"]["authorization_request"]

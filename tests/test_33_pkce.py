@@ -464,4 +464,7 @@ class TestEndpoint(object):
         token_request["code"] = response["response_args"]["code"]
         parsed_token_request = token_endpoint.parse_request(token_request)
 
-        assert isinstance(parsed_token_request, AccessTokenRequest)
+        assert isinstance(
+            parsed_token_request,
+            conf["endpoint"]["token"]["class"].request_cls,
+        )
