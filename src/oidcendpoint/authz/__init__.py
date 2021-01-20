@@ -47,9 +47,6 @@ class AuthzHandling(object):
 
 
 class Implicit(AuthzHandling):
-    def __init__(self, endpoint_context, **kwargs):
-        AuthzHandling.__init__(self, endpoint_context, **kwargs)
-
     def __call__(self, user_id: str, client_id: str, request: Union[dict, Message],
                  resources: Optional[list] = None) -> Grant:
         args = self.grant_config.copy()
