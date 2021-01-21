@@ -1,17 +1,14 @@
 import hashlib
 import logging
-import uuid
 from typing import List
 from typing import Optional
+import uuid
 
 from oidcmsg.oauth2 import AuthorizationRequest
 
 from oidcendpoint import rndstr
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.token import handler
-
-from ..token import UnknownToken
-from ..token.handler import TokenHandler
 from . import unpack_session_key
 from .database import Database
 from .grant import ExchangeGrant
@@ -19,6 +16,8 @@ from .grant import Grant
 from .grant import Token
 from .info import ClientSessionInfo
 from .info import UserSessionInfo
+from ..token import UnknownToken
+from ..token.handler import TokenHandler
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +132,34 @@ class SessionManager(Database):
         else:
             raise ValueError("Wrong type of session info")
 
+    def get_user_session_info(self, session_id: str) -> UserSessionInfo:
+        """
+        Return client connected information for a user session.
+
+        :param session_id: Session identifier
+        :return: ClientSessionInfo instance
+        """
+        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
+        usi = self.get([_user_id])
+        if isinstance(usi, UserSessionInfo):
+            return usi
+        else:
+            raise ValueError("Wrong type of session info")
+
+    def get_grant(self, session_id: str) -> Grant:
+        """
+        Return client connected information for a user session.
+
+        :param session_id: Session identifier
+        :return: ClientSessionInfo instance
+        """
+        _user_id, _client_id, _grant_id = unpack_session_key(session_id)
+        grant = self.get([_user_id, _client_id, _grant_id])
+        if isinstance(grant, Grant):
+            return grant
+        else:
+            raise ValueError("Wrong type of item")
+
     def _revoke_dependent(self, grant: Grant, token: Token):
         for t in grant.issued_token:
             if t.based_on == token.value:
@@ -156,16 +183,6 @@ class SessionManager(Database):
         if recursive:
             grant = self[session_id]
             self._revoke_dependent(grant, token)
-
-    # def get_sids_by_user_id(self, user_id):
-    #     """
-    #     Find and return all session identifiers for a user.
-    #
-    #     :param user_id: User identifier
-    #     :return: Possibly empty list of session identifiers
-    #     """
-    #     user_info = self.get([user_id])
-    #     return [session_key(user_id, c) for c in user_info['subordinate']]
 
     def get_authentication_event(self, session_id: Optional[str] = "",
                                  user_id: Optional[str] = "") -> AuthnEvent:
@@ -226,20 +243,48 @@ class SessionManager(Database):
         _csi = self.get([uid, cid])
         return [self.get([uid, cid, gid]) for gid in _csi['subordinate']]
 
-    def get_session_info(self, session_id: str) -> dict:
+    def get_session_info(self,
+                         session_id: str,
+                         user_session_info: bool = False,
+                         client_session_info: bool = False,
+                         grant: bool = False) -> dict:
+        """
+        Returns information connected to a session.
+
+        :param session_id: The identifier of the session
+        :param user_session_info: Whether user session info should part of the response
+        :param client_session_info: Whether client session info should part of the response
+        :param grant: Whether the grant should part of the response
+        :return: A dictionary with session information
+        """
         _user_id, _client_id, _grant_id = unpack_session_key(session_id)
-        return {
+        res = {
             "session_id": session_id,
             "user_id": _user_id,
             "client_id": _client_id,
-            "user_session_info": self.get([_user_id]),
-            "client_session_info": self.get([_user_id, _client_id]),
-            "grant": self.get([_user_id, _client_id, _grant_id])
+            "grant_id": _grant_id
         }
+        if user_session_info:
+            res["user_session_info"] = self.get([_user_id])
+        if client_session_info:
+            res["client_session_info"] = self.get([_user_id, _client_id])
+        if grant:
+            res["grant"] = self.get([_user_id, _client_id, _grant_id])
 
-    def get_session_info_by_token(self, token_value: str) -> dict:
+        return res
+
+    def get_session_info_by_token(self,
+                                  token_value: str,
+                                  user_session_info: bool = False,
+                                  client_session_info: bool = False,
+                                  grant: bool = False) -> dict:
         _token_info = self.token_handler.info(token_value)
-        return self.get_session_info(_token_info["sid"])
+        return self.get_session_info(_token_info["sid"], user_session_info=user_session_info,
+                                     client_session_info=client_session_info, grant=grant)
+
+    def get_session_id_by_token(self, token_value: str) -> dict:
+        _token_info = self.token_handler.info(token_value)
+        return _token_info["sid"]
 
     def add_grant(self, user_id: str, client_id: str, **kwargs) -> Grant:
         """
@@ -275,7 +320,7 @@ class SessionManager(Database):
         return None
 
     def find_exchange_grant(self, token: str, resource_server: str) -> Optional[Grant]:
-        session_info = self.get_session_info_by_token(token)
+        session_info = self.get_session_info_by_token(token, client_session_info=True)
         c_info = session_info["client_session_info"]
         for grant_id in c_info["subordinate"]:
             grant = self.get([session_info['user_id'], session_info['client_id'], grant_id])
