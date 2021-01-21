@@ -311,10 +311,10 @@ class Authorization(Endpoint):
         # Is the asked for response_type among those that are permitted
         return set(request["response_type"]) in _registered
 
-    def mint_token(self, token_type, grant, session_info, based_on=None):
+    def mint_token(self, token_type, grant, session_id, client_id, subject, based_on=None):
         _mngr = self.endpoint_context.session_manager
         usage_rules = get_usage_rules("authorization_code", self.endpoint_context,
-                                      grant, session_info["client_id"])
+                                      grant, client_id)
         _exp_in = usage_rules.get("expires_in")
         if isinstance(_exp_in, str):
             _exp_in = int(_exp_in)
@@ -322,12 +322,12 @@ class Authorization(Endpoint):
         token = grant.mint_token(
             token_type,
             value=_mngr.token_handler["access_token"](
-                session_info["session_id"],
-                client_id=session_info["client_id"],
+                session_id,
+                client_id=client_id,
                 aud=grant.resources,
                 user_claims=None,
                 scope=grant.scope,
-                sub=session_info["client_session_info"]['sub']
+                sub=subject
             ),
             based_on=based_on,
             usage_rules=usage_rules
@@ -336,8 +336,8 @@ class Authorization(Endpoint):
         if _exp_in:
             token.expires_at = utc_time_sans_frac() + _exp_in
 
-        self.endpoint_context.session_manager.set(
-            unpack_session_key(session_info["session_id"]), grant)
+        self.endpoint_context.session_manager.set(unpack_session_key(session_id),
+                                                  grant)
 
         return token
 
@@ -648,7 +648,7 @@ class Authorization(Endpoint):
         else:
             _context = self.endpoint_context
             _mngr = self.endpoint_context.session_manager
-            _sinfo = _mngr.get_session_info(sid)
+            _sinfo = _mngr.get_session_info(sid, client_session_info=True, grant=True)
 
             if request.get("scope"):
                 aresp["scope"] = request["scope"]
@@ -663,7 +663,11 @@ class Authorization(Endpoint):
             grant = _sinfo["grant"]
 
             if "code" in request["response_type"]:
-                _code = self.mint_token('authorization_code', grant, _sinfo)
+                _code = self.mint_token('authorization_code',
+                                        grant,
+                                        _sinfo["session_id"],
+                                        _sinfo["client_id"],
+                                        _sinfo["client_session_info"]["sub"])
                 aresp["code"] = _code.value
                 handled_response_type.append("code")
             else:
@@ -675,7 +679,11 @@ class Authorization(Endpoint):
                 else:
                     based_on = None
 
-                _access_token = self.mint_token("access_token", grant, _sinfo, based_on)
+                _access_token = self.mint_token("access_token", grant,
+                                                _sinfo["session_id"],
+                                                _sinfo["client_id"],
+                                                _sinfo["client_session_info"]["sub"],
+                                                based_on)
                 aresp['access_token'] = _access_token.value
                 handled_response_type.append("token")
             else:

@@ -268,7 +268,8 @@ class TestEndpoint(object):
         return _code
 
     def _mint_access_token(self, grant, session_id, token_ref=None, index=1):
-        _session_info = self.session_manager[index].get_session_info(session_id)
+        _session_info = self.session_manager[index].get_session_info(
+            session_id, client_session_info=True)
         usage_rules = get_usage_rules("access_token", self.endpoint[index].endpoint_context,
                                       grant, _session_info["client_id"])
         _exp_in = usage_rules.get("expires_in", 0)

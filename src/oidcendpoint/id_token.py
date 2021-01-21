@@ -138,7 +138,10 @@ class IDToken(object):
         """
 
         _mngr = self.endpoint_context.session_manager
-        session_information = _mngr.get_session_info(session_id)
+        session_information = _mngr.get_session_info(session_id,
+                                                     client_session_info=True,
+                                                     grant=True,
+                                                     user_session_info=True)
         _args = {"sub": session_information["client_session_info"]["sub"]}
         for claim, attr in {"authn_time": "auth_time", "authn_info": "acr"}.items():
             _val = session_information["user_session_info"]["authentication_event"].get(claim)

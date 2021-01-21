@@ -51,7 +51,8 @@ class JWTToken(Token):
         :return: Signed JSON Web Token
         """
 
-        session_info = self.endpoint_context.session_manager.get_session_info(session_id)
+        session_info = self.endpoint_context.session_manager.get_session_info(
+            session_id, client_session_info=True, grant=True)
         sub = session_info["client_session_info"]["sub"]
         payload = {"sid": session_id, "ttype": self.type, "sub": sub}
 

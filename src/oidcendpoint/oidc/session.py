@@ -149,7 +149,8 @@ class Session(Endpoint):
 
     def logout_all_clients(self, sid):
         _mngr = self.endpoint_context.session_manager
-        _session_info = self.endpoint_context.session_manager.get_session_info(sid)
+        _session_info = _mngr.get_session_info(sid, user_session_info=True,
+                                               client_session_info=True)
 
         # Front-/Backchannel logout ?
         _cdb = self.endpoint_context.cdb
@@ -199,7 +200,8 @@ class Session(Endpoint):
 
     def logout_from_client(self, sid):
         _cdb = self.endpoint_context.cdb
-        _session_information = self.endpoint_context.session_manager.get_session_info(sid)
+        _session_information = self.endpoint_context.session_manager.get_session_info(
+            sid, client_session_info=True)
         _client_id = _session_information["client_id"]
 
         res = {}
@@ -251,8 +253,8 @@ class Session(Endpoint):
             _cookie_info = json.loads(as_unicode(b64d(as_bytes(part[0]))))
             logger.debug("Cookie info: {}".format(_cookie_info))
             try:
-                _session_info = self.endpoint_context.session_manager.get_session_info(
-                    _cookie_info["sid"])
+                _session_info = _mngr.get_session_info(_cookie_info["sid"],
+                                                       client_session_info=True)
             except KeyError:
                 raise ValueError("Can't find any corresponding session")
         else:
@@ -269,8 +271,7 @@ class Session(Endpoint):
             if _session_info["client_id"] not in _aud:
                 raise ValueError("Client ID doesn't match")
 
-            if _id_token["sub"] != _session_info[
-                "client_session_info"]["sub"]:
+            if _id_token["sub"] != _session_info["client_session_info"]["sub"]:
                 raise ValueError("Sub doesn't match")
         else:
             _aud = []

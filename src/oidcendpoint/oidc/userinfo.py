@@ -95,7 +95,10 @@ class UserInfo(Endpoint):
 
     def process_request(self, request=None, **kwargs):
         _mngr = self.endpoint_context.session_manager
-        _session_info = _mngr.get_session_info_by_token(request["access_token"])
+        _session_info = _mngr.get_session_info_by_token(request["access_token"],
+                                                        user_session_info=True,
+                                                        client_session_info=True,
+                                                        grant=True)
         token = _mngr.find_token(_session_info["session_id"], request["access_token"])
         # should be an access token
         if token.is_active() is False:

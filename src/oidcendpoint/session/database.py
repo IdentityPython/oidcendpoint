@@ -11,6 +11,14 @@ from .info import UserSessionInfo
 logger = logging.getLogger(__name__)
 
 
+class NoSuchClientSession(KeyError):
+    pass
+
+
+class NoSuchGrant(KeyError):
+    pass
+
+
 class Database(object):
     def __init__(self, storage=None):
         if storage is None:
@@ -78,11 +86,8 @@ class Database(object):
                 try:
                     client_session_info = self._db[session_key(uid, client_id)]
                 except KeyError:
-                    return SessionInfo()
+                    raise NoSuchClientSession(client_id)
                 else:
-                    # if client_session_info.is_revoked():
-                    #     raise Revoked("Session is revoked")
-
                     if grant_id is None:
                         return client_session_info
 
@@ -92,7 +97,7 @@ class Database(object):
                         try:
                             return self._db[session_key(uid, client_id, grant_id)]
                         except KeyError:
-                            return SessionInfo()
+                            raise NoSuchGrant(grant_id)
 
     def delete(self, path: List[str]):
         uid, client_id, grant_id = self._eval_path(path)

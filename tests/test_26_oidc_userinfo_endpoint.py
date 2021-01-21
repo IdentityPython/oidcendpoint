@@ -196,7 +196,8 @@ class TestEndpoint(object):
         )
 
     def _mint_access_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id)
+        _session_info = self.session_manager.get_session_info(session_id,
+                                                              client_session_info=True)
         return grant.mint_token(
             'access_token',
             value=self.session_manager.token_handler["access_token"](

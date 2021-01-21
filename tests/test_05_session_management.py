@@ -260,11 +260,9 @@ class TestSessionManager:
         _session_info = self.session_manager.get_session_info(_session_id)
 
         assert set(_session_info.keys()) == {'client_id',
-                                             'client_session_info',
-                                             'grant',
+                                             'grant_id',
                                              'session_id',
-                                             'user_id',
-                                             'user_session_info'}
+                                             'user_id'}
         assert _session_info["user_id"] == "diana"
         assert _session_info["client_id"] == "client_1"
 
@@ -283,10 +281,8 @@ class TestSessionManager:
         _session_info = self.session_manager.get_session_info_by_token(code.value)
 
         assert set(_session_info.keys()) == {'client_id',
-                                             'client_session_info',
-                                             'grant',
                                              'session_id',
-                                             'user_id',
-                                             'user_session_info'}
+                                             'grant_id',
+                                             'user_id'}
         assert _session_info["user_id"] == "diana"
         assert _session_info["client_id"] == "client_1"

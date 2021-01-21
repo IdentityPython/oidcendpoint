@@ -42,21 +42,21 @@ class Token(Endpoint):
         self.allow_refresh = False
         self.new_refresh_token = new_refresh_token
 
-    def _mint_token(self, token_type, grant, session_info, based_on):
+    def _mint_token(self, token_type, grant, session_id, client_id, subject, based_on):
         _mngr = self.endpoint_context.session_manager
         usage_rules = get_usage_rules("authorization_code", self.endpoint_context,
-                                      grant, session_info["client_id"])
+                                      grant, client_id)
         _exp_in = usage_rules.get("expires_in")
 
         token = grant.mint_token(
             token_type,
             value=_mngr.token_handler["access_token"](
-                session_info["session_id"],
-                client_id=session_info["client_id"],
+                session_id,
+                client_id=client_id,
                 aud=grant.resources,
                 user_claims=None,
                 scope=grant.scope,
-                sub=session_info["client_session_info"]['sub']
+                sub=subject
             ),
             based_on=based_on,
             usage_rules=usage_rules
@@ -70,7 +70,7 @@ class Token(Endpoint):
                 token.expires_at = time_sans_frac() + _exp_in
 
         self.endpoint_context.session_manager.set(
-            unpack_session_key(session_info["session_id"]), grant)
+            unpack_session_key(session_id), grant)
 
         return token
 
@@ -91,7 +91,9 @@ class Token(Endpoint):
                 error="invalid_request", error_description="Missing code"
             )
 
-        _session_info = _mngr.get_session_info_by_token(_access_code)
+        _session_info = _mngr.get_session_info_by_token(_access_code,
+                                                        client_session_info=True,
+                                                        grant=True)
         code = _mngr.find_token(_session_info["session_id"], _access_code)
         _authn_req = _session_info["client_session_info"]["authorization_request"]
 
@@ -128,11 +130,19 @@ class Token(Endpoint):
             "state": _authn_req["state"]
         }
 
-        token = self._mint_token("access_token", grant, _session_info, code)
+        token = self._mint_token("access_token", grant,
+                                 _session_info["session_id"],
+                                 _session_info["client_id"],
+                                 _session_info["client_session_info"]["sub"],
+                                 code)
         _response["access_token"] = token.value
 
         if issue_refresh:
-            refresh_token = self._mint_token("refresh_token", grant, _session_info, code)
+            refresh_token = self._mint_token("refresh_token", grant,
+                                             _session_info["session_id"],
+                                             _session_info["client_id"],
+                                             _session_info["client_session_info"]["sub"],
+                                             code)
             _response["refresh_token"] = refresh_token.value
 
         code.register_usage()
@@ -161,11 +171,16 @@ class Token(Endpoint):
             )
 
         token_value = req["refresh_token"]
-        _session_info = _mngr.get_session_info_by_token(token_value)
+        _session_info = _mngr.get_session_info_by_token(token_value, grant=True,
+                                                        client_session_info=True)
         token = _mngr.find_token(_session_info["session_id"], token_value)
 
         _grant = _session_info["grant"]
-        access_token = self._mint_token("access_token", _grant, _session_info, token)
+        access_token = self._mint_token("access_token", _grant,
+                                        _session_info["session_id"],
+                                        _session_info["client_id"],
+                                        _session_info["client_session_info"]["sub"],
+                                        token)
 
         _resp = {
             "access_token": access_token.value,
@@ -176,7 +191,11 @@ class Token(Endpoint):
 
         _mints = token.usage_rules.get("supports_minting")
         if "refresh_token" in _mints:
-            refresh_token = self._mint_token("refresh_token", _grant, _session_info, token)
+            refresh_token = self._mint_token("refresh_token", _grant,
+                                             _session_info["session_id"],
+                                             _session_info["client_id"],
+                                             _session_info["client_session_info"]["sub"],
+                                             token)
             refresh_token.usage_rules = token.usage_rules.copy()
             _resp["refresh_token"] = refresh_token.value
 
@@ -205,7 +224,8 @@ class Token(Endpoint):
 
         _mngr = self.endpoint_context.session_manager
         try:
-            _session_info = _mngr.get_session_info_by_token(request["code"])
+            _session_info = _mngr.get_session_info_by_token(request["code"],
+                                                            client_session_info=True)
         except KeyError:
             logger.error("Access Code invalid")
             return self.error_cls(error="invalid_grant",
@@ -314,7 +334,7 @@ class Token(Endpoint):
 
         _access_token = response_args["access_token"]
         _session_info = self.endpoint_context.session_manager.get_session_info_by_token(
-            _access_token)
+            _access_token, client_session_info=True)
 
         _cookie = new_cookie(
             self.endpoint_context,

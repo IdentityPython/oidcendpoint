@@ -4,6 +4,8 @@ import pytest
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.session import session_key
 from oidcendpoint.session.database import Database
+from oidcendpoint.session.database import NoSuchClientSession
+from oidcendpoint.session.database import NoSuchGrant
 from oidcendpoint.session.grant import Grant
 from oidcendpoint.session.info import ClientSessionInfo
 from oidcendpoint.session.info import UserSessionInfo
@@ -197,8 +199,8 @@ class TestDB:
         # The reference is there but not the value
         del self.db._db[session_key('diana', "client_1")]
 
-        stored_client_info = self.db.get(['diana', "client_1"])
-        assert set(stored_client_info.keys()) == {"subordinate", 'revoked'}
+        with pytest.raises(NoSuchClientSession):
+            self.db.get(['diana', "client_1"])
 
     def test_grant_info(self):
         user_info = UserSessionInfo(foo="bar")
@@ -218,11 +220,8 @@ class TestDB:
         # removed value
         del self.db._db[session_key('diana', "client_1", "G1")]
 
-        # should return empty SessionInfo
-        stored_grant_info = self.db.get(['diana', "client_1", "G1"])
-        assert set(stored_grant_info.keys()) == {"subordinate", 'revoked'}
-        assert stored_grant_info["subordinate"] == []
-        assert stored_grant_info["revoked"] is False
+        with pytest.raises(NoSuchGrant):
+            self.db.get(['diana', "client_1", "G1"])
 
     def test_delete_non_existent_info(self):
         # Does nothing

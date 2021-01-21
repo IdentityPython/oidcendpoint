@@ -23,7 +23,7 @@ class Introspection(Endpoint):
         Endpoint.__init__(self, **kwargs)
         self.offset = kwargs.get("offset", 0)
 
-    def _introspect(self, token, session_info):
+    def _introspect(self, token, client_id, grant, client_session_info):
         # Make sure that the token is an access_token or a refresh_token
         if token.type not in ["access_token", "refresh_token"]:
             return None
@@ -33,20 +33,19 @@ class Introspection(Endpoint):
 
         scope = token.scope
         if not scope:
-            scope = session_info["grant"].scope
+            scope = grant.scope
         aud = token.resources
         if not aud:
-            aud = session_info["grant"].resources
+            aud = grant.resources
 
-        _csi = session_info["client_session_info"]
         ret = {
             "active": True,
             "scope": " ".join(scope),
-            "client_id": session_info["client_id"],
+            "client_id": client_id,
             "token_type": token.type,
             "exp": token.expires_at,
             "iat": token.issued_at,
-            "sub": _csi["sub"],
+            "sub": client_session_info["sub"],
             "iss": self.endpoint_context.issuer
         }
         if aud:
@@ -70,14 +69,15 @@ class Introspection(Endpoint):
 
         try:
             _session_info = self.endpoint_context.session_manager.get_session_info_by_token(
-                request_token)
+                request_token, grant=True, client_session_info=True)
         except UnknownToken:
             return {"response_args": _resp}
 
         _token = self.endpoint_context.session_manager.find_token(_session_info["session_id"],
                                                                   request_token)
 
-        _info = self._introspect(_token, _session_info)
+        _info = self._introspect(_token, _session_info["client_id"],
+                                 _session_info["grant"], _session_info["client_session_info"])
         if _info is None:
             return {"response_args": _resp}
 

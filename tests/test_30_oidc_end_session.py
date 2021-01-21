@@ -485,7 +485,8 @@ class TestEndpoint(object):
     def test_logout_from_client_bc(self):
         _resp = self._code_auth("1234567")
         _code = _resp["response_args"]["code"]
-        _session_info = self.session_manager.get_session_info_by_token(_code)
+        _session_info = self.session_manager.get_session_info_by_token(
+            _code, client_session_info=True)
 
         self.session_endpoint.endpoint_context.cdb["client_1"][
             "backchannel_logout_uri"
@@ -510,7 +511,8 @@ class TestEndpoint(object):
     def test_logout_from_client_fc(self):
         _resp = self._code_auth("1234567")
         _code = _resp["response_args"]["code"]
-        _session_info = self.session_manager.get_session_info_by_token(_code)
+        _session_info = self.session_manager.get_session_info_by_token(
+            _code, client_session_info=True)
 
         # del self.session_endpoint.endpoint_context.cdb['client_1']['backchannel_logout_uri']
         self.session_endpoint.endpoint_context.cdb["client_1"][
@@ -529,7 +531,8 @@ class TestEndpoint(object):
     def test_logout_from_client(self):
         _resp = self._code_auth("1234567")
         _code = _resp["response_args"]["code"]
-        _session_info = self.session_manager.get_session_info_by_token(_code)
+        _session_info = self.session_manager.get_session_info_by_token(
+            _code, client_session_info=True)
         self._code_auth2("abcdefg")
 
         # client0
