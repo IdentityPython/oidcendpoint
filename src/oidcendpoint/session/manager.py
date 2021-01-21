@@ -1,14 +1,17 @@
 import hashlib
 import logging
+import uuid
 from typing import List
 from typing import Optional
-import uuid
 
 from oidcmsg.oauth2 import AuthorizationRequest
 
 from oidcendpoint import rndstr
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.token import handler
+
+from ..token import UnknownToken
+from ..token.handler import TokenHandler
 from . import unpack_session_key
 from .database import Database
 from .grant import ExchangeGrant
@@ -16,8 +19,6 @@ from .grant import Grant
 from .grant import Token
 from .info import ClientSessionInfo
 from .info import UserSessionInfo
-from ..token import UnknownToken
-from ..token.handler import TokenHandler
 
 logger = logging.getLogger(__name__)
 
