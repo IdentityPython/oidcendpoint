@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptojwt.jwt import JWT
 
 from oidcendpoint import sanitize
+from oidcendpoint.cookie import cookie_value
 from oidcendpoint.exception import FailedAuthentication
 from oidcendpoint.exception import ImproperlyConfigured
 from oidcendpoint.exception import InvalidCookieSign
@@ -293,7 +294,28 @@ class NoAuthn(UserAuthnMethod):
         if self.fail:
             raise self.fail()
 
-        return {"uid": self.user}, time.time()
+        res = {"uid": self.user}
+
+        if cookie:
+            try:
+                val = self.cookie_dealer.get_cookie_value(
+                    cookie, cookie_name=self.endpoint_context.cookie_name["session"]
+                )
+            except (InvalidCookieSign, AssertionError, AttributeError) as err:
+                logger.warning(err)
+                val = None
+
+            if val is None:
+                return None, 0
+            else:
+                b64val, _ts, typ = val
+                info = cookie_value(b64val)
+                if isinstance(info, dict):
+                    res.update(info)
+                else:
+                    res["value"] = b64val
+
+        return res, time.time()
 
 
 def factory(cls, **kwargs):

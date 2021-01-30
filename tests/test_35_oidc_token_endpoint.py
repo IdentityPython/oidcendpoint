@@ -11,6 +11,7 @@ from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import ProcessError
@@ -151,6 +152,24 @@ def conf():
                 "supports_minting": ["access_token", "refresh_token", "id_token"]
             },
 
+        },
+        "authz": {
+            "class": AuthzHandling,
+            "kwargs": {
+                "grant_config": {
+                    "usage_rules": {
+                        "authorization_code": {
+                            'supports_minting': ["access_token", "refresh_token", "id_token"],
+                            "max_usage": 1
+                        },
+                        "access_token": {},
+                        "refresh_token": {
+                            'supports_minting': ["access_token", "refresh_token"],
+                        }
+                    },
+                    "expires_in": 43200
+                }
+            }
         }
     }
 
@@ -175,20 +194,16 @@ class TestEndpoint(object):
         assert self.endpoint
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return grant
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def _mint_code(self, grant, client_id):
         sid = session_key(self.user_id, client_id, grant.id)
@@ -237,8 +252,8 @@ class TestEndpoint(object):
         return _token
 
     def test_parse(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
         code = self._mint_code(grant, AUTH_REQ['client_id'])
 
         _token_request = TOKEN_REQ_DICT.copy()
@@ -248,8 +263,8 @@ class TestEndpoint(object):
         assert set(_req.keys()) == set(_token_request.keys())
 
     def test_process_request(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
         code = self._mint_code(grant, AUTH_REQ['client_id'])
 
         _token_request = TOKEN_REQ_DICT.copy()
@@ -262,8 +277,8 @@ class TestEndpoint(object):
         assert set(_resp.keys()) == {"http_headers", "response_args"}
 
     def test_process_request_using_code_twice(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
         code = self._mint_code(grant, AUTH_REQ['client_id'])
 
         _token_request = TOKEN_REQ_DICT.copy()
@@ -278,8 +293,8 @@ class TestEndpoint(object):
         assert "error" in _2nd_response
 
     def test_do_response(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
         code = self._mint_code(grant, AUTH_REQ['client_id'])
 
         _token_request = TOKEN_REQ_DICT.copy()
@@ -291,8 +306,8 @@ class TestEndpoint(object):
         assert isinstance(msg, dict)
 
     def test_process_request_using_private_key_jwt(self):
-        self._create_session(AUTH_REQ)
-        grant = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
         code = self._mint_code(grant, AUTH_REQ['client_id'])
 
         _token_request = TOKEN_REQ_DICT.copy()
@@ -319,8 +334,8 @@ class TestEndpoint(object):
         areq = AUTH_REQ.copy()
         areq["scope"] = ["openid", "offline_access"]
 
-        self._create_session(areq)
-        grant = self._do_grant(areq)
+        session_id = self._create_session(areq)
+        grant = self.endpoint.endpoint_context.authz(session_id, areq)
         code = self._mint_code(grant, areq['client_id'])
 
         _cntx = self.endpoint.endpoint_context
@@ -356,8 +371,8 @@ class TestEndpoint(object):
         areq = AUTH_REQ.copy()
         areq["scope"] = ["openid", "offline_access"]
 
-        self._create_session(areq)
-        grant = self._do_grant(areq)
+        session_id = self._create_session(areq)
+        grant = self.endpoint.endpoint_context.authz(session_id, areq)
         code = self._mint_code(grant, areq['client_id'])
 
         _cntx = self.endpoint.endpoint_context
@@ -408,8 +423,8 @@ class TestEndpoint(object):
         areq = AUTH_REQ.copy()
         areq["scope"] = ["openid", "offline_access"]
 
-        self._create_session(areq)
-        grant = self._do_grant(areq)
+        session_id = self._create_session(areq)
+        grant = self.endpoint.endpoint_context.authz(session_id, areq)
         code = self._mint_code(grant, areq['client_id'])
 
         _token_request = TOKEN_REQ_DICT.copy()
@@ -439,8 +454,8 @@ class TestEndpoint(object):
         areq = AUTH_REQ.copy()
         areq["scope"] = ["openid", "offline_access"]
 
-        self._create_session(areq)
-        grant = self._do_grant(areq)
+        session_id = self._create_session(areq)
+        grant = self.endpoint.endpoint_context.authz(session_id, areq)
         code = self._mint_code(grant, areq['client_id'])
 
         _cntx = self.endpoint.endpoint_context

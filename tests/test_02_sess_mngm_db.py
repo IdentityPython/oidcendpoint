@@ -1,5 +1,6 @@
 # Database is organized in 3 layers. User-session-grant.
 import pytest
+from oidcmsg.oauth2 import AuthorizationRequest
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.session import session_key
@@ -12,6 +13,14 @@ from oidcendpoint.session.info import UserSessionInfo
 from oidcendpoint.session.manager import public_id
 from oidcendpoint.session.token import Token
 
+AUTHZ_REQ = AuthorizationRequest(
+    client_id="client_1",
+    redirect_uri="https://example.com/cb",
+    scope=["openid"],
+    state="STATE",
+    response_type="code",
+)
+
 
 class TestDB:
     @pytest.fixture(autouse=True)
@@ -22,53 +31,54 @@ class TestDB:
         with pytest.raises(KeyError):
             self.db.get(['diana'])
 
-        user_info = UserSessionInfo(foo="bar")
+        user_info = UserSessionInfo(user_id="diana", foo="bar")
         self.db.set(['diana'], user_info)
         stored_user_info = self.db.get(['diana'])
         assert stored_user_info["foo"] == "bar"
 
     def test_client_info(self):
-        user_info = UserSessionInfo(foo="bar")
+        user_info = UserSessionInfo(user_id="diana", foo="bar")
         self.db.set(['diana'], user_info)
-        client_info = ClientSessionInfo(sid="abcdef")
+        client_info = ClientSessionInfo(client_id="client_1")
         self.db.set(['diana', "client_1"], client_info)
 
         stored_user_info = self.db.get(['diana'])
         assert stored_user_info['subordinate'] == ['client_1']
         stored_client_info = self.db.get(['diana', "client_1"])
-        assert stored_client_info['sid'] == "abcdef"
+        assert stored_client_info['client_id'] == "client_1"
 
     def test_client_info_change(self):
-        user_info = UserSessionInfo(foo="bar")
+        user_info = UserSessionInfo(user_id="diana", foo="bar")
         self.db.set(['diana'], user_info)
-        client_info = ClientSessionInfo(sid="abcdef")
+        client_info = ClientSessionInfo(client_id="client_1", extra="snow")
         self.db.set(['diana', "client_1"], client_info)
 
         user_info = self.db.get(['diana'])
         assert user_info['subordinate'] == ['client_1']
         client_info = self.db.get(['diana', "client_1"])
-        assert client_info['sid'] == "abcdef"
+        assert client_info['client_id'] == "client_1"
+        assert client_info['extra'] == "snow"
 
-        client_info = ClientSessionInfo(sid="0123456")
+        client_info = ClientSessionInfo(client_id="client_1", extra="ice")
         self.db.set(['diana', "client_1"], client_info)
 
         stored_client_info = self.db.get(['diana', "client_1"])
-        assert stored_client_info['sid'] == "0123456"
+        assert stored_client_info['extra'] == "ice"
 
     def test_client_info_add1(self):
-        user_info = UserSessionInfo(foo="bar")
+        user_info = UserSessionInfo(user_id="diana")
         self.db.set(['diana'], user_info)
-        client_info = ClientSessionInfo(sid="abcdef")
+        client_info = ClientSessionInfo(client_id="client_1")
         self.db.set(['diana', "client_1"], client_info)
 
         # The reference is there but not the value
         del self.db._db[session_key('diana', "client_1")]
 
-        client_info = ClientSessionInfo(sid="0123456")
+        client_info = ClientSessionInfo(client_id="client_1", extra="ice")
         self.db.set(['diana', "client_1"], client_info)
 
         stored_client_info = self.db.get(['diana', "client_1"])
-        assert stored_client_info['sid'] == "0123456"
+        assert stored_client_info['extra'] == "ice"
 
     def test_client_info_add2(self):
         user_info = UserSessionInfo(foo="bar")
@@ -79,7 +89,13 @@ class TestDB:
         # The reference is there but not the value
         del self.db._db[session_key('diana', "client_1")]
 
-        grant = Grant()
+        authn_event = create_authn_event(uid="diana",
+                                         expires_in=10,
+                                         authn_info="authn_class_ref")
+
+        grant = Grant(authentication_event=authn_event,
+                      authorization_request=AUTHZ_REQ)
+
         access_code = Token('access_code', value='1234567890')
         grant.issued_token.append(access_code)
 
@@ -129,7 +145,6 @@ class TestDB:
         assert len(stored_grant_info.issued_token) == 1
         token = stored_grant_info.issued_token[0]
         assert token.value == 'aaaaaaaaa'
-
 
     def test_replace_user_info(self):
         # store user info
@@ -187,7 +202,7 @@ class TestDB:
 
         self.db.set(['diana', "client_1", "G1"], grant)
         self.db.delete(['diana', 'client_1'])
-        with pytest.raises(ValueError):
+        with pytest.raises(KeyError):
             self.db.get(['diana', "client_1", "G1"])
 
     def test_client_info_removed(self):

@@ -1,5 +1,7 @@
 import json
 import logging
+from typing import Optional
+from typing import Union
 
 from cryptojwt.exception import MissingValue
 from cryptojwt.jwt import JWT
@@ -40,7 +42,9 @@ class UserInfo(Endpoint):
         _info = endpoint_context.session_manager.get_session_info_by_token(token)
         return _info["client_id"]
 
-    def do_response(self, response_args=None, request=None, client_id="", **kwargs):
+    def do_response(self, response_args: Optional[Union[Message, dict]] = None,
+                    request: Optional[Union[Message, dict]] = None,
+                    client_id: Optional[str] = "", **kwargs) -> dict:
 
         if "error" in kwargs and kwargs["error"]:
             return Endpoint.do_response(self, response_args, request, **kwargs)
@@ -96,9 +100,8 @@ class UserInfo(Endpoint):
     def process_request(self, request=None, **kwargs):
         _mngr = self.endpoint_context.session_manager
         _session_info = _mngr.get_session_info_by_token(request["access_token"],
-                                                        user_session_info=True,
-                                                        client_session_info=True,
                                                         grant=True)
+        _grant = _session_info["grant"]
         token = _mngr.find_token(_session_info["session_id"], request["access_token"])
         # should be an access token
         if token.is_active() is False:
@@ -107,7 +110,7 @@ class UserInfo(Endpoint):
             )
 
         allowed = True
-        _auth_event = _session_info["user_session_info"]["authentication_event"]
+        _auth_event = _grant.authentication_event
         # if the authenticate is still active or offline_access is granted.
         if _auth_event["valid_until"] > utc_time_sans_frac():
             pass
@@ -123,10 +126,10 @@ class UserInfo(Endpoint):
 
         if allowed:
             # Scope can translate to userinfo_claims
-            _restrictions = _session_info["grant"].claims.get("userinfo")
+            _restrictions = _grant.claims.get("userinfo")
             info = self.endpoint_context.claims_interface.get_user_claims(
                 user_id=_session_info["user_id"], claims_restriction=_restrictions)
-            info["sub"] = _session_info["client_session_info"]["sub"]
+            info["sub"] = _grant.sub
         else:
             info = {
                 "error": "invalid_request",

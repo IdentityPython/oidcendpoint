@@ -91,13 +91,13 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
 
     try:
         _session_info = endpoint_context.session_manager.get_session_info_by_token(
-            request["code"], client_session_info=True)
+            request["code"], grant=True)
     except KeyError:
         return TokenErrorResponse(
             error="invalid_grant", error_description="Unknown access grant"
         )
 
-    _authn_req = _session_info["client_session_info"]["authorization_request"]
+    _authn_req = _session_info["grant"].authorization_request
 
     if "code_challenge" in _authn_req:
         if "code_verifier" not in request:

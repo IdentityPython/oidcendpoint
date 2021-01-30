@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Union
 from urllib.parse import unquote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
@@ -33,11 +34,8 @@ from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.session import Revoked
-from oidcendpoint.session import session_key
 from oidcendpoint.session import unpack_session_key
 from oidcendpoint.session.grant import get_usage_rules
-from oidcendpoint.session.info import ClientSessionInfo
-from oidcendpoint.session.info import UserSessionInfo
 from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.util import split_uri
@@ -568,28 +566,44 @@ class Authorization(Endpoint):
 
                 if "sid" in identity:
                     _session_id = identity["sid"]
+
+                    # make sure the client is the same
+                    _uid, _cid, _gid = unpack_session_key(_session_id)
+                    if request["client_id"] != _cid:
+                        return {"function": authn, "args": authn_args}
+
                     grant = _mngr[_session_id]
                     if grant.is_active() is False:
                         return {"function": authn, "args": authn_args}
+                    elif request != grant.authorization_request:
+                        authn_event = _mngr.get_authentication_event(session_id=_session_id)
+                        if authn_event.is_valid() is False:  # if not valid, do new login
+                            return {"function": authn, "args": authn_args}
 
-        try:
-            authn_event = _mngr.get_authentication_event(user_id=user)
-        except KeyError:
+                        # create new grant
+                        _session_id = _mngr.create_grant(authn_event=authn_event,
+                                                         auth_req=request,
+                                                         user_id=user,
+                                                         client_id=request["client_id"])
+
+        if _session_id:
+            authn_event = _mngr.get_authentication_event(session_id=_session_id)
+            if authn_event.is_valid() is False:  # if not valid, do new login
+                return {"function": authn, "args": authn_args}
+        else:
             authn_event = create_authn_event(
                 identity["uid"],
                 authn_info=authn_class_ref,
                 time_stamp=_ts,
             )
-            _mngr.set([identity["uid"]], UserSessionInfo(authentication_event=authn_event))
-
             _exp_in = authn.kwargs.get("expires_in")
             if _exp_in and "valid_until" in authn_event:
                 authn_event["valid_until"] = utc_time_sans_frac() + _exp_in
-        else: # verify that the authn_event is still active
-            if authn_event.is_valid() is False: # if not valid, do new login
-                return {"function": authn, "args": authn_args}
 
-        return {"authn_event": authn_event, "identity": identity, "user": user}
+            _session_id = _mngr.create_session(authn_event=authn_event, auth_req=request,
+                                               user_id=user, client_id=request["client_id"])
+
+        return {"session_id": _session_id, "identity": identity, "user": user}
 
     def aresp_check(self, aresp, request):
         return ""
@@ -631,7 +645,7 @@ class Authorization(Endpoint):
         response_info["response_args"] = resp
         return response_info
 
-    def create_authn_response(self, request, sid):
+    def create_authn_response(self, request: Union[dict, Message], sid: str) -> dict:
         """
 
         :param request:
@@ -648,7 +662,7 @@ class Authorization(Endpoint):
         else:
             _context = self.endpoint_context
             _mngr = self.endpoint_context.session_manager
-            _sinfo = _mngr.get_session_info(sid, client_session_info=True, grant=True)
+            _sinfo = _mngr.get_session_info(sid, grant=True)
 
             if request.get("scope"):
                 aresp["scope"] = request["scope"]
@@ -667,7 +681,7 @@ class Authorization(Endpoint):
                                         grant,
                                         _sinfo["session_id"],
                                         _sinfo["client_id"],
-                                        _sinfo["client_session_info"]["sub"])
+                                        grant.sub)
                 aresp["code"] = _code.value
                 handled_response_type.append("code")
             else:
@@ -679,10 +693,11 @@ class Authorization(Endpoint):
                 else:
                     based_on = None
 
-                _access_token = self.mint_token("access_token", grant,
+                _access_token = self.mint_token("access_token",
+                                                grant,
                                                 _sinfo["session_id"],
                                                 _sinfo["client_id"],
-                                                _sinfo["client_session_info"]["sub"],
+                                                grant.sub,
                                                 based_on)
                 aresp['access_token'] = _access_token.value
                 handled_response_type.append("token")
@@ -724,24 +739,23 @@ class Authorization(Endpoint):
 
         return {"response_args": aresp, "fragment_enc": fragment_enc}
 
-    def post_authentication(self, user, request, pre_sid, **kwargs):
+    def post_authentication(self, request: Union[dict, Message],
+                            session_id: str, **kwargs) -> dict:
         """
         Things that are done after a successful authentication.
 
-        :param user:
         :param request: The authorization request
-        :param sid:
+        :param session_id: Session identifier
         :param kwargs:
         :return: A dictionary with 'response_args'
         """
 
         response_info = {}
         _mngr = self.endpoint_context.session_manager
-        user_id, client_id = unpack_session_key(pre_sid)
 
         # Do the authorization
         try:
-            grant = self.endpoint_context.authz(user_id, client_id, request=request)
+            grant = self.endpoint_context.authz(session_id, request=request)
         except ToOld as err:
             return self.error_response(
                 response_info,
@@ -753,18 +767,18 @@ class Authorization(Endpoint):
                 response_info, "access_denied", "{}".format(err.args)
             )
         else:
+            user_id, client_id, grant_id = unpack_session_key(session_id)
             try:
-                _mngr.set([user_id, client_id, grant.id], grant)
+                _mngr.set([user_id, client_id, grant_id], grant)
             except Exception as err:
                 return self.error_response(
                     response_info, "server_error", "{}".format(err.args)
                 )
-            else:
-                session_id = session_key(user_id, client_id, grant.id)
 
         logger.debug("response type: %s" % request["response_type"])
 
         response_info = self.create_authn_response(request, session_id)
+        response_info["session_id"] = session_id
 
         logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
 
@@ -803,34 +817,33 @@ class Authorization(Endpoint):
 
         response_info["cookie"] = [_cookie]
 
-        return response_info, session_id
+        return response_info
 
-    def setup_client_session(self, user_id: str, request: dict) -> str:
-        _mngr = self.endpoint_context.session_manager
-        client_id = request['client_id']
+    # def setup_client_session(self, user_id: str, request: dict) -> str:
+    #     _mngr = self.endpoint_context.session_manager
+    #     client_id = request['client_id']
+    #
+    #     client_info = ClientSessionInfo(
+    #         authorization_request=request,
+    #         sub=_mngr.sub_func['public'](user_id, salt=_mngr.salt)
+    #     )
+    #
+    #     _mngr.set([user_id, client_id], client_info)
+    #     return session_key(user_id, client_id)
 
-        client_info = ClientSessionInfo(
-            authorization_request=request,
-            sub=_mngr.sub_func['public'](user_id, salt=_mngr.salt)
-        )
-
-        _mngr.set([user_id, client_id], client_info)
-        return session_key(user_id, client_id)
-
-    def authz_part2(self, user, request, **kwargs):
+    def authz_part2(self, request, session_id, **kwargs):
         """
         After the authentication this is where you should end up
 
         :param user:
         :param request: The Authorization Request
+        :param session_id: Session identifier
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """
 
-        pre_sid = self.setup_client_session(user, request)
-
         try:
-            resp_info, session_id = self.post_authentication(user, request, pre_sid, **kwargs)
+            resp_info = self.post_authentication(request, session_id, **kwargs)
         except Exception as err:
             return self.error_response({}, "server_error", err)
 
@@ -898,32 +911,32 @@ class Authorization(Endpoint):
     def do_request_user(self, request_info, **kwargs):
         return kwargs
 
-    def process_request(self, request_info=None, **kwargs):
+    def process_request(self, request: Union[Message, dict], **kwargs):
         """ The AuthorizationRequest endpoint
 
-        :param request_info: The authorization request as a Message instance
+        :param request: The authorization request as a Message instance
         :return: dictionary
         """
 
-        if isinstance(request_info, self.error_cls):
-            return request_info
+        if isinstance(request, self.error_cls):
+            return request
 
-        _cid = request_info["client_id"]
+        _cid = request["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
         logger.debug("client {}: {}".format(_cid, cinfo))
 
         # this apply the default optionally deny_unknown_scopes policy
         if cinfo:
-            check_unknown_scopes_policy(request_info, cinfo, self.endpoint_context)
+            check_unknown_scopes_policy(request, cinfo, self.endpoint_context)
 
         cookie = kwargs.get("cookie", "")
         if cookie:
             del kwargs["cookie"]
 
-        kwargs = self.do_request_user(request_info=request_info, **kwargs)
+        kwargs = self.do_request_user(request_info=request, **kwargs)
 
         info = self.setup_auth(
-            request_info, request_info["redirect_uri"], cinfo, cookie, **kwargs
+            request, request["redirect_uri"], cinfo, cookie, **kwargs
         )
 
         if "error" in info:
@@ -932,14 +945,14 @@ class Authorization(Endpoint):
         _function = info.get("function")
         if not _function:
             logger.debug("- authenticated -")
-            logger.debug("AREQ keys: %s" % request_info.keys())
-            return self.authz_part2(user=info["user"], request=request_info, cookie=cookie)
+            logger.debug("AREQ keys: %s" % request.keys())
+            return self.authz_part2(request=request, cookie=cookie, **info)
 
         try:
             # Run the authentication function
             return {
                 "http_response": _function(**info["args"]),
-                "return_uri": request_info["redirect_uri"],
+                "return_uri": request["redirect_uri"],
             }
         except Exception as err:
             logger.exception(err)
@@ -968,8 +981,6 @@ class AllowedAlgorithms:
 
 def re_authenticate(request, authn):
     return False
-
-
 
 # class Authorization(authorization.Authorization):
 #     request_cls = oauth2.AuthorizationRequest

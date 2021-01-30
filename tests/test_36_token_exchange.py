@@ -9,6 +9,7 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
@@ -120,6 +121,24 @@ class TestEndpoint(object):
             "client_authn": verify_client,
             "template_dir": "template",
             "id_token": {"class": IDToken, "kwargs": {}},
+            "authz": {
+                "class": AuthzHandling,
+                "kwargs": {
+                    "grant_config": {
+                        "usage_rules": {
+                            "authorization_code": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                                "max_usage": 1
+                            },
+                            "access_token": {},
+                            "refresh_token": {
+                                'supports_minting': ["access_token", "refresh_token"],
+                            }
+                        },
+                        "expires_in": 43200
+                    }
+                }
+            },
         }
         endpoint_context = EndpointContext(conf)
         endpoint_context.cdb["client_1"] = {
@@ -136,21 +155,16 @@ class TestEndpoint(object):
         self.user_id = "diana"
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
-        ae = create_authn_event(self.user_id, self.session_manager.salt)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        session_id = session_key(self.user_id, client_id, grant.id)
-        return session_id, grant
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
+        ae = create_authn_event(self.user_id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def _mint_code(self, grant, client_id):
         sid = session_key(self.user_id, client_id, grant.id)
@@ -184,11 +198,12 @@ class TestEndpoint(object):
         return exchange_grant
 
     def test_do_response(self):
-        self._create_session(AUTH_REQ)
-        rs = "https://frontend.example.com/resource"
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.endpoint.endpoint_context.authz(session_id, AUTH_REQ)
+
+        grant_user_id = "https://frontend.example.com/resource"
         backend = "https://backend.example.com"
-        session_id, grant = self._do_grant(AUTH_REQ)
-        _ = self.exchange_grant(session_id, [rs], [backend], scope=["api"])
+        _ = self.exchange_grant(session_id, [grant_user_id], [backend], scope=["api"])
         code = self._mint_code(grant, AUTH_REQ['client_id'])
 
         _token_request = TOKEN_REQ_DICT.copy()
@@ -211,7 +226,14 @@ class TestEndpoint(object):
             resource="https://backend.example.com/api"
         )
 
-        exch_grant = self.session_manager.find_exchange_grant(ter["subject_token"], rs)
+        exch_grants = []
+        for grant in self.session_manager.grants(session_id=session_id):
+            if isinstance(grant, ExchangeGrant):
+                if grant_user_id in grant.users:
+                    exch_grants.append(grant)
+
+        assert exch_grants
+        exch_grant = exch_grants[0]
 
         session_info = self.session_manager.get_session_info_by_token(ter["subject_token"])
         _token = self.session_manager.find_token(session_info["session_id"],
@@ -236,11 +258,3 @@ class TestEndpoint(object):
         assert msg_info
         print(json.loads(msg_info["response"]))
 
-        # {
-        #   "aud": "https://backend.example.com",
-        #   "iss": "https://as.example.com",
-        #   "exp": 1441917593,
-        #   "iat": 1441917533,
-        #   "sub": "bdc@example.com",
-        #   "scope": "api"
-        # }

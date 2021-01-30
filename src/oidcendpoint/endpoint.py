@@ -1,5 +1,7 @@
 import logging
 from functools import cmp_to_key
+from typing import Optional
+from typing import Union
 from urllib.parse import urlparse
 
 from cryptojwt import jwe
@@ -119,8 +121,8 @@ def construct_endpoint_info(default_capabilities, **kwargs):
                 elif "signing_alg_values_supported" in attr:
                     _info[attr] = assign_algorithms("signing_alg")
                     if (
-                        attr
-                        == "token_endpoint_auth_signing_alg_values_supported"
+                            attr
+                            == "token_endpoint_auth_signing_alg_values_supported"
                     ):
                         # none must not be in
                         # token_endpoint_auth_signing_alg_values_supported
@@ -208,7 +210,7 @@ class Endpoint(object):
         self.allowed_targets = [self.name]
         self.client_verification_method = []
 
-    def parse_request(self, request, auth=None, **kwargs):
+    def parse_request(self, request: str, auth=None, **kwargs):
         """
 
         :param request: The request the server got
@@ -343,7 +345,7 @@ class Endpoint(object):
 
         return response_args
 
-    def process_request(self, request=None, **kwargs):
+    def process_request(self, request: Optional[Union[Message, dict]] = None, **kwargs):
         """
 
         :param request: The request, can be in a number of formats
@@ -351,7 +353,10 @@ class Endpoint(object):
         """
         return {}
 
-    def construct(self, response_args, request, **kwargs):
+    def construct(self,
+                  response_args: Optional[dict] = None,
+                  request: Optional[Union[Message, dict]] = None,
+                  **kwargs):
         """
         Construct the response
 
@@ -367,12 +372,20 @@ class Endpoint(object):
 
         return self.do_post_construct(response, request, **kwargs)
 
-    def response_info(self, response_args, request, **kwargs):
+    def response_info(self,
+                      response_args: Optional[dict] = None,
+                      request: Optional[Union[Message, dict]] = None,
+                      **kwargs) -> dict:
         return self.construct(response_args, request, **kwargs)
 
-    def do_response(self, response_args=None, request=None, error="", **kwargs):
+    def do_response(self,
+                    response_args: Optional[dict] = None,
+                    request: Optional[Union[Message, dict]] = None,
+                    error: Optional[str] = "", **kwargs) -> dict:
         """
-
+        :param response_args: Information to use when constructing the response
+        :param request: The original request
+        :param error: Possible error encountered while processing the request
         """
         do_placement = True
         content_type = "text/html"

@@ -258,10 +258,9 @@ class TestEndpoint(object):
 
         session_info = self.session_manager.get_session_info_by_token(
             resp["response_args"]["code"],
-            client_session_info=True)
+            grant=True)
 
-        session_info["client_session_info"][
-            "authorization_request"]["code_challenge_method"] = "plain"
+        session_info["grant"].authorization_request["code_challenge_method"] = "plain"
 
         _token_request = TOKEN_REQ.copy()
         _token_request["code"] = resp["response_args"]["code"]

@@ -171,21 +171,16 @@ class TestEndpoint(object):
         self.user_id = "diana"
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(authn_event=ae, auth_req=auth_req,
-                                            user_id=self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return session_key(self.user_id, client_id, grant.id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def _mint_code(self, grant):
         # Constructing an authorization code is now done
@@ -196,8 +191,7 @@ class TestEndpoint(object):
         )
 
     def _mint_access_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id,
-                                                              client_session_info=True)
+        _session_info = self.session_manager.get_session_info(session_id, grant=True)
         return grant.mint_token(
             'access_token',
             value=self.session_manager.token_handler["access_token"](
@@ -206,7 +200,7 @@ class TestEndpoint(object):
                 aud=grant.resources,
                 user_claims=None,
                 scope=grant.scope,
-                sub=_session_info["client_session_info"]['sub']
+                sub=_session_info["grant"].sub
             ),
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=token_ref  # Means the token (tok) was used to mint this token
@@ -241,8 +235,7 @@ class TestEndpoint(object):
                }
 
     def test_parse(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
 
         # Free standing access token, not based on an authorization code
@@ -257,8 +250,7 @@ class TestEndpoint(object):
         assert _req['error'] == "invalid_token"
 
     def test_process_request(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
@@ -270,16 +262,14 @@ class TestEndpoint(object):
         assert args
 
     def test_process_request_not_allowed(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
 
-        _us_info = self.session_manager.get([self.user_id])
         # 2 things can make the request invalid.
         # 1) The token is not valid anymore or 2) The event is not valid.
-        _event = _us_info["authentication_event"]
+        _event = grant.authentication_event
         _event['authn_time'] -= 9000
         _event['valid_until'] -= 9000
 
@@ -306,8 +296,7 @@ class TestEndpoint(object):
     #     assert set(args["response_args"].keys()) =={'response_args', 'client_id'}
 
     def test_do_response(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
@@ -323,8 +312,7 @@ class TestEndpoint(object):
     def test_do_signed_response(self):
         self.endpoint.endpoint_context.cdb["client_1"]["userinfo_signed_response_alg"] = "ES256"
 
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
@@ -341,8 +329,7 @@ class TestEndpoint(object):
         _auth_req = AUTH_REQ.copy()
         _auth_req["scope"] = ["openid", "research_and_scholarship"]
 
-        _sid = self._create_session(_auth_req)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id =  self._create_session(_auth_req)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
@@ -353,9 +340,7 @@ class TestEndpoint(object):
         self.endpoint.endpoint_context.claims_interface.add_claims_by_scope = True
         grant.claims = {
             "userinfo": self.endpoint.endpoint_context.claims_interface.get_claims(
-                client_id=session_info["client_id"],
-                user_id=session_info["user_id"],
-                scopes=_auth_req["scope"], usage="userinfo")
+                session_id=session_id, scopes=_auth_req["scope"], usage="userinfo")
         }
 
         _req = self.endpoint.parse_request(

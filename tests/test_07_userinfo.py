@@ -268,31 +268,24 @@ class TestCollectUserInfo:
         self.user_id = "diana"
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id, grant_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return session_key(self.user_id, client_id, grant.id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def test_collect_user_info(self):
         _req = OIDR.copy()
         _req["claims"] = CLAIMS_2
 
-        self._create_session(_req)
-        session_id = self._do_grant(_req)
-        _uid, _cid, _gid = unpack_session_key(session_id)
+        session_id = self._create_session(_req)
 
-        _userinfo_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+        _userinfo_restriction = self.claims_interface.get_claims(session_id=session_id,
                                                                  scopes=OIDR["scope"],
                                                                  usage="userinfo")
 
@@ -303,7 +296,7 @@ class TestCollectUserInfo:
             "email": "diana@example.org",
         }
 
-        _id_token_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+        _id_token_restriction = self.claims_interface.get_claims(session_id=session_id,
                                                                  scopes=OIDR["scope"],
                                                                  usage="id_token")
 
@@ -314,7 +307,7 @@ class TestCollectUserInfo:
             "email_verified": False,
         }
 
-        _introspection_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+        _introspection_restriction = self.claims_interface.get_claims(session_id=session_id,
                                                                       scopes=OIDR["scope"],
                                                                       usage="introspection")
 
@@ -327,11 +320,10 @@ class TestCollectUserInfo:
         _req["scope"] = "openid email address"
         del _req["claims"]
 
-        self._create_session(_req)
-        session_id = self._do_grant(_req)
+        session_id = self._create_session(_req)
         _uid, _cid, _gid = unpack_session_key(session_id)
 
-        _userinfo_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+        _userinfo_restriction = self.claims_interface.get_claims(session_id=session_id,
                                                                  scopes=_req["scope"],
                                                                  usage="userinfo")
 
@@ -354,15 +346,14 @@ class TestCollectUserInfo:
         _req["scope"] = "openid email address"
         del _req["claims"]
 
-        self._create_session(_req)
-        session_id = self._do_grant(_req)
+        session_id = self._create_session(_req)
         _uid, _cid, _gid = unpack_session_key(session_id)
 
         self.endpoint_context.endpoint["userinfo"].kwargs["add_claims_by_scope"] = False
         self.endpoint_context.endpoint["userinfo"].kwargs["enable_claims_per_client"] = False
         del self.endpoint_context.endpoint["userinfo"].kwargs["base_claims"]
 
-        _userinfo_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+        _userinfo_restriction = self.claims_interface.get_claims(session_id=session_id,
                                                                  scopes=_req["scope"],
                                                                  usage="userinfo")
 
@@ -375,8 +366,7 @@ class TestCollectUserInfo:
         _req["scope"] = "openid email address"
         del _req["claims"]
 
-        self._create_session(_req)
-        session_id = self._do_grant(_req)
+        session_id = self._create_session(_req)
         _uid, _cid, _gid = unpack_session_key(session_id)
 
         self.endpoint_context.endpoint["userinfo"].kwargs["add_claims_by_scope"] = False
@@ -385,7 +375,7 @@ class TestCollectUserInfo:
 
         self.endpoint_context.cdb[_req["client_id"]]["userinfo_claims"] = {"phone_number": None}
 
-        _userinfo_restriction = self.claims_interface.get_claims(client_id=_cid, user_id=_uid,
+        _userinfo_restriction = self.claims_interface.get_claims(session_id=session_id,
                                                                  scopes=_req["scope"],
                                                                  usage="userinfo")
 
@@ -500,32 +490,34 @@ class TestCollectUserInfoCustomScopes:
         self.user_id = "diana"
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return session_key(self.user_id, client_id, grant.id)
+    # def _do_grant(self, auth_req):
+    #     client_id = auth_req['client_id']
+    #     # The user consent module produces a Grant instance
+    #     grant = Grant(scope=auth_req['scope'], resources=[client_id])
+    #
+    #     # the grant is assigned to a session (user_id, client_id)
+    #     self.session_manager.set([self.user_id, client_id, grant.id], grant)
+    #     return session_key(self.user_id, client_id, grant.id)
 
     def test_collect_user_info_custom_scope(self):
         _req = OIDR.copy()
         _req["scope"] = "openid research_and_scholarship"
         del _req["claims"]
 
-        self._create_session(_req)
-        session_id = self._do_grant(_req)
-        _uid, _cid, _gid = unpack_session_key(session_id)
+        session_id = self._create_session(_req)
 
-        _restriction = self.claims_interface.get_claims(client_id=_cid,
-                                                        user_id=_uid,
+        _restriction = self.claims_interface.get_claims(session_id=session_id,
                                                         scopes=_req["scope"],
                                                         usage="userinfo")
 

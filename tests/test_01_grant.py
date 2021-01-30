@@ -147,8 +147,8 @@ def test_json_custom_token_map():
 
     grant = Grant(token_map=token_map)
     code = grant.mint_token("authorization_code", value="ABCD")
-    access_token = grant.mint_token("access_token", value="1234", based_on=code)
-    my_token = grant.mint_token("my_token", value="A1B2C3")
+    _ = grant.mint_token("access_token", value="1234", based_on=code)
+    _ = grant.mint_token("my_token", value="A1B2C3")
 
     _jstr = grant.to_json()
 

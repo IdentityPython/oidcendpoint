@@ -22,13 +22,16 @@ class Item:
         self.issued_at = issued_at or time_sans_frac()
         self.not_before = not_before
         if expires_at == 0 and expires_in != 0:
-            self.expires_at = time_sans_frac() + expires_in
+            self.set_expires_at(expires_in)
         else:
             self.expires_at = expires_at
 
         self.revoked = revoked
         self.used = used
         self.usage_rules = usage_rules or {}
+
+    def set_expires_at(self, expires_in):
+        self.expires_at = time_sans_frac() + expires_in
 
     def max_usage_reached(self):
         if "max_usage" in self.usage_rules:

@@ -194,21 +194,16 @@ class TestEndpoint(object):
         self.endpoint = self.endpoint_context.endpoint["session"]
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = self.endpoint_context.authz(self.user_id, client_id, auth_req)
-        # grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return session_key(self.user_id, client_id, grant.id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def _mint_code(self, grant):
         # Constructing an authorization code is now done
@@ -239,9 +234,10 @@ class TestEndpoint(object):
         )
 
     def test_parse(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
-        grant = self.session_manager[session_id]
+        session_id = self._create_session(AUTH_REQ)
+        # apply consent
+        grant = self.endpoint_context.authz(session_id=session_id, request=AUTH_REQ)
+        # grant = self.session_manager[session_id]
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
 
@@ -253,9 +249,10 @@ class TestEndpoint(object):
         assert set(_info["aud"]) == {"client_1"}
 
     def test_info(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
-        grant = self.session_manager[session_id]
+        session_id = self._create_session(AUTH_REQ)
+        # apply consent
+        grant = self.endpoint_context.authz(session_id=session_id, request=AUTH_REQ)
+        #
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
 
@@ -270,9 +267,10 @@ class TestEndpoint(object):
         self.endpoint_context.session_manager.token_handler.handler["access_token"].kwargs[
             "enable_claims_per_client"] = enable_claims_per_client
 
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
-        grant = self.session_manager[session_id]
+        session_id = self._create_session(AUTH_REQ)
+        # apply consent
+        grant = self.endpoint_context.authz(session_id=session_id, request=AUTH_REQ)
+        #
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)
 
@@ -281,8 +279,7 @@ class TestEndpoint(object):
         assert enable_claims_per_client is ("address" in res)
 
     def test_is_expired(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
         access_token = self._mint_access_token(grant, session_id, code)

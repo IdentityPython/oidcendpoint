@@ -18,7 +18,6 @@ from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import session_key
-from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -121,20 +120,17 @@ class TestEndpoint(object):
         self.user_id = USER_ID
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=AREQ['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return session_key(self.user_id, client_id, grant.id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def _mint_code(self, grant):
         # Constructing an authorization code is now done
@@ -154,22 +150,19 @@ class TestEndpoint(object):
                 aud=grant.resources,
                 user_claims=None,
                 scope=grant.scope,
-                sub=_csi['sub']
+                sub=grant.sub
             ),
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=token_ref  # Means the token (tok) was used to mint this token
         )
 
     def test_id_token_payload_0(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
-
+        session_id = self._create_session(AREQ)
         payload = self.endpoint_context.idtoken.payload(session_id)
         assert set(payload.keys()) == {"sub", "nonce", "auth_time"}
 
     def test_id_token_payload_with_code(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
         code = self._mint_code(grant)
@@ -179,8 +172,7 @@ class TestEndpoint(object):
         assert set(payload.keys()) == {"nonce", "c_hash", "sub", "auth_time"}
 
     def test_id_token_payload_with_access_token(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
         code = self._mint_code(grant)
@@ -192,8 +184,7 @@ class TestEndpoint(object):
         assert set(payload.keys()) == {"nonce", "at_hash", "sub", "auth_time"}
 
     def test_id_token_payload_with_code_and_access_token(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
         code = self._mint_code(grant)
@@ -205,8 +196,7 @@ class TestEndpoint(object):
         assert set(payload.keys()) == {"nonce", "c_hash", "at_hash", "sub", "auth_time"}
 
     def test_id_token_payload_with_userinfo(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
         grant.claims = {"id_token": {"given_name": None}}
 
@@ -214,8 +204,7 @@ class TestEndpoint(object):
         assert set(payload.keys()) == {"nonce", "given_name", "sub", "auth_time"}
 
     def test_id_token_payload_many_0(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
         grant.claims = {"id_token": {"given_name": None}}
         code = self._mint_code(grant)
@@ -230,8 +219,7 @@ class TestEndpoint(object):
                                        "given_name"}
 
     def test_sign_encrypt_id_token(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
 
         _token = self.endpoint_context.idtoken.sign_encrypt(session_id, AREQ['client_id'],
                                                             sign=True)
@@ -300,8 +288,7 @@ class TestEndpoint(object):
         assert algs == {"sign": True, "encrypt": False, "sign_alg": "RS512"}
 
     def test_available_claims(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
         grant.claims = {"id_token": {"nickname": {"essential": True}}}
 
@@ -315,8 +302,7 @@ class TestEndpoint(object):
         assert "nickname" in res
 
     def test_no_available_claims(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
         grant.claims = {"id_token": {"foobar": None}}
 
@@ -331,15 +317,14 @@ class TestEndpoint(object):
         assert "foobar" not in res
 
     def test_client_claims(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
         self.endpoint_context.idtoken.kwargs["enable_claims_per_client"] = True
         self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
 
         _claims = self.endpoint_context.claims_interface.get_claims(
-            client_id=AREQ["client_id"], user_id=USER_ID, scopes=AREQ["scope"], usage="id_token")
+            session_id=session_id, scopes=AREQ["scope"], usage="id_token")
         grant.claims = {'id_token': _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -353,15 +338,14 @@ class TestEndpoint(object):
         assert "nickname" not in res
 
     def test_client_claims_with_default(self):
-        self._create_session(AREQ)
-        session_id = self._do_grant(AREQ)
+        session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
         # self.endpoint_context.cdb["client_1"]["id_token_claims"] = {"address": None}
         # self.endpoint_context.idtoken.enable_claims_per_client = True
 
         _claims = self.endpoint_context.claims_interface.get_claims(
-            client_id=AREQ["client_id"], user_id=USER_ID, scopes=AREQ["scope"], usage="id_token")
+            session_id=session_id, scopes=AREQ["scope"], usage="id_token")
         grant.claims = {"id_token": _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -377,13 +361,12 @@ class TestEndpoint(object):
         assert "nickname" not in res
 
     def test_client_claims_scopes(self):
-        self._create_session(AREQS)
-        session_id = self._do_grant(AREQS)
+        session_id = self._create_session(AREQS)
         grant = self.session_manager[session_id]
 
         self.endpoint_context.idtoken.kwargs["add_claims_by_scope"] = True
         _claims = self.endpoint_context.claims_interface.get_claims(
-            client_id=AREQS["client_id"], user_id=USER_ID, scopes=AREQS["scope"], usage="id_token")
+            session_id=session_id, scopes=AREQS["scope"], usage="id_token")
         grant.claims = {"id_token": _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -398,14 +381,12 @@ class TestEndpoint(object):
         assert "nickname" not in res
 
     def test_client_claims_scopes_and_request_claims_no_match(self):
-        self._create_session(AREQRC)
-        session_id = self._do_grant(AREQRC)
+        session_id = self._create_session(AREQRC)
         grant = self.session_manager[session_id]
 
         self.endpoint_context.idtoken.kwargs["add_claims_by_scope"] = True
         _claims = self.endpoint_context.claims_interface.get_claims(
-            client_id=AREQRC["client_id"], user_id=USER_ID, scopes=AREQRC["scope"],
-            usage="id_token")
+            session_id=session_id, scopes=AREQRC["scope"], usage="id_token")
         grant.claims = {"id_token": _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)
@@ -424,14 +405,12 @@ class TestEndpoint(object):
         _req = AREQS.copy()
         _req["claims"] = {"id_token": {"email": None}}
 
-        self._create_session(_req)
-        session_id = self._do_grant(_req)
+        session_id = self._create_session(_req)
         grant = self.session_manager[session_id]
 
         self.endpoint_context.idtoken.kwargs["add_claims_by_scope"] = True
         _claims = self.endpoint_context.claims_interface.get_claims(
-            client_id=AREQRC["client_id"], user_id=USER_ID, scopes=_req["scope"],
-            usage="id_token")
+            session_id=session_id, scopes=_req["scope"], usage="id_token")
         grant.claims = {"id_token": _claims}
 
         _token = self.endpoint_context.idtoken.make(session_id=session_id)

@@ -73,67 +73,77 @@ class TestSessionManager:
         ("public", ""), ("ephemeral", "")])
     def test_create_session_sub_type(self, sub_type, sector_identifier):
         # First session
-        self.session_manager.create_session(authn_event=self.authn_event,
-                                            auth_req=AUTH_REQ,
-                                            user_id='diana',
-                                            client_id="client_1",
-                                            sub_type=sub_type,
-                                            sector_identifier=sector_identifier)
+        authz_req = AUTH_REQ.copy()
+        if sub_type == "pairwise":
+            authz_req["sector_identifier_uri"] = sector_identifier
 
-        _user_info = self.session_manager.get(['diana'])
-        assert _user_info["subordinate"] == ["client_1"]
-        _client_info = self.session_manager.get(['diana', 'client_1'])
-        assert _client_info["subordinate"] == []
+        session_key_1 = self.session_manager.create_session(authn_event=self.authn_event,
+                                                            auth_req=authz_req,
+                                                            user_id='diana',
+                                                            client_id="client_1",
+                                                            sub_type=sub_type)
+
+        _user_info_1 = self.session_manager.get_user_session_info(session_key_1)
+        assert _user_info_1["subordinate"] == ["client_1"]
+        _client_info_1 = self.session_manager.get_client_session_info(session_key_1)
+        assert len(_client_info_1["subordinate"]) == 1
+        # grant = self.session_manager.get_grant(session_key_1)
 
         # Second session
         authn_req = AUTH_REQ.copy()
         authn_req["client_id"] = "client_2"
-        self.session_manager.create_session(authn_event=self.authn_event,
-                                            auth_req=authn_req,
-                                            user_id='diana',
-                                            client_id="client_2",
-                                            sub_type=sub_type,
-                                            sector_identifier=sector_identifier)
+        if sub_type == "pairwise":
+            authn_req["sector_identifier_uri"] = sector_identifier
 
-        _user_info = self.session_manager.get(['diana'])
-        assert _user_info["subordinate"] == ["client_1", "client_2"]
+        session_key_2 = self.session_manager.create_session(authn_event=self.authn_event,
+                                                            auth_req=authn_req,
+                                                            user_id='diana',
+                                                            client_id="client_2",
+                                                            sub_type=sub_type)
 
-        _client_info_1 = self.session_manager.get(['diana', 'client_1'])
-        _client_info_2 = self.session_manager.get(['diana', 'client_2'])
+        _user_info_2 = self.session_manager.get_user_session_info(session_key_2)
+        assert _user_info_2["subordinate"] == ["client_1", "client_2"]
+
+        grant_1 = self.session_manager.get_grant(session_key_1)
+        grant_2 = self.session_manager.get_grant(session_key_2)
+
         if sub_type in ["pairwise", "public"]:
-            assert _client_info_1["sub"] == _client_info_2["sub"]
+            assert grant_1.sub == grant_2.sub
         else:
-            assert _client_info_1["sub"] != _client_info_2["sub"]
+            assert grant_1.sub != grant_2.sub
 
         # Third session
         authn_req = AUTH_REQ.copy()
         authn_req["client_id"] = "client_3"
-        self.session_manager.create_session(authn_event=self.authn_event,
-                                            auth_req=authn_req,
-                                            user_id='diana',
-                                            client_id="client_3",
-                                            sub_type=sub_type,
-                                            sector_identifier="https://else.example.com")
-
-        _client_info_3 = self.session_manager.get(['diana', 'client_3'])
         if sub_type == "pairwise":
-            assert _client_info_1["sub"] == _client_info_2["sub"]
-            assert _client_info_1["sub"] != _client_info_3["sub"]
-            assert _client_info_3["sub"] != _client_info_2["sub"]
+            authn_req["sector_identifier_uri"] = sector_identifier
+
+        session_key_3 = self.session_manager.create_session(authn_event=self.authn_event,
+                                                            auth_req=authn_req,
+                                                            user_id='diana',
+                                                            client_id="client_3",
+                                                            sub_type=sub_type)
+
+        grant_3 = self.session_manager.get_grant(session_key_3)
+
+        if sub_type == "pairwise":
+            assert grant_1.sub == grant_2.sub
+            assert grant_1.sub == grant_3.sub
+            assert grant_3.sub == grant_2.sub
         elif sub_type == "public":
-            assert _client_info_1["sub"] == _client_info_2["sub"]
-            assert _client_info_1["sub"] == _client_info_3["sub"]
-            assert _client_info_3["sub"] == _client_info_2["sub"]
+            assert grant_1.sub == grant_2.sub
+            assert grant_1.sub == grant_3.sub
+            assert grant_3.sub == grant_2.sub
         else:
-            assert _client_info_1["sub"] != _client_info_2["sub"]
-            assert _client_info_1["sub"] != _client_info_3["sub"]
-            assert _client_info_3["sub"] != _client_info_2["sub"]
+            assert grant_1.sub != grant_2.sub
+            assert grant_1.sub != grant_3.sub
+            assert grant_3.sub != grant_2.sub
 
         # Sub types differ so do authentication request
 
-        assert _client_info_1["authorization_request"] != _client_info_2["authorization_request"]
-        assert _client_info_1["authorization_request"] != _client_info_3["authorization_request"]
-        assert _client_info_3["authorization_request"] != _client_info_2["authorization_request"]
+        assert grant_1.authorization_request != grant_2.authorization_request
+        assert grant_1.authorization_request != grant_3.authorization_request
+        assert grant_3.authorization_request != grant_2.authorization_request
 
     def test_grant(self):
         grant = Grant()
@@ -214,16 +224,19 @@ class TestSessionManager:
         assert _token.id == access_token.id
 
     def test_get_authentication_event(self):
-        self.session_manager.create_session(authn_event=self.authn_event,
-                                            auth_req=AUTH_REQ,
-                                            user_id='diana',
-                                            client_id="client_1")
+        session_id = self.session_manager.create_session(authn_event=self.authn_event,
+                                                         auth_req=AUTH_REQ,
+                                                         user_id='diana',
+                                                         client_id="client_1")
 
-        grant = self.session_manager.add_grant(user_id="diana",
-                                               client_id="client_1")
-
-        _session_id = session_key('diana', 'client_1', grant.id)
-        authn_event = _token = self.session_manager.get_authentication_event(_session_id)
+        # grant = self.session_manager.add_grant(user_id="diana",
+        #                                        client_id="client_1",
+        #                                        authn_event=self.authn_event,
+        #                                        auth_req=AUTH_REQ)
+        #
+        # _session_id = session_key('diana', 'client_1', grant.id)
+        _info = self.session_manager.get_session_info(session_id, authentication_event=True)
+        authn_event = _info["authentication_event"]
 
         assert isinstance(authn_event, AuthnEvent)
         assert authn_event["uid"] == "uid"
@@ -243,20 +256,12 @@ class TestSessionManager:
 
         assert isinstance(csi, ClientSessionInfo)
 
-        # There MUST be a subject ID
-        assert csi["sub"]
-        assert csi["authorization_request"] == AUTH_REQ
+    def test_get_general_session_info(self):
+        _session_id = self.session_manager.create_session(authn_event=self.authn_event,
+                                                          auth_req=AUTH_REQ,
+                                                          user_id='diana',
+                                                          client_id="client_1")
 
-    def test_get_session_info(self):
-        self.session_manager.create_session(authn_event=self.authn_event,
-                                            auth_req=AUTH_REQ,
-                                            user_id='diana',
-                                            client_id="client_1")
-
-        grant = self.session_manager.add_grant(user_id="diana",
-                                               client_id="client_1")
-
-        _session_id = session_key('diana', 'client_1', grant.id)
         _session_info = self.session_manager.get_session_info(_session_id)
 
         assert set(_session_info.keys()) == {'client_id',
@@ -267,15 +272,12 @@ class TestSessionManager:
         assert _session_info["client_id"] == "client_1"
 
     def test_get_session_info_by_token(self):
-        self.session_manager.create_session(authn_event=self.authn_event,
+        _session_id = self.session_manager.create_session(authn_event=self.authn_event,
                                             auth_req=AUTH_REQ,
                                             user_id='diana',
                                             client_id="client_1")
 
-        grant = self.session_manager.add_grant(user_id="diana",
-                                               client_id="client_1")
-
-        _session_id = session_key('diana', 'client_1', grant.id)
+        grant = self.session_manager.get_grant(_session_id)
         cval = self.session_manager.token_handler.handler["code"](_session_id)
         code = grant.mint_token("authorization_code", value=cval)
         _session_info = self.session_manager.get_session_info_by_token(code.value)

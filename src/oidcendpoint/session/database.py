@@ -102,30 +102,39 @@ class Database(object):
     def delete(self, path: List[str]):
         uid, client_id, grant_id = self._eval_path(path)
         try:
-            _dic = self._db[uid]
+            _user_info = self._db[uid]
         except KeyError:
             pass
         else:
             if client_id:
-                if client_id in _dic['subordinate']:
+                if client_id in _user_info['subordinate']:
                     try:
-                        _cinfo = self._db[session_key(uid, client_id)]
+                        _client_info = self._db[session_key(uid, client_id)]
                     except KeyError:
                         pass
                     else:
                         if grant_id:
-                            if grant_id in _cinfo['subordinate']:
+                            if grant_id in _client_info['subordinate']:
                                 try:
                                     self._db.__delitem__(session_key(uid, client_id, grant_id))
                                 except KeyError:
                                     pass
+                                _client_info["subordinate"].remove(grant_id)
                         else:
-                            for grant_id in _cinfo['subordinate']:
+                            for grant_id in _client_info['subordinate']:
                                 self._db.__delitem__(session_key(uid, client_id, grant_id))
-                            self._db.__delitem__(session_key(uid, client_id))
+                            _client_info['subordinate'] = []
 
-                    _dic["subordinate"].remove(client_id)
-                    self._db[uid] = _dic
+                        if len(_client_info['subordinate']) == 0:
+                            self._db.__delitem__(session_key(uid, client_id))
+                            _user_info["subordinate"].remove(client_id)
+                        else:
+                            self._db[client_id] = _client_info
+
+                    if len(_user_info["subordinate"]) == 0:
+                        self._db.__delitem__(uid)
+                    else:
+                        self._db[uid] = _user_info
                 else:
                     pass
             else:

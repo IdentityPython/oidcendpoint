@@ -138,17 +138,15 @@ class IDToken(object):
         """
 
         _mngr = self.endpoint_context.session_manager
-        session_information = _mngr.get_session_info(session_id,
-                                                     client_session_info=True,
-                                                     grant=True,
-                                                     user_session_info=True)
-        _args = {"sub": session_information["client_session_info"]["sub"]}
-        for claim, attr in {"authn_time": "auth_time", "authn_info": "acr"}.items():
-            _val = session_information["user_session_info"]["authentication_event"].get(claim)
-            if _val:
-                _args[attr] = _val
-
+        session_information = _mngr.get_session_info(session_id, grant=True)
         grant = session_information["grant"]
+        _args = {"sub": grant.sub}
+        if grant.authentication_event:
+            for claim, attr in {"authn_time": "auth_time", "authn_info": "acr"}.items():
+                _val = grant.authentication_event.get(claim)
+                if _val:
+                    _args[attr] = _val
+
         _claims_restriction = grant.claims.get("id_token")
         if _claims_restriction == {}:
             user_info = None
@@ -185,7 +183,7 @@ class IDToken(object):
         if access_token:
             _args["at_hash"] = left_hash(access_token.encode("utf-8"), halg)
 
-        authn_req = session_information["client_session_info"]["authorization_request"]
+        authn_req = grant.authorization_request
         if authn_req:
             try:
                 _args["nonce"] = authn_req["nonce"]

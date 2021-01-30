@@ -23,7 +23,7 @@ class Introspection(Endpoint):
         Endpoint.__init__(self, **kwargs)
         self.offset = kwargs.get("offset", 0)
 
-    def _introspect(self, token, client_id, grant, client_session_info):
+    def _introspect(self, token, client_id, grant):
         # Make sure that the token is an access_token or a refresh_token
         if token.type not in ["access_token", "refresh_token"]:
             return None
@@ -45,7 +45,7 @@ class Introspection(Endpoint):
             "token_type": token.type,
             "exp": token.expires_at,
             "iat": token.issued_at,
-            "sub": client_session_info["sub"],
+            "sub": grant.sub,
             "iss": self.endpoint_context.issuer
         }
         if aud:
@@ -69,15 +69,14 @@ class Introspection(Endpoint):
 
         try:
             _session_info = self.endpoint_context.session_manager.get_session_info_by_token(
-                request_token, grant=True, client_session_info=True)
+                request_token, grant=True)
         except UnknownToken:
             return {"response_args": _resp}
 
         _token = self.endpoint_context.session_manager.find_token(_session_info["session_id"],
                                                                   request_token)
 
-        _info = self._introspect(_token, _session_info["client_id"],
-                                 _session_info["grant"], _session_info["client_session_info"])
+        _info = self._introspect(_token, _session_info["client_id"], _session_info["grant"])
         if _info is None:
             return {"response_args": _resp}
 

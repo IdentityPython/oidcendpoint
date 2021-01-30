@@ -45,8 +45,6 @@ from oidcendpoint.oidc.authorization import re_authenticate
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session import session_key
-from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_authn.authn_context import UNSPECIFIED
 from oidcendpoint.user_authn.authn_context import init_method
@@ -277,20 +275,16 @@ class TestEndpoint(object):
         assert self.endpoint
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return session_key(self.user_id, client_id, grant.id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def test_parse(self):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)
@@ -306,6 +300,7 @@ class TestEndpoint(object):
             "fragment_enc",
             "return_uri",
             "cookie",
+            "session_id"
         }
 
     def test_do_response_code(self):
@@ -582,8 +577,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "ES256",
         }
 
-        self._create_session(request)
-        session_id = self._do_grant(request)
+        session_id = self._create_session(request)
 
         resp = self.endpoint.create_authn_response(request, session_id)
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
@@ -609,7 +603,7 @@ class TestEndpoint(object):
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, kaka)
-        assert set(res.keys()) == {"authn_event", "identity", "user"}
+        assert set(res.keys()) == {"session_id", "identity", "user"}
 
     def test_setup_auth_error(self):
         request = AuthorizationRequest(
@@ -657,8 +651,7 @@ class TestEndpoint(object):
         }
         _ec = self.endpoint.endpoint_context
 
-        self._create_session(request)
-        session_id = self._do_grant(request)
+        session_id = self._create_session(request)
 
         item = _ec.authn_broker.db["anon"]
         item["method"].user = b64e(
@@ -666,7 +659,7 @@ class TestEndpoint(object):
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
-        assert set(res.keys()) == {"authn_event", "identity", "user"}
+        assert set(res.keys()) == {"session_id", "identity", "user"}
         assert res["identity"]["uid"] == "krall"
 
     def test_setup_auth_session_revoked(self):
@@ -686,8 +679,7 @@ class TestEndpoint(object):
         }
         _ec = self.endpoint.endpoint_context
 
-        self._create_session(request)
-        session_id = self._do_grant(request)
+        session_id = self._create_session(request)
 
         item = _ec.authn_broker.db["anon"]
         item["method"].user = b64e(

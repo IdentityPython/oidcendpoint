@@ -51,7 +51,7 @@ AUTH_REQ = AuthorizationRequest(
 AUTH_REQ_DICT = AUTH_REQ.to_dict()
 
 AUTH_REQ_2 = AuthorizationRequest(
-    client_id="client3",
+    client_id="client_3",
     redirect_uri="https://127.0.0.1:8090/authz_cb/bobcat",
     scope=["openid"],
     state="STATE2",
@@ -59,10 +59,18 @@ AUTH_REQ_2 = AuthorizationRequest(
 )
 
 AUTH_REQ_3 = AuthorizationRequest(
-    client_id="client2",
+    client_id="client_2",
     redirect_uri="https://app1.example.net/foo",
     scope=["openid"],
     state="STATE3",
+    response_type="code",
+)
+
+AUTH_REQ_4 = AuthorizationRequest(
+    client_id="client_1",
+    redirect_uri="https://example.com/cb",
+    scope=["openid", "email"],
+    state="STATE",
     response_type="code",
 )
 
@@ -89,14 +97,14 @@ oidc_clients:
         - 'code id_token'
         - 'id_token'
         - 'code id_token token'
-  client2:
+  client_2:
     client_secret: "spraket_sr.se"
     redirect_uris:
       - ['https://app1.example.net/foo', '']
       - ['https://app2.example.net/bar', '']
     response_types:
       - code
-  client3:
+  client_3:
     client_secret: '2222222222222222222222222222222222222222'
     redirect_uris:
       - ['https://127.0.0.1:8090/authz_cb/bobcat', '']
@@ -177,33 +185,63 @@ class TestUserAuthn(object):
 
         assert "user" in info
 
-        res = self.endpoint.authz_part2(info["user"], request, cookie="")
+        res = self.endpoint.authz_part2(request, info["session_id"], cookie="")
         assert res
         cookie = res["cookie"]
 
-        # second login
+        # second login - from 2nd client
+        request = self.endpoint.parse_request(AUTH_REQ_2.to_dict())
+        redirect_uri = request["redirect_uri"]
+        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
+        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=None)
+
+        assert set(info.keys()) == {"session_id", "identity", "user"}
+        assert info["user"] == "diana"
+
+        self.endpoint.authz_part2(request, info["session_id"], cookie="")
+        cookie = res["cookie"]
+
+        # third login - from 3rd client
+        request = self.endpoint.parse_request(AUTH_REQ_3.to_dict())
+        redirect_uri = request["redirect_uri"]
+        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
+        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=None)
+
+        assert set(info.keys()) == {"session_id", "identity", "user"}
+        assert info["user"] == "diana"
+
+        self.endpoint.authz_part2(request, info["session_id"], cookie="")
+
+        # fourth login - from 1st client
+        request = self.endpoint.parse_request(AUTH_REQ_4.to_dict())
+        redirect_uri = request["redirect_uri"]
+        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
+        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=cookie[0])
+
+        assert set(info.keys()) == {"session_id", "identity", "user"}
+        assert info["user"] == "diana"
+
+        self.endpoint.authz_part2(request, info["session_id"], cookie="")
+
+        # Fifth login - from 2nd client - wrong cookie
         request = self.endpoint.parse_request(AUTH_REQ_2.to_dict())
         redirect_uri = request["redirect_uri"]
         cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
         info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=cookie[0])
 
-        assert set(info.keys()) == {"authn_event", "identity", "user"}
-        assert info["user"] == "diana"
-
-        res = self.endpoint.authz_part2(info["user"], request, cookie="")
-        cookie = res["cookie"]
-
-        # third login
-        request = self.endpoint.parse_request(AUTH_REQ_3.to_dict())
-        redirect_uri = request["redirect_uri"]
-        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
-        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=cookie[0])
-
-        assert set(info.keys()) == {"authn_event", "identity", "user"}
-        assert info["user"] == "diana"
-
-        self.endpoint.authz_part2(info["user"], request, cookie="")
+        assert set(info.keys()) == {"args", "function"}
 
         user_session_info = self.endpoint.endpoint_context.session_manager.get(["diana"])
         assert len(user_session_info["subordinate"]) == 3
-        assert set(user_session_info["subordinate"]) == {"client_1", "client2", "client3"}
+        assert set(user_session_info["subordinate"]) == {"client_1", "client_2", "client_3"}
+
+        # Should be one grant for each of client_2 and client_3 and
+        # 2 grants for client_1
+
+        csi1 = self.endpoint.endpoint_context.session_manager.get(["diana", "client_1"])
+        csi2 = self.endpoint.endpoint_context.session_manager.get(["diana", "client_2"])
+        csi3 = self.endpoint.endpoint_context.session_manager.get(["diana", "client_3"])
+
+        assert len(csi1["subordinate"]) == 2
+        assert len(csi2["subordinate"]) == 1
+        assert len(csi3["subordinate"]) == 1

@@ -52,11 +52,11 @@ class JWTToken(Token):
         """
 
         session_info = self.endpoint_context.session_manager.get_session_info(
-            session_id, client_session_info=True, grant=True)
-        sub = session_info["client_session_info"]["sub"]
+            session_id, grant=True)
+        grant = session_info["grant"]
+        sub = grant.sub
         payload = {"sid": session_id, "ttype": self.type, "sub": sub}
 
-        grant = session_info["grant"]
         _claims_restriction = grant.claims.get("token")
         if _claims_restriction:
             user_info = self.endpoint_context.claims_interface.get_user_claims(

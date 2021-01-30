@@ -34,8 +34,6 @@ from oidcendpoint.oauth2.authorization import get_uri
 from oidcendpoint.oauth2.authorization import inputs
 from oidcendpoint.oauth2.authorization import join_query
 from oidcendpoint.oauth2.authorization import verify_uri
-from oidcendpoint.session import session_key
-from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
@@ -207,45 +205,17 @@ class TestEndpoint(object):
         )
 
     def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
-        client_id = auth_req['client_id']
+        if sector_identifier:
+            areq = auth_req.copy()
+            areq["sector_identifier_uri"] = sector_identifier
+        else:
+            areq = auth_req
+
+        client_id = areq['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, self.user_id, client_id=client_id,
-                                            sub_type=sub_type, sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req):
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([self.user_id, client_id, grant.id], grant)
-        return session_key(self.user_id, client_id, grant.id)
-
-    # def _mint_code(self, grant, client_id):
-    #     sid = session_key(self.user_id, client_id)
-    #     # Constructing an authorization code is now done
-    #     return grant.mint_token(
-    #         'authorization_code',
-    #         value=self.session_manager.token_handler["code"](sid),
-    #         expires_at=time_sans_frac() + 300  # 5 minutes from now
-    #     )
-    #
-    # def _mint_access_token(self, grant, client_id, token_ref=None):
-    #     _csi = self.session_manager.get([self.user_id, client_id])
-    #     return grant.mint_token(
-    #         'access_token',
-    #         value=self.session_manager.token_handler["access_token"](
-    #             session_key(self.user_id, client_id),
-    #             client_id=client_id,
-    #             aud=grant.resources,
-    #             user_claims=None,
-    #             scope=grant.scope,
-    #             sub=_csi['sub']
-    #         ),
-    #         expires_at=time_sans_frac() + 900,  # 15 minutes from now
-    #         based_on=token_ref  # Means the token (tok) was used to mint this token
-    #     )
+        return self.session_manager.create_session(ae, areq, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def test_init(self):
         assert self.endpoint
@@ -263,6 +233,7 @@ class TestEndpoint(object):
             "fragment_enc",
             "return_uri",
             "cookie",
+            "session_id"
         }
 
     def test_do_response_code(self):
@@ -439,8 +410,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "ES256",
         }
 
-        self._create_session(request)
-        session_id = self._do_grant(request)
+        session_id = self._create_session(request)
 
         resp = self.endpoint.create_authn_response(request, session_id)
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
@@ -466,7 +436,7 @@ class TestEndpoint(object):
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, kaka)
-        assert set(res.keys()) == {"authn_event", "identity", "user"}
+        assert set(res.keys()) == {"session_id", "identity", "user"}
 
     def test_setup_auth_error(self):
         request = AuthorizationRequest(
@@ -545,8 +515,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "RS256",
         }
 
-        pre_sid = self._create_session(request)
-        session_id = self._do_grant(request)
+        session_id = self._create_session(request)
 
         item = self.endpoint.endpoint_context.authn_broker.db["anon"]
         item["method"].user = b64e(
@@ -554,7 +523,7 @@ class TestEndpoint(object):
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
-        assert set(res.keys()) == {"authn_event", "identity", "user"}
+        assert set(res.keys()) == {"session_id", "identity", "user"}
         assert res["identity"]["uid"] == "krall"
 
     def test_setup_auth_session_revoked(self):
@@ -573,8 +542,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "RS256",
         }
 
-        pre_sid = self._create_session(request)
-        session_id = self._do_grant(request)
+        session_id = self._create_session(request)
 
         _mngr = self.endpoint.endpoint_context.session_manager
         _csi = _mngr[session_id]
@@ -617,6 +585,30 @@ class TestEndpoint(object):
 
         info = self.endpoint.response_mode(request)
         assert set(info.keys()) == {"fragment_enc"}
+
+    # def test_sso(self):
+    #     _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
+    #     _resp = self.endpoint.process_request(_pr_resp)
+    #     msg = self.endpoint.do_response(**_resp)
+    #
+    #     request = AuthorizationRequest(
+    #         client_id="client_2",
+    #         redirect_uri="https://rp.example.org/cb",
+    #         response_type=["code"],
+    #         state="state",
+    #         scope="openid",
+    #     )
+    #
+    #     cinfo = {
+    #         "client_id": "client_2",
+    #         "redirect_uris": [(request["redirect_uri"], {})]
+    #     }
+    #
+    #     _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT, cookie="kaka")
+    #     _resp = self.endpoint.process_request(_pr_resp)
+    #     msg = self.endpoint.do_response(**_resp)
+    #
+    #     assert set(res.keys()) == {"authn_event", "identity", "user"}
 
 
 def test_inputs():

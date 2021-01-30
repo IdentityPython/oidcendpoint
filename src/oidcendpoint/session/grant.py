@@ -6,7 +6,9 @@ from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
 from oidcmsg.message import Message
+from oidcmsg.oauth2 import AuthorizationRequest
 
+from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.session import MintingNotAllowed
 from oidcendpoint.session.token import AccessToken
 from oidcendpoint.session.token import AuthorizationCode
@@ -49,7 +51,8 @@ TOKEN_MAP = {
 class Grant(Item):
     attributes = ["scope", "claim", "resources", "authorization_details",
                   "issued_token", "usage_rules", "revoked", "issued_at",
-                  "expires_at"]
+                  "expires_at", "sub", "authorization_request",
+                  "authentication_event"]
     type = "grant"
 
     def __init__(self,
@@ -57,21 +60,27 @@ class Grant(Item):
                  claims: Optional[dict] = None,
                  resources: Optional[list] = None,
                  authorization_details: Optional[dict] = None,
+                 authorization_request: Optional[Message] = None,
+                 authentication_event: Optional[AuthnEvent] = None,
                  issued_token: Optional[list] = None,
                  usage_rules: Optional[dict] = None,
                  issued_at: int = 0,
                  expires_in: int = 0,
                  expires_at: int = 0,
                  revoked: bool = False,
-                 token_map: Optional[dict] = None):
+                 token_map: Optional[dict] = None,
+                 sub: Optional[str]  = ""):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at,
                       expires_in=expires_in, expires_at=expires_at, revoked=revoked)
         self.scope = scope or []
         self.authorization_details = authorization_details or None
+        self.authorization_request = authorization_request or None
+        self.authentication_event = authentication_event or None
         self.claims = claims or {}  # default is to not release any user information
         self.resources = resources or []
         self.issued_token = issued_token or []
         self.id = uuid1().hex
+        self.sub = sub
 
         if token_map is None:
             self.token_map = TOKEN_MAP
@@ -87,6 +96,7 @@ class Grant(Item):
         d = {
             "type": self.type,
             "scope": self.scope,
+            "sub": self.sub,
             "authorization_details": self.authorization_details,
             "claims": self.claims,
             "resources": self.resources,
@@ -99,14 +109,24 @@ class Grant(Item):
             "token_map": {k: ".".join([v.__module__, v.__name__]) for k, v in
                           self.token_map.items()}
         }
+        if isinstance(self.authorization_request, Message):
+            d["authorization_request"] = self.authorization_request.to_dict()
+        if isinstance(self.authentication_event, Message):
+            d["authentication_event"] = self.authentication_event.to_dict()
+
         return json.dumps(d)
 
-    def from_json(self, json_str) -> 'Grant':
+    def from_json(self, json_str: str) -> 'Grant':
         d = json.loads(json_str)
-        for attr in ["scope", "authorization_details", "claims", "resources",
+        for attr in ["scope", "authorization_details", "claims", "resources", "sub",
                      "issued_at", "not_before", "expires_at", "revoked", "id"]:
             if attr in d:
                 setattr(self, attr, d[attr])
+
+        if "authentication_event" in d:
+            self.authentication_event = AuthnEvent(**d["authentication_event"])
+        if "authorization_request" in d:
+            self.authorization_request = AuthorizationRequest(**d["authorization_request"])
 
         if "token_map" in d:
             self.token_map = {k: importer(v) for k, v in d["token_map"].items()}

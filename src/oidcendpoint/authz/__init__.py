@@ -20,7 +20,7 @@ class AuthzHandling(object):
         self.kwargs = kwargs
         self.grant_config = kwargs.get("grant_config", {})
 
-    def __call__(self, user_id: str, client_id: str, request: Union[dict, Message],
+    def __call__(self, session_id: str, request: Union[dict, Message],
                  resources: Optional[list] = None) -> Grant:
         args = self.grant_config.copy()
 
@@ -32,25 +32,38 @@ class AuthzHandling(object):
         if claims:
             args["claims"] = claims.to_dict()
 
-        if resources is None:
-            args["resources"] = [client_id]
-        else:
-            args["resources"] = resources
+        session_info = self.endpoint_context.session_manager.get_session_info(
+            session_id=session_id, grant=True
+        )
+        grant = session_info["grant"]
 
-        grant = Grant(**args)
+        for key, val in args.items():
+            if key == "expires_in":
+                grant.set_expires_at(val)
+            else:
+                setattr(grant, key, val)
+
+        if resources is None:
+            grant.resources = [session_info["client_id"]]
+        else:
+            grant.resources = resources
+
         # This is where user consent should be handled
         for interface in ["userinfo", "introspection", "id_token", "token"]:
             grant.claims[interface] = self.endpoint_context.claims_interface.get_claims(
-                client_id=client_id, user_id=user_id, scopes=request["scope"], usage=interface
+                session_id=session_id, scopes=request["scope"], usage=interface
             )
         return grant
 
 
 class Implicit(AuthzHandling):
-    def __call__(self, user_id: str, client_id: str, request: Union[dict, Message],
+    def __call__(self, session_id: str, request: Union[dict, Message],
                  resources: Optional[list] = None) -> Grant:
         args = self.grant_config.copy()
-        return Grant(**args)
+        grant = self.endpoint_context.session_manager.get_grant(session_id=session_id)
+        for arg, val in args:
+            setattr(grant, arg, val)
+        return grant
 
 
 def factory(msgtype, endpoint_context, **kwargs):

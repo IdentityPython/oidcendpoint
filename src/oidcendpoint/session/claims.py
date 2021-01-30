@@ -5,6 +5,7 @@ from typing import Union
 from oidcmsg.oidc import OpenIDSchema
 
 from oidcendpoint.scopes import convert_scopes2claims
+from oidcendpoint.session import unpack_session_key
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +32,11 @@ class ClaimsInterface:
     def __init__(self, endpoint_context):
         self.endpoint_context = endpoint_context
 
-    def authorization_request_claims(self, user_id: str, client_id: str,
-                                     usage: Optional[str] = "") -> dict:
+    def authorization_request_claims(self, session_id: str, usage: Optional[str] = "") -> dict:
         if usage in ["id_token", "userinfo"]:
-            _csi = self.endpoint_context.session_manager.get([user_id, client_id])
-            if "claims" in _csi["authorization_request"]:
-                return _csi["authorization_request"]["claims"].get(usage, {})
+            _grant = self.endpoint_context.session_manager.get_grant(session_id)
+            if "claims" in _grant.authorization_request:
+                return _grant.authorization_request["claims"].get(usage, {})
 
         return {}
 
@@ -44,11 +44,10 @@ class ClaimsInterface:
         client_info = self.endpoint_context.cdb.get(client_id, {})
         return client_info.get("{}_claims".format(usage), {})
 
-    def get_claims(self, client_id: str, user_id: str, scopes: str, usage: str) -> dict:
+    def get_claims(self, session_id: str, scopes: str, usage: str) -> dict:
         """
 
-        :param client_id: Client identifier
-        :param user_id: User identifier
+        :param session_id: Session identifier
         :param scopes: Scopes
         :param usage: Where to use the claims. One of "userinfo"/"id_token"/"introspection"
         :return: Claims specification as a dictionary.
@@ -76,6 +75,8 @@ class ClaimsInterface:
         else:
             base_claims = {}
 
+        user_id, client_id, grant_id = unpack_session_key(session_id)
+
         # Can there be per client specification of which claims to use.
         if module and module.kwargs.get("enable_claims_per_client"):
             claims = self._get_client_claims(client_id, usage)
@@ -96,8 +97,7 @@ class ClaimsInterface:
             claims.update(_claims)
 
         # Bring in claims specification from the authorization request
-        request_claims = self.authorization_request_claims(user_id=user_id,
-                                                           client_id=client_id,
+        request_claims = self.authorization_request_claims(session_id=session_id,
                                                            usage=usage)
 
         # If the client want less then what's possible to get that's OK.
@@ -106,10 +106,10 @@ class ClaimsInterface:
 
         return claims
 
-    def get_claims_all_usage(self, client_id: str, user_id: str, scopes: str) -> dict:
+    def get_claims_all_usage(self, session_id: str, scopes: str) -> dict:
         _claims = {}
         for usage in ["userinfo", "introspection", "id_token", "token"]:
-            _claims.update(self.get_claims(client_id, user_id, scopes, usage))
+            _claims.update(self.get_claims(session_id, scopes, usage))
         return _claims
 
     def get_user_claims(self, user_id: str, claims_restriction: dict) -> dict:

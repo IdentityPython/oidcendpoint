@@ -185,26 +185,17 @@ class TestEndpoint(object):
         self.token_endpoint = endpoint_context.endpoint["token"]
         self.user_id = "diana"
 
-    def _create_session(self, auth_req, user_id="", sub_type="public", sector_identifier=''):
-        if not user_id:
-            user_id = self.user_id
-        client_id = auth_req['client_id']
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, user_id, client_id=client_id,
-                                            sub_type=sub_type,
-                                            sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req, user_id=''):
-        if not user_id:
-            user_id = self.user_id
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([user_id, client_id, grant.id], grant)
-        return session_key(user_id, client_id, grant.id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def _mint_code(self, grant, session_id):
         # Constructing an authorization code is now done
@@ -215,8 +206,7 @@ class TestEndpoint(object):
         )
 
     def _mint_access_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id,
-                                                              client_session_info=True)
+        _session_info = self.session_manager.get_session_info(session_id)
         return grant.mint_token(
             'access_token',
             value=self.session_manager.token_handler["access_token"](
@@ -225,15 +215,14 @@ class TestEndpoint(object):
                 aud=grant.resources,
                 user_claims=None,
                 scope=grant.scope,
-                sub=_session_info["client_session_info"]['sub']
+                sub=grant.sub
             ),
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=token_ref  # Means the token (tok) was used to mint this token
         )
 
     def test_to(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
+        session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant, session_id)
         access_token = self._mint_access_token(grant, session_id, code)

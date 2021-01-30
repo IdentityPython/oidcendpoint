@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from oidcmsg.message import OPTIONAL_MESSAGE
+from oidcmsg.message import OPTIONAL_LIST_OF_MESSAGES
 from oidcmsg.message import SINGLE_OPTIONAL_STRING
 from oidcmsg.message import SINGLE_REQUIRED_BOOLEAN
 from oidcmsg.message import SINGLE_REQUIRED_STRING
@@ -45,7 +45,7 @@ class SessionInfo(Message):
 class UserSessionInfo(SessionInfo):
     c_param = SessionInfo.c_param.copy()
     c_param.update({
-        "authentication_event": OPTIONAL_MESSAGE,
+        "user_id": SINGLE_REQUIRED_STRING,
     })
 
     def __init__(self, **kwargs):
@@ -56,8 +56,7 @@ class UserSessionInfo(SessionInfo):
 class ClientSessionInfo(SessionInfo):
     c_param = SessionInfo.c_param.copy()
     c_param.update({
-        "authorization_request": OPTIONAL_MESSAGE,
-        "sub": SINGLE_OPTIONAL_STRING
+        "client_id": SINGLE_REQUIRED_STRING
     })
 
     def __init__(self, **kwargs):

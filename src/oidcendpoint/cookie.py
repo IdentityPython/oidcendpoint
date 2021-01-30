@@ -591,4 +591,7 @@ def new_cookie(endpoint_context, cookie_name=None, typ="sso", **kwargs):
 
 
 def cookie_value(b64):
-    return json.loads(as_unicode(b64d(as_bytes(b64))))
+    try:
+        return json.loads(as_unicode(b64d(as_bytes(b64))))
+    except Exception:
+        return b64

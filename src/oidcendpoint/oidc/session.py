@@ -103,11 +103,10 @@ class Session(Endpoint):
         ctx, tag = split_ctx_and_tag(_msg)
         return as_unicode(encrypter.decrypt(as_bytes(ctx), iv=self.iv, tag=as_bytes(tag)))
 
-    def do_back_channel_logout(self, cinfo, sub, sid):
+    def do_back_channel_logout(self, cinfo, sid):
         """
 
         :param cinfo: Client information
-        :param sub: Subject identifier
         :param sid: The session ID
         :return: Tuple with logout URI and signed logout token
         """
@@ -126,7 +125,6 @@ class Session(Endpoint):
         enc_msg = self._encrypt_sid(sid)
 
         payload = {
-            "sub": sub,
             "sid": enc_msg,
             "events": {BACK_CHANNEL_LOGOUT_EVENT: {}}
         }
@@ -161,10 +159,9 @@ class Session(Endpoint):
         _rel_sid = []
         for _client_id in _session_info["user_session_info"]["subordinate"]:
             if "backchannel_logout_uri" in _cdb[_client_id]:
-                _sub = _mngr.get([_user_id, _client_id])["sub"]
                 _sid = session_key(_user_id, _client_id)
                 _rel_sid.append(_sid)
-                _spec = self.do_back_channel_logout(_cdb[_client_id], _sub, _sid)
+                _spec = self.do_back_channel_logout(_cdb[_client_id], _sid)
                 if _spec:
                     bc_logouts[_client_id] = _spec
             elif "frontchannel_logout_uri" in _cdb[_client_id]:
@@ -201,13 +198,12 @@ class Session(Endpoint):
     def logout_from_client(self, sid):
         _cdb = self.endpoint_context.cdb
         _session_information = self.endpoint_context.session_manager.get_session_info(
-            sid, client_session_info=True)
+            sid, grant=True)
         _client_id = _session_information["client_id"]
 
         res = {}
         if "backchannel_logout_uri" in _cdb[_client_id]:
-            _sub = _session_information["client_session_info"]["sub"]
-            _spec = self.do_back_channel_logout(_cdb[_client_id], _sub, sid)
+            _spec = self.do_back_channel_logout(_cdb[_client_id], sid)
             if _spec:
                 res["blu"] = {_client_id: _spec}
         elif "frontchannel_logout_uri" in _cdb[_client_id]:
@@ -254,7 +250,7 @@ class Session(Endpoint):
             logger.debug("Cookie info: {}".format(_cookie_info))
             try:
                 _session_info = _mngr.get_session_info(_cookie_info["sid"],
-                                                       client_session_info=True)
+                                                       grant=True)
             except KeyError:
                 raise ValueError("Can't find any corresponding session")
         else:
@@ -271,7 +267,7 @@ class Session(Endpoint):
             if _session_info["client_id"] not in _aud:
                 raise ValueError("Client ID doesn't match")
 
-            if _id_token["sub"] != _session_info["client_session_info"]["sub"]:
+            if _id_token["sub"] != _session_info["grant"].sub:
                 raise ValueError("Sub doesn't match")
         else:
             _aud = []

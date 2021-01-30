@@ -14,6 +14,7 @@ from oidcmsg.time_util import time_sans_frac
 from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import UnAuthorizedClient
@@ -156,6 +157,24 @@ class TestEndpoint:
             },
             "client_authn": verify_client,
             "template_dir": "template",
+            "authz": {
+                "class": AuthzHandling,
+                "kwargs": {
+                    "grant_config": {
+                        "usage_rules": {
+                            "authorization_code": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                                "max_usage": 1
+                            },
+                            "access_token": {},
+                            "refresh_token": {
+                                'supports_minting': ["access_token", "refresh_token"],
+                            }
+                        },
+                        "expires_in": 43200
+                    }
+                }
+            }
         }
         if jwt_token:
             conf["token_handler_args"]["token"] = {
@@ -183,26 +202,17 @@ class TestEndpoint:
         self.session_manager = endpoint_context.session_manager
         self.user_id = "diana"
 
-    def _create_session(self, auth_req, user_id="", sub_type="public", sector_identifier=''):
-        if not user_id:
-            user_id = self.user_id
-        client_id = auth_req['client_id']
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
         ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, user_id, client_id=client_id,
-                                            sub_type=sub_type,
-                                            sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req, user_id=''):
-        if not user_id:
-            user_id = self.user_id
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([user_id, client_id, grant.id], grant)
-        return session_key(user_id, client_id, grant.id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
     def _mint_code(self, grant, session_id):
         # Constructing an authorization code is now done
@@ -224,9 +234,11 @@ class TestEndpoint:
         )
 
     def _get_access_token(self, areq):
-        self._create_session(areq)
-        session_id = self._do_grant(areq)
-        grant = self.session_manager[session_id]
+        session_id = self._create_session(areq)
+        # Consent handling
+        grant = self.token_endpoint.endpoint_context.authz(session_id, areq)
+        self.session_manager[session_id] = grant
+        # grant = self.session_manager[session_id]
         code = self._mint_code(grant, session_id)
         return self._mint_access_token(grant, session_id, code)
 
@@ -303,12 +315,12 @@ class TestEndpoint:
         assert set(_payload.keys()) == {
             "active",
             "iss",
-            "scope",
             "token_type",
             "sub",
             "client_id",
             "exp",
             "iat",
+            "scope",
             "aud"
         }
         assert _payload["active"] is True
@@ -342,9 +354,12 @@ class TestEndpoint:
         assert _resp_args["scope"] == "openid"
 
     def test_code(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
-        grant = self.session_manager[session_id]
+        session_id = self._create_session(AUTH_REQ)
+
+        # Apply consent
+        grant = self.token_endpoint.endpoint_context.authz(session_id, AUTH_REQ)
+        self.session_manager[session_id] = grant
+
         code = self._mint_code(grant, session_id)
 
         _context = self.introspection_endpoint.endpoint_context
@@ -361,9 +376,11 @@ class TestEndpoint:
         assert _resp_args["active"] is False
 
     def test_introspection_claims(self):
-        self._create_session(AUTH_REQ)
-        session_id = self._do_grant(AUTH_REQ)
-        grant = self.session_manager[session_id]
+        session_id = self._create_session(AUTH_REQ)
+        # Apply consent
+        grant = self.token_endpoint.endpoint_context.authz(session_id, AUTH_REQ)
+        self.session_manager[session_id] = grant
+
         code = self._mint_code(grant, session_id)
         access_token = self._mint_access_token(grant, session_id, code)
 
@@ -371,8 +388,7 @@ class TestEndpoint:
 
         _c_interface = self.introspection_endpoint.endpoint_context.claims_interface
         grant.claims = {
-            "introspection": _c_interface.get_claims("client_1",
-                                                     self.user_id,
+            "introspection": _c_interface.get_claims(session_id,
                                                      AUTH_REQ["scope"],
                                                      "introspection")
         }

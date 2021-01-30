@@ -198,51 +198,6 @@ class TestEndpoint(object):
         self.token_endpoint = endpoint_context.endpoint["token"]
         self.user_id = "diana"
 
-    def _create_session(self, auth_req, user_id="", sub_type="public", sector_identifier=''):
-        if not user_id:
-            user_id = self.user_id
-        client_id = auth_req['client_id']
-        ae = create_authn_event(self.user_id)
-        self.session_manager.create_session(ae, auth_req, user_id, client_id=client_id,
-                                            sub_type=sub_type,
-                                            sector_identifier=sector_identifier)
-        return session_key(self.user_id, client_id)
-
-    def _do_grant(self, auth_req, user_id=''):
-        if not user_id:
-            user_id = self.user_id
-        client_id = auth_req['client_id']
-        # The user consent module produces a Grant instance
-        grant = Grant(scope=auth_req['scope'], resources=[client_id])
-
-        # the grant is assigned to a session (user_id, client_id)
-        self.session_manager.set([user_id, client_id, grant.id], grant)
-        return session_key(user_id, client_id, grant.id)
-
-    def _mint_code(self, grant, session_id):
-        # Constructing an authorization code is now done
-        return grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](session_id),
-            expires_at=time_sans_frac() + 300  # 5 minutes from now
-        )
-
-    def _mint_access_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id)
-        return grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_id,
-                client_id=_session_info["client_id"],
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=_session_info["client_session_info"]['sub']
-            ),
-            expires_at=time_sans_frac() + 900,  # 15 minutes from now
-            based_on=token_ref  # Means the token (tok) was used to mint this token
-        )
-
     def test_end_session_endpoint(self):
         # End session not allowed if no cookie and no id_token_hint is sent
         # (can't determine session)
@@ -419,7 +374,7 @@ class TestEndpoint(object):
         self._code_auth("1234567")
 
         res = self.session_endpoint.do_back_channel_logout(
-            self.session_endpoint.endpoint_context.cdb["client_1"], "username", 0
+            self.session_endpoint.endpoint_context.cdb["client_1"], 0
         )
         assert res is None
 
@@ -429,14 +384,13 @@ class TestEndpoint(object):
         _cdb = copy.copy(self.session_endpoint.endpoint_context.cdb["client_1"])
         _cdb["backchannel_logout_uri"] = "https://example.com/bc_logout"
         _cdb["client_id"] = "client_1"
-        res = self.session_endpoint.do_back_channel_logout(_cdb, "username", "_sid_")
+        res = self.session_endpoint.do_back_channel_logout(_cdb, "_sid_")
         assert isinstance(res, tuple)
         assert res[0] == "https://example.com/bc_logout"
         _jwt = self.session_endpoint.unpack_signed_jwt(res[1], "RS256")
         assert _jwt
         assert _jwt["iss"] == ISS
         assert _jwt["aud"] == ["client_1"]
-        assert _jwt["sub"] == "username"
         assert "sid" in _jwt
 
     def test_front_channel_logout(self):
