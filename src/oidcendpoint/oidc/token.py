@@ -2,6 +2,7 @@ import logging
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
+from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg import oidc
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import RefreshAccessTokenRequest
@@ -183,9 +184,11 @@ class Token(Endpoint):
         _resp = {
             "access_token": access_token.value,
             "token_type": "Bearer",
-            "expires_in": 900,
             "scope": _grant.scope
         }
+
+        if access_token.expires_at:
+            _resp["expires_in"] = access_token.expires_at - utc_time_sans_frac()
 
         _mints = token.usage_rules.get("supports_minting")
         if "refresh_token" in _mints:
