@@ -1,10 +1,11 @@
 import json
 import os
 
-import pytest
+from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
+import pytest
 
 from oidcendpoint import user_info
 from oidcendpoint.authn_event import create_authn_event
@@ -15,8 +16,6 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session import session_key
-from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -190,11 +189,11 @@ class TestEndpoint(object):
             expires_at=time_sans_frac() + 300  # 5 minutes from now
         )
 
-    def _mint_access_token(self, grant, session_id, token_ref=None):
+    def _mint_token(self, token_type, grant, session_id, token_ref=None):
         _session_info = self.session_manager.get_session_info(session_id, grant=True)
         return grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
+            token_type,
+            value=self.session_manager.token_handler[token_type](
                 session_id,
                 client_id=_session_info["client_id"],
                 aud=grant.resources,
@@ -239,7 +238,7 @@ class TestEndpoint(object):
         grant = self.session_manager[session_id]
 
         # Free standing access token, not based on an authorization code
-        access_token = self._mint_access_token(grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id)
         _req = self.endpoint.parse_request({}, auth="Bearer {}".format(access_token.value))
         assert set(_req.keys()) == {"client_id", "access_token"}
         assert _req["client_id"] == AUTH_REQ['client_id']
@@ -253,7 +252,7 @@ class TestEndpoint(object):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        access_token = self._mint_token("access_token", grant, session_id)
 
         _req = self.endpoint.parse_request(
             {}, auth="Bearer {}".format(access_token.value)
@@ -265,7 +264,7 @@ class TestEndpoint(object):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        access_token = self._mint_token("access_token", grant, session_id)
 
         # 2 things can make the request invalid.
         # 1) The token is not valid anymore or 2) The event is not valid.
@@ -279,27 +278,11 @@ class TestEndpoint(object):
         args = self.endpoint.process_request(_req)
         assert set(args["response_args"].keys()) == {"error", "error_description"}
 
-    # Offline access is presently not checked.
-    #
-    # def test_process_request_offline_access(self):
-    #     auth_req = AUTH_REQ.copy()
-    #     auth_req["scope"] = ["openid", "offline_access"]
-    #     self._create_session(auth_req)
-    #     grant = self._do_grant(auth_req)
-    #     code = self._mint_code(grant)
-    #     access_token = self._mint_access_token(grant, auth_req['client_id'], code)
-    #
-    #     _req = self.endpoint.parse_request(
-    #         {}, auth="Bearer {}".format(access_token.value)
-    #     )
-    #     args = self.endpoint.process_request(_req)
-    #     assert set(args["response_args"].keys()) =={'response_args', 'client_id'}
-
     def test_do_response(self):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        access_token = self._mint_token("access_token", grant, session_id)
 
         _req = self.endpoint.parse_request(
             {}, auth="Bearer {}".format(access_token.value)
@@ -315,7 +298,7 @@ class TestEndpoint(object):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
         code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        access_token = self._mint_token("access_token", grant, session_id)
 
         _req = self.endpoint.parse_request(
             {}, auth="Bearer {}".format(access_token.value)
@@ -329,12 +312,9 @@ class TestEndpoint(object):
         _auth_req = AUTH_REQ.copy()
         _auth_req["scope"] = ["openid", "research_and_scholarship"]
 
-        session_id =  self._create_session(_auth_req)
+        session_id = self._create_session(_auth_req)
         grant = self.session_manager[session_id]
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
-
-        session_info = self.session_manager.get_session_info(session_id)
+        access_token = self._mint_token("access_token", grant, session_id)
 
         self.endpoint.kwargs["add_claims_by_scope"] = True
         self.endpoint.endpoint_context.claims_interface.add_claims_by_scope = True
@@ -350,3 +330,36 @@ class TestEndpoint(object):
         assert set(args["response_args"].keys()) == {'eduperson_scoped_affiliation', 'given_name',
                                                      'email_verified', 'email', 'family_name',
                                                      'name', "sub"}
+
+    def test_wrong_type_of_token(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req["scope"] = ["openid", "research_and_scholarship"]
+
+        session_id = self._create_session(_auth_req)
+        grant = self.session_manager[session_id]
+        refresh_token = self._mint_token("refresh_token", grant, session_id)
+
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(refresh_token.value)
+        )
+        args = self.endpoint.process_request(_req)
+
+        assert isinstance(args, ResponseMessage)
+        assert args['error_description'] == "Wrong type of token"
+
+    def test_invalid_token(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req["scope"] = ["openid", "research_and_scholarship"]
+
+        session_id = self._create_session(_auth_req)
+        grant = self.session_manager[session_id]
+        access_token = self._mint_token("access_token", grant, session_id)
+
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(access_token.value)
+        )
+        access_token.expires_at = time_sans_frac() - 10
+        args = self.endpoint.process_request(_req)
+
+        assert isinstance(args, ResponseMessage)
+        assert args['error_description'] == "Invalid Token"

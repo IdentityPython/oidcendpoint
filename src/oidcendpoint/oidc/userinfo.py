@@ -11,6 +11,7 @@ from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.session.token import AccessToken
 from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
@@ -104,6 +105,12 @@ class UserInfo(Endpoint):
         _grant = _session_info["grant"]
         token = _mngr.find_token(_session_info["session_id"], request["access_token"])
         # should be an access token
+        if not isinstance(token, AccessToken):
+            return self.error_cls(
+                error="invalid_token", error_description="Wrong type of token"
+            )
+
+        # And it should be valid
         if token.is_active() is False:
             return self.error_cls(
                 error="invalid_token", error_description="Invalid Token"

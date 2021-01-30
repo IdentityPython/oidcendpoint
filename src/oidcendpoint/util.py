@@ -2,9 +2,9 @@ import importlib
 import json
 import logging
 from urllib.parse import parse_qs
+from urllib.parse import urlparse
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
-from urllib.parse import urlparse
 
 from oidcendpoint.exception import OidcEndpointError
 
