@@ -1,11 +1,11 @@
 import json
 import os
 
+import pytest
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
-import pytest
 
 from oidcendpoint import user_info
 from oidcendpoint.authn_event import create_authn_event
