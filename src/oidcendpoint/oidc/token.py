@@ -142,6 +142,9 @@ class Token(Endpoint):
 
         code.register_usage()
 
+        # since the grant content has changed
+        _mngr[_session_info["session_id"]] = grant
+
         if "openid" in _authn_req["scope"]:
             try:
                 _idtoken = _context.idtoken.make(_session_info["session_id"])
