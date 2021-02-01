@@ -22,7 +22,6 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import session_key
-from oidcendpoint.session.grant import Grant
 from oidcendpoint.session.grant import get_usage_rules
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
@@ -206,15 +205,17 @@ class TestEndpoint(object):
                                                    sub_type=sub_type)
 
     def _mint_code(self, grant, client_id):
-        sid = session_key(self.user_id, client_id, grant.id)
+        session_id = session_key(self.user_id, client_id, grant.id)
         usage_rules = get_usage_rules("authorization_code", self.endpoint.endpoint_context,
                                       grant, client_id)
         _exp_in = usage_rules.get("expires_in")
 
         # Constructing an authorization code is now done
         _code = grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](sid),
+            session_id=session_id,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type='authorization_code',
+            token_handler=self.session_manager.token_handler["code"],
             usage_rules=usage_rules
         )
 
@@ -232,15 +233,10 @@ class TestEndpoint(object):
         _exp_in = usage_rules.get("expires_in", 0)
 
         _token = grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_id,
-                client_id=_session_info["client_id"],
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=_session_info["client_session_info"]['sub']
-            ),
+            _session_info,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager.token_handler["access_token"],
             based_on=token_ref,  # Means the token (tok) was used to mint this token
             usage_rules=usage_rules
         )
@@ -405,7 +401,7 @@ class TestEndpoint(object):
             "token_type",
             "expires_in",
             "refresh_token",
-            "id_token",
+            # "id_token",  Missing because the refresh_token used does support minting an ID Token.
             "scope"
         }
         msg = self.endpoint.do_response(request=_req, **_resp)

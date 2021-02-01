@@ -26,6 +26,7 @@ from oidcendpoint.session.manager import SessionManager
 from oidcendpoint.session.manager import public_id
 from oidcendpoint.token import DefaultToken
 from oidcendpoint.token.handler import TokenHandler
+from oidcendpoint.token.handler import factory
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 
 
@@ -33,25 +34,49 @@ class TestSession():
     @pytest.fixture(autouse=True)
     def setup_token_handler(self):
         password = "The longer the better. Is this close to enough ?"
-        grant_expires_in = 600
-        token_expires_in = 900
-        refresh_token_expires_in = 86400
+        conf = {
+            "issuer": "https://example.com/",
+            "password": "mycket hemligt",
+            "token_expires_in": 600,
+            "grant_expires_in": 300,
+            "refresh_token_expires_in": 86400,
+            "verify_ssl": False,
+            "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+            "jwks_uri": "https://example.com/jwks.json",
+            "token_handler_args": {
+                "code": {
+                    "kwargs": {
+                        "lifetime": 600,
+                        "password": password
+                    }},
+                "token": {
+                    "kwargs": {
+                        "lifetime": 900,
+                        "password": password
+                    }
+                },
+                "refresh": {
+                    "kwargs": {
+                        "lifetime": 86400,
+                        "password": password
+                    }
+                }
+            },
+            "endpoint": {
+                "authorization_endpoint": {
+                    "path": "{}/authorization",
+                    "class": Authorization,
+                    "kwargs": {},
+                },
+                "token_endpoint": {"path": "{}/token", "class": Token, "kwargs": {}},
+            },
+            "template_dir": "template",
+        }
 
-        code_handler = DefaultToken(password, typ="A", lifetime=grant_expires_in)
-        access_token_handler = DefaultToken(
-            password, typ="T", lifetime=token_expires_in
-        )
-        refresh_token_handler = DefaultToken(
-            password, typ="R", lifetime=refresh_token_expires_in
-        )
+        self.endpoint_context = EndpointContext(conf)
+        token_handler = factory(self.endpoint_context, **conf["token_handler_args"])
 
-        handler = TokenHandler(
-            code_handler=code_handler,
-            access_token_handler=access_token_handler,
-            refresh_token_handler=refresh_token_handler,
-        )
-
-        self.session_manager = SessionManager(handler=handler)
+        self.session_manager = SessionManager(handler=token_handler)
 
     def auth(self):
         # Start with an authentication request
@@ -74,30 +99,32 @@ class TestSession():
             authn_time=time_sans_frac(),
         )
 
-        user_info = UserSessionInfo(authentication_event=authn_event)
+        user_info = UserSessionInfo(user_id=user_id)
         self.session_manager.set([user_id], user_info)
 
         # Now for client session information
-
-        client_info = ClientSessionInfo(
-            authorization_request=AUTH_REQ,
-            sub=public_id(user_id, self.session_manager.salt)
-        )
-        self.session_manager.set([user_id, AUTH_REQ['client_id']], client_info)
+        client_id = AUTH_REQ['client_id']
+        client_info = ClientSessionInfo(client_id=client_id)
+        self.session_manager.set([user_id, client_id], client_info)
 
         # The user consent module produces a Grant instance
 
-        grant = Grant(scope=AUTH_REQ['scope'], resources=[AUTH_REQ['client_id']])
+        grant = Grant(scope=AUTH_REQ['scope'],
+                      resources=[client_id],
+                      authorization_request=AUTH_REQ,
+                      authentication_event=authn_event)
 
         # the grant is assigned to a session (user_id, client_id)
-
-        self.session_manager.set([user_id, AUTH_REQ['client_id'], grant.id], grant)
+        session_id = session_key(user_id, client_id, grant.id)
+        self.session_manager.set([user_id, client_id, grant.id], grant)
 
         # Constructing an authorization code is now done by
 
         code = grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](user_id),
+            session_id=session_id,
+            endpoint_context=None,
+            token_type='authorization_code',
+            token_handler= self.session_manager.token_handler["code"],
             expires_at=time_sans_frac() + 300  # 5 minutes from now
         )
 
@@ -119,15 +146,13 @@ class TestSession():
         )
 
         # parse the token
-        user_id = self.session_manager.token_handler.sid(TOKEN_REQ['code'])
+        session_id = self.session_manager.token_handler.sid(TOKEN_REQ['code'])
 
         # Now given I have the client_id from the request and the user_id from the
         # token I can easily find the grant
 
         # client_info = self.session_manager.get([user_id, TOKEN_REQ['client_id']])
-        session_id = session_key(user_id, TOKEN_REQ['client_id'], _grant_id)
-        tok = self.session_manager.find_token(session_id,
-                                              TOKEN_REQ['code'])
+        tok = self.session_manager.find_token(session_id, TOKEN_REQ['code'])
 
         # Verify that it's of the correct type and can be used
         assert tok.type == "authorization_code"
@@ -140,8 +165,10 @@ class TestSession():
         grant = self.session_manager[session_id]
 
         access_token = grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](user_id),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager.token_handler["access_token"],
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=tok  # Means the token (tok) was used to mint this token
         )
@@ -149,8 +176,10 @@ class TestSession():
         assert tok.supports_minting("refresh_token")
 
         refresh_token = grant.mint_token(
-            'refresh_token',
-            value=self.session_manager.token_handler["refresh_token"](user_id),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type='refresh_token',
+            token_handler=self.session_manager.token_handler["refresh_token"],
             based_on=tok
         )
 
@@ -168,15 +197,16 @@ class TestSession():
             scope=["openid", "mail", "offline_access"]
         )
 
-        session_id = session_key(user_id, REFRESH_TOKEN_REQ['client_id'], _grant_id)
         reftok = self.session_manager.find_token(session_id,
                                                  REFRESH_TOKEN_REQ['refresh_token'])
 
         assert reftok.supports_minting("access_token")
 
         access_token_2 = grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](user_id),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager.token_handler["access_token"],
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=reftok  # Means the token (tok) was used to mint this token
         )
@@ -324,41 +354,42 @@ class TestSessionJWTToken():
 
         # User info is stored in the Session DB
 
-        user_info = UserSessionInfo()
+        user_info = UserSessionInfo(user_id=user_id)
         self.session_manager.set([user_id], user_info)
 
         # Now for client session information
-        salt = "natriumklorid"
         authn_event = create_authn_event(
             user_id,
             authn_info=INTERNETPROTOCOLPASSWORD,
             authn_time=time_sans_frac(),
         )
 
-        client_info = ClientSessionInfo(
-            authorization_request=AUTH_REQ,
-            authentication_event=authn_event,
-            sub=public_id(user_id, salt)
-        )
-        self.session_manager.set([user_id, AUTH_REQ['client_id']], client_info)
+        client_id = AUTH_REQ["client_id"]
+        client_info = ClientSessionInfo(client_id=client_id)
+        self.session_manager.set([user_id, client_id], client_info)
 
         # The user consent module produces a Grant instance
 
-        grant = Grant(scope=AUTH_REQ['scope'], resources=[AUTH_REQ['client_id']])
+        grant = Grant(
+            scope=AUTH_REQ['scope'],
+            resources=[client_id],
+            authentication_event=authn_event,
+            authorization_request=AUTH_REQ
+        )
 
         # the grant is assigned to a session (user_id, client_id)
-
-        self.session_manager.set([user_id, AUTH_REQ['client_id'], grant.id], grant)
+        session_id = session_key(user_id, client_id, grant.id)
+        self.session_manager.set([user_id, client_id, grant.id], grant)
 
         # Constructing an authorization code is now done by
 
         code = grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](
-                session_key(user_id, AUTH_REQ['client_id'], grant.id)),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type='authorization_code',
+            token_handler=self.session_manager.token_handler["code"],
             expires_at=time_sans_frac() + 300  # 5 minutes from now
         )
-
         return code
 
     def test_code_flow(self):
@@ -400,19 +431,11 @@ class TestSessionJWTToken():
 
         grant = self.session_manager[session_id]
 
-        user_claims = self.endpoint_context.userinfo(user_id, client_id=TOKEN_REQ["client_id"],
-                                                     user_info_claims=grant.claims)
-
         access_token = grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_id,
-                client_id=TOKEN_REQ['client_id'],
-                aud=grant.resources,
-                user_claims=user_claims,
-                scope=grant.scope,
-                sub=client_info['sub']
-            ),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager.token_handler["access_token"],
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=tok  # Means the token (tok) was used to mint this token
         )
@@ -421,8 +444,10 @@ class TestSessionJWTToken():
         # assert tok.supports_minting("refresh_token")
 
         refresh_token = grant.mint_token(
-            'refresh_token',
-            value=self.session_manager.token_handler["refresh_token"](session_id),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type='refresh_token',
+            token_handler=self.session_manager.token_handler["refresh_token"],
             based_on=tok
         )
 
@@ -451,14 +476,10 @@ class TestSessionJWTToken():
                                                      user_info_claims=grant.claims)
 
         access_token_2 = grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_id,
-                sub=client_info['sub'],
-                client_id=TOKEN_REQ['client_id'],
-                aud=grant.resources,
-                user_claims=user_claims
-            ),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager.token_handler["access_token"],
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=reftok  # Means the refresh token (reftok) was used to mint this token
         )

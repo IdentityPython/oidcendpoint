@@ -3,6 +3,9 @@ from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.authn_event import AuthnEvent
+from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.oidc.authorization import Authorization
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import MintingNotAllowed
 from oidcendpoint.session import session_key
 from oidcendpoint.session.grant import Grant
@@ -21,18 +24,30 @@ AUTH_REQ = AuthorizationRequest(
     response_type="code",
 )
 
+MAP = {
+    "authorization_code": "code",
+    "access_token": "access_token",
+    "refresh_token": "refresh_token"
+}
 
-class DummyEndpointContext():
-    def __init__(self):
-        self.keyjar = None
-        self.issuer = "https://exampel.com"
-        self.cdb = {}
+KEYDEFS = [
+    {"type": "RSA", "key": "", "use": ["sig"]},
+    {"type": "EC", "crv": "P-256", "use": ["sig"]},
+]
 
 
 class TestSessionManager:
     @pytest.fixture(autouse=True)
     def create_session_manager(self):
         conf = {
+            "issuer": "https://example.com/",
+            "password": "mycket hemligt",
+            "token_expires_in": 600,
+            "grant_expires_in": 300,
+            "refresh_token_expires_in": 86400,
+            "verify_ssl": False,
+            "keys": {"key_defs": KEYDEFS, "uri_path": "static/jwks.json"},
+            "jwks_uri": "https://example.com/jwks.json",
             "token_handler_args": {
                 "jwks_def": {
                     "private_path": "private/token_jwks.json",
@@ -58,10 +73,30 @@ class TestSessionManager:
                         "aud": ["https://example.org/appl"],
                     }
                 }
-            }
+            },
+            "endpoint": {
+                "authorization_endpoint": {
+                    "path": "{}/authorization",
+                    "class": Authorization,
+                    "kwargs": {},
+                },
+                "token_endpoint": {"path": "{}/token", "class": Token, "kwargs": {}},
+            },
+            # "authentication": {
+            #     "anon": {
+            #         "acr": INTERNETPROTOCOLPASSWORD,
+            #         "class": "oidcendpoint.user_authn.user.NoAuthn",
+            #         "kwargs": {"user": "diana"},
+            #     }
+            # },
+            # "userinfo": {"class": "oidcendpoint.user_info.UserInfo", "kwargs": {"db": USERS}, },
+            # "client_authn": verify_client,
+            "template_dir": "template",
+            # "id_token": {"class": IDToken, "kwargs": {"foo": "bar"}},
         }
 
-        token_handler = factory(DummyEndpointContext(), **conf["token_handler_args"])
+        self.endpoint_context = EndpointContext(conf)
+        token_handler = factory(self.endpoint_context, **conf["token_handler_args"])
 
         self.session_manager = SessionManager(handler=token_handler)
         self.authn_event = AuthnEvent(uid="uid",
@@ -145,12 +180,23 @@ class TestSessionManager:
         assert grant_1.authorization_request != grant_3.authorization_request
         assert grant_3.authorization_request != grant_2.authorization_request
 
+    def _mint_token(self, type, grant, session_id, based_on=None):
+        # Constructing an authorization code is now done
+        return grant.mint_token(
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type=type,
+            token_handler=self.session_manager.token_handler.handler[MAP[type]],
+            expires_at=time_sans_frac() + 300,  # 5 minutes from now
+            based_on=based_on
+        )
+
     def test_grant(self):
         grant = Grant()
         assert grant.issued_token == []
         assert grant.is_active() is True
 
-        code = grant.mint_token('authorization_code', '1234567890')
+        code = self._mint_token('authorization_code', grant, "session_id")
         assert isinstance(code, AuthorizationCode)
         assert code.is_active()
         assert len(grant.issued_token) == 1
@@ -161,18 +207,18 @@ class TestSessionManager:
         assert grant.issued_token == []
         assert grant.is_active() is True
 
-        code = grant.mint_token('authorization_code', value='1234567890')
+        code = self._mint_token('authorization_code', grant, "session_id")
         assert isinstance(code, AuthorizationCode)
         assert code.is_active()
         assert len(grant.issued_token) == 1
 
         assert code.usage_rules["supports_minting"] == ['access_token', 'refresh_token']
-        access_token = grant.mint_token('access_token', 'give me access', based_on=code)
+        access_token = self._mint_token('access_token', grant, "session_id", code)
         assert isinstance(access_token, AccessToken)
         assert access_token.is_active()
         assert len(grant.issued_token) == 2
 
-        refresh_token = grant.mint_token('refresh_token', 'use me to refresh', based_on=code)
+        refresh_token = self._mint_token('refresh_token', grant, "session_id", code)
         assert isinstance(refresh_token, RefreshToken)
         assert refresh_token.is_active()
         assert len(grant.issued_token) == 3
@@ -181,7 +227,7 @@ class TestSessionManager:
         assert code.max_usage_reached() is True
 
         with pytest.raises(MintingNotAllowed):
-            grant.mint_token("access_token", 'xxxxxxx', based_on=code)
+            self._mint_token('access_token', grant, "session_id", code)
 
         grant.revoke_token(based_on=code.value)
 
@@ -214,8 +260,8 @@ class TestSessionManager:
         grant = self.session_manager.add_grant(user_id="diana",
                                                client_id="client_1")
 
-        code = grant.mint_token("authorization_code", value="ABCD")
-        access_token = grant.mint_token("access_token", value="007", based_on=code)
+        code = self._mint_token('authorization_code', grant, "session_id")
+        access_token = self._mint_token('access_token', grant, "session_id", code)
 
         _session_key = session_key('diana', 'client_1', grant.id)
         _token = self.session_manager.find_token(_session_key, access_token.value)
@@ -273,13 +319,13 @@ class TestSessionManager:
 
     def test_get_session_info_by_token(self):
         _session_id = self.session_manager.create_session(authn_event=self.authn_event,
-                                            auth_req=AUTH_REQ,
-                                            user_id='diana',
-                                            client_id="client_1")
+                                                          auth_req=AUTH_REQ,
+                                                          user_id='diana',
+                                                          client_id="client_1")
 
         grant = self.session_manager.get_grant(_session_id)
         cval = self.session_manager.token_handler.handler["code"](_session_id)
-        code = grant.mint_token("authorization_code", value=cval)
+        code = self._mint_token('authorization_code', grant, _session_id)
         _session_info = self.session_manager.get_session_info_by_token(code.value)
 
         assert set(_session_info.keys()) == {'client_id',

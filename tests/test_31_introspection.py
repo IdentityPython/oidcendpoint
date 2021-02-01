@@ -21,8 +21,6 @@ from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.oauth2.introspection import Introspection
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session import session_key
-from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -83,6 +81,12 @@ TOKEN_REQ = AccessTokenRequest(
 TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+MAP = {
+    "authorization_code": "code",
+    "access_token": "access_token",
+    "refresh_token": "refresh_token"
+}
 
 
 def full_path(local_file):
@@ -214,23 +218,16 @@ class TestEndpoint:
                                                    client_id=client_id,
                                                    sub_type=sub_type)
 
-    def _mint_code(self, grant, session_id):
+    def _mint_token(self, type, grant, session_id, based_on=None, **kwargs):
         # Constructing an authorization code is now done
-        c_handler = self.session_manager.token_handler["code"]
         return grant.mint_token(
-            'authorization_code',
-            value=c_handler(session_id),
-            expires_at=time_sans_frac() + c_handler.lifetime
-        )
-
-    def _mint_access_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id)
-        at_handler = self.session_manager.token_handler["access_token"]
-        return grant.mint_token(
-            'access_token',
-            value=at_handler(session_id),
-            expires_at=time_sans_frac() + at_handler.lifetime,
-            based_on=token_ref  # Means the token (tok) was used to mint this token
+            session_id=session_id,
+            endpoint_context=self.token_endpoint.endpoint_context,
+            token_type=type,
+            token_handler=self.session_manager.token_handler.handler[MAP[type]],
+            expires_at=time_sans_frac() + 300,  # 5 minutes from now
+            based_on=based_on,
+            **kwargs
         )
 
     def _get_access_token(self, areq):
@@ -239,8 +236,8 @@ class TestEndpoint:
         grant = self.token_endpoint.endpoint_context.authz(session_id, areq)
         self.session_manager[session_id] = grant
         # grant = self.session_manager[session_id]
-        code = self._mint_code(grant, session_id)
-        return self._mint_access_token(grant, session_id, code)
+        code = self._mint_token("authorization_code", grant, session_id)
+        return self._mint_token("access_token", grant, session_id, code)
 
     def test_parse_no_authn(self):
         access_token = self._get_access_token(AUTH_REQ)
@@ -360,7 +357,7 @@ class TestEndpoint:
         grant = self.token_endpoint.endpoint_context.authz(session_id, AUTH_REQ)
         self.session_manager[session_id] = grant
 
-        code = self._mint_code(grant, session_id)
+        code = self._mint_token("authorization_code", grant, session_id)
 
         _context = self.introspection_endpoint.endpoint_context
 
@@ -381,8 +378,8 @@ class TestEndpoint:
         grant = self.token_endpoint.endpoint_context.authz(session_id, AUTH_REQ)
         self.session_manager[session_id] = grant
 
-        code = self._mint_code(grant, session_id)
-        access_token = self._mint_access_token(grant, session_id, code)
+        code = self._mint_token("authorization_code", grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         self.introspection_endpoint.kwargs["enable_claims_per_client"] = True
 

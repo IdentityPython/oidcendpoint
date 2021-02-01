@@ -45,20 +45,15 @@ class Token(Endpoint):
 
     def _mint_token(self, token_type, grant, session_id, client_id, subject, based_on):
         _mngr = self.endpoint_context.session_manager
-        usage_rules = get_usage_rules("authorization_code", self.endpoint_context,
+        usage_rules = get_usage_rules(token_type, self.endpoint_context,
                                       grant, client_id)
         _exp_in = usage_rules.get("expires_in")
 
         token = grant.mint_token(
-            token_type,
-            value=_mngr.token_handler["access_token"](
-                session_id,
-                client_id=client_id,
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=subject
-            ),
+            session_id,
+            endpoint_context=self.endpoint_context,
+            token_type=token_type,
+            token_handler=_mngr.token_handler["access_token"],
             based_on=based_on,
             usage_rules=usage_rules
         )

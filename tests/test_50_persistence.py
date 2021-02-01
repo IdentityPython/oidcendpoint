@@ -256,54 +256,36 @@ class TestEndpoint(object):
                                                           client_id=client_id,
                                                           sub_type=sub_type)
 
-    def _mint_code(self, grant, client_id, index=1):
-        sid = session_key(self.user_id, client_id, grant.id)
-        usage_rules = get_usage_rules("authorization_code",
-                                      self.endpoint[index].endpoint_context,
-                                      grant, client_id)
-
-        _exp_in = usage_rules.get("expires_in", 0)
+    def _mint_code(self, grant, session_id, index=1):
         # Constructing an authorization code is now done
         _code = grant.mint_token(
-            'authorization_code',
-            value=self.session_manager[index].token_handler["code"](sid),
-            usage_rules=usage_rules
+            session_id,
+            endpoint_context=self.endpoint[index].endpoint_context,
+            token_type='authorization_code',
+            token_handler=self.session_manager[index].token_handler["code"]
         )
 
-        if _exp_in:
-            if isinstance(_exp_in, str):
-                _exp_in = int(_exp_in)
-            if _exp_in:
-                _code.expires_at = utc_time_sans_frac() + _exp_in
+        # if _exp_in:
+        #     if isinstance(_exp_in, str):
+        #         _exp_in = int(_exp_in)
+        #     if _exp_in:
+        #         _code.expires_at = utc_time_sans_frac() + _exp_in
 
-        self.session_manager[index].set([self.user_id, client_id, grant.id], grant)
+        self.session_manager[index].set(unpack_session_key(session_id), grant)
 
         return _code
 
     def _mint_access_token(self, grant, session_id, token_ref=None, index=1):
         _session_info = self.session_manager[index].get_session_info(
             session_id, client_session_info=True)
-        usage_rules = get_usage_rules("access_token", self.endpoint[index].endpoint_context,
-                                      grant, _session_info["client_id"])
-        _exp_in = usage_rules.get("expires_in", 0)
 
         _token = grant.mint_token(
-            'access_token',
-            value=self.session_manager[index].token_handler["access_token"](
-                session_id,
-                client_id=_session_info["client_id"],
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=grant.sub
-            ),
-            based_on=token_ref,  # Means the token (tok) was used to mint this token
-            usage_rules=usage_rules
+            session_id=session_id,
+            endpoint_context=self.endpoint[index].endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager[index].token_handler["access_token"],
+            based_on=token_ref  # Means the token (tok) was used to mint this token
         )
-        if isinstance(_exp_in, str):
-            _exp_in = int(_exp_in)
-        if _exp_in:
-            _token.expires_at = utc_time_sans_frac() + _exp_in
 
         self.session_manager[index].set([self.user_id, _session_info["client_id"], grant.id],
                                         grant)

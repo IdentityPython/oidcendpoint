@@ -10,11 +10,14 @@ from oidcmsg.oauth2 import AuthorizationRequest
 
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.session import MintingNotAllowed
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.token import SHORT_TYPE_NAME
 from oidcendpoint.session.token import AccessToken
 from oidcendpoint.session.token import AuthorizationCode
 from oidcendpoint.session.token import Item
 from oidcendpoint.session.token import RefreshToken
 from oidcendpoint.session.token import Token
+from oidcendpoint.token import Token as TToken
 from oidcendpoint.util import importer
 
 
@@ -69,7 +72,7 @@ class Grant(Item):
                  expires_at: int = 0,
                  revoked: bool = False,
                  token_map: Optional[dict] = None,
-                 sub: Optional[str]  = ""):
+                 sub: Optional[str] = ""):
         Item.__init__(self, usage_rules=usage_rules, issued_at=issued_at,
                       expires_in=expires_in, expires_at=expires_at, revoked=revoked)
         self.scope = scope or []
@@ -142,10 +145,44 @@ class Grant(Item):
 
         return self
 
-    def mint_token(self, token_type: str, value: str,
+    def payload_arguments(self, session_id, endpoint_context):
+        """
+
+        :return: dictionary containing information to place in a token value
+        """
+        payload = {
+            "scope": self.scope,
+            "aud": self.resources
+        }
+
+        _claims_restriction = self.claims.get("token")
+        if _claims_restriction:
+            user_id, _, _ = unpack_session_key(session_id)
+            user_info = endpoint_context.claims_interface.get_user_claims(
+                user_id, _claims_restriction)
+            payload.update(user_info)
+
+        return payload
+
+    def mint_token(self,
+                   session_id: str,
+                   endpoint_context: object,
+                   token_type: str,
+                   token_handler: TToken,
                    based_on: Optional[Token] = None,
                    usage_rules: Optional[dict] = None,
                    **kwargs) -> Optional[Token]:
+        """
+
+        :param session_id:
+        :param endpoint_context:
+        :param token_type:
+        :param token_handler:
+        :param based_on:
+        :param usage_rules:
+        :param kwargs:
+        :return:
+        """
         if self.is_active() is False:
             return None
 
@@ -163,10 +200,16 @@ class Grant(Item):
         token_class = self.token_map.get(token_type)
         if token_class:
             item = token_class(type=token_type,
-                               value=value,
                                based_on=_base_on_ref,
                                usage_rules=usage_rules,
                                **kwargs)
+            if token_handler is None:
+                token_handler = endpoint_context.session_manager.token_handler.handler[
+                    GRANT_TYPE_MAP[token_type]]
+
+            item.value = token_handler(session_id=session_id,
+                                       **self.payload_arguments(session_id,
+                                                                endpoint_context))
         else:
             raise ValueError("Can not mint that kind of token")
 

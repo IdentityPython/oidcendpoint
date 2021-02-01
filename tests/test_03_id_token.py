@@ -17,7 +17,6 @@ from oidcendpoint.id_token import get_sign_and_encrypt_algorithms
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import Token
-from oidcendpoint.session import session_key
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -132,26 +131,22 @@ class TestEndpoint(object):
                                                    client_id=client_id,
                                                    sub_type=sub_type)
 
-    def _mint_code(self, grant):
+    def _mint_code(self, grant, session_id):
         # Constructing an authorization code is now done
         return grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](self.user_id),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type="authorization_code",
+            token_handler=self.session_manager.token_handler["code"],
             expires_at=time_sans_frac() + 300  # 5 minutes from now
         )
 
-    def _mint_access_token(self, grant, client_id, token_ref):
-        _csi = self.session_manager.get([self.user_id, client_id])
+    def _mint_access_token(self, grant, session_id, token_ref):
         return grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_key(self.user_id, client_id, grant.id),
-                client_id=client_id,
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=grant.sub
-            ),
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type="access_token",
+            token_handler=self.session_manager.token_handler["access_token"],
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=token_ref  # Means the token (tok) was used to mint this token
         )
@@ -165,7 +160,7 @@ class TestEndpoint(object):
         session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
-        code = self._mint_code(grant)
+        code = self._mint_code(grant, session_id)
         payload = self.endpoint_context.idtoken.payload(
             session_id, AREQ["client_id"], code=code.value
         )
@@ -175,8 +170,8 @@ class TestEndpoint(object):
         session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, AREQ['client_id'], code)
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_access_token(grant, session_id, code)
 
         payload = self.endpoint_context.idtoken.payload(
             session_id, AREQ["client_id"], access_token=access_token.value
@@ -187,8 +182,8 @@ class TestEndpoint(object):
         session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
 
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, AREQ['client_id'], code)
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_access_token(grant, session_id, code)
 
         payload = self.endpoint_context.idtoken.payload(
             session_id, AREQ["client_id"], access_token=access_token.value, code=code.value
@@ -207,8 +202,8 @@ class TestEndpoint(object):
         session_id = self._create_session(AREQ)
         grant = self.session_manager[session_id]
         grant.claims = {"id_token": {"given_name": None}}
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, AREQ['client_id'], code)
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_access_token(grant, session_id, code)
 
         payload = self.endpoint_context.idtoken.payload(
             session_id, AREQ["client_id"],

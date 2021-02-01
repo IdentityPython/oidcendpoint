@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import logging
+from typing import Optional
 
 from cryptography.fernet import Fernet
 from cryptojwt.utils import as_bytes
@@ -53,11 +54,14 @@ class Token(object):
         self.lifetime = lifetime
         self.kwargs = kwargs
 
-    def __call__(self, sid, **kwargs):
+    def __call__(self,
+                 session_id: Optional[str] = '',
+                 ttype: Optional[str] = '',
+                 **payload) -> str:
         """
         Return a token.
 
-        :param sid: Session id
+        :param payload: Information to place in the token if possible.
         :return:
         """
         raise NotImplementedError()
@@ -98,13 +102,14 @@ class DefaultToken(Token):
         self.crypt = Crypt(password)
         self.token_type = token_type
 
-    def __call__(self, sid="", ttype="", **kwargs):
+    def __call__(self,
+                 session_id: Optional[str] = '',
+                 ttype: Optional[str] = '',
+                 **payload) -> str:
         """
         Return a token.
 
-        :param ttype: Type of token
-        :param prev: Previous token, if there is one to go from
-        :param sid: Session id
+        :param payload: Token information
         :return:
         """
         if not ttype and self.type:
@@ -123,7 +128,7 @@ class DefaultToken(Token):
             rnd = rndstr(32)  # Ultimate length multiple of 16
 
         return base64.b64encode(
-            self.crypt.encrypt(lv_pack(rnd, ttype, sid, exp).encode())
+            self.crypt.encrypt(lv_pack(rnd, ttype, session_id, exp).encode())
         ).decode("utf-8")
 
     def key(self, user="", areq=None):

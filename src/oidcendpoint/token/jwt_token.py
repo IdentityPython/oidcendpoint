@@ -42,26 +42,25 @@ class JWTToken(Token):
         self.def_aud = aud or []
         self.alg = alg
 
-    def __call__(self, session_id: str, **kwargs):
+    def __call__(self,
+                 session_id: Optional[str] = '',
+                 ttype: Optional[str] = '',
+                 **payload) -> str:
         """
         Return a token.
 
-        :param endpoint_context:
         :param session_id: Session id
+        :param subject:
+        :param grant:
+        :param kwargs: KeyWord arguments
         :return: Signed JSON Web Token
         """
+        if not ttype and self.type:
+            ttype = self.type
+        else:
+            ttype = "A"
 
-        session_info = self.endpoint_context.session_manager.get_session_info(
-            session_id, grant=True)
-        grant = session_info["grant"]
-        sub = grant.sub
-        payload = {"sid": session_id, "ttype": self.type, "sub": sub}
-
-        _claims_restriction = grant.claims.get("token")
-        if _claims_restriction:
-            user_info = self.endpoint_context.claims_interface.get_user_claims(
-                session_info["user_id"], _claims_restriction)
-            payload.update(user_info)
+        payload.update({"sid": session_id, "ttype": ttype})
 
         # payload.update(kwargs)
         signer = JWT(
@@ -71,14 +70,7 @@ class JWTToken(Token):
             sign_alg=self.alg,
         )
 
-        _aud = kwargs.get('aud')
-        if _aud is None:
-            _aud = grant.resources
-        else:
-            _aud = _aud if isinstance(_aud, list) else [_aud]
-            _aud.extend(grant.resources)
-
-        return signer.pack(payload, aud=_aud)
+        return signer.pack(payload)
 
     def info(self, token):
         """

@@ -84,6 +84,12 @@ TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
+MAP = {
+    "authorization_code": "code",
+    "access_token": "access_token",
+    "refresh_token": "refresh_token"
+}
+
 
 def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
@@ -205,32 +211,16 @@ class TestEndpoint(object):
                                                    client_id=client_id,
                                                    sub_type=sub_type)
 
-    def _mint_code(self, grant):
+    def _mint_token(self, type, grant, session_id, based_on=None, **kwargs):
         # Constructing an authorization code is now done
         return grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](self.user_id),
-            expires_in=300  # 5 minutes from now
-        )
-
-    def _mint_access_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id)
-        at_handler = self.session_manager.token_handler["access_token"]
-        return grant.mint_token(
-            'access_token',
-            value=at_handler(session_id),
-            expires_in=at_handler.lifetime,
-            based_on=token_ref  # Means the token (tok) was used to mint this token
-        )
-
-    def _mint_refresh_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id)
-        rt_handler = self.session_manager.token_handler["refresh_token"]
-        return grant.mint_token(
-            'refresh_token',
-            value=rt_handler(session_id),
-            expires_in=rt_handler.lifetime,
-            based_on=token_ref  # Means the token (tok) was used to mint this token
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type=type,
+            token_handler=self.session_manager.token_handler.handler[MAP[type]],
+            expires_at=time_sans_frac() + 300,  # 5 minutes from now
+            based_on=based_on,
+            **kwargs
         )
 
     def test_parse(self):
@@ -238,8 +228,9 @@ class TestEndpoint(object):
         # apply consent
         grant = self.endpoint_context.authz(session_id=session_id, request=AUTH_REQ)
         # grant = self.session_manager[session_id]
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        code = self._mint_token("authorization_code", grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code,
+                                        resources=[AUTH_REQ["client_id"]])
 
         _verifier = JWT(self.endpoint.endpoint_context.keyjar)
         _info = _verifier.unpack(access_token.value)
@@ -253,8 +244,8 @@ class TestEndpoint(object):
         # apply consent
         grant = self.endpoint_context.authz(session_id=session_id, request=AUTH_REQ)
         #
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        code = self._mint_token("authorization_code", grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         _info = self.session_manager.token_handler.info(access_token.value)
         assert _info["type"] == "T"
@@ -271,8 +262,8 @@ class TestEndpoint(object):
         # apply consent
         grant = self.endpoint_context.authz(session_id=session_id, request=AUTH_REQ)
         #
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        code = self._mint_token("authorization_code", grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         _jwt = JWT(key_jar=KEYJAR, iss="client_1")
         res = _jwt.unpack(access_token.value)
@@ -281,8 +272,8 @@ class TestEndpoint(object):
     def test_is_expired(self):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
-        code = self._mint_code(grant)
-        access_token = self._mint_access_token(grant, session_id, code)
+        code = self._mint_token("authorization_code", grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         assert access_token.is_active()
         # 4000 seconds in the future. Passed the lifetime.

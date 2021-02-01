@@ -94,7 +94,7 @@ class TestDefaultToken(object):
         assert self.th.is_expired(_token) is False
 
         when = time.time() + 900
-        assert self.th.is_expired(_token, when)
+        assert self.th.is_expired(_token, int(when))
 
 
 class TestTokenHandler(object):

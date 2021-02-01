@@ -181,26 +181,23 @@ class TestEndpoint(object):
                                                    client_id=client_id,
                                                    sub_type=sub_type)
 
-    def _mint_code(self, grant):
+    def _mint_code(self, grant, session_id):
         # Constructing an authorization code is now done
         return grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](self.user_id),
+            session_id=session_id,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type='authorization_code',
+            token_handler=self.session_manager.token_handler["code"],
             expires_at=time_sans_frac() + 300  # 5 minutes from now
         )
 
     def _mint_token(self, token_type, grant, session_id, token_ref=None):
         _session_info = self.session_manager.get_session_info(session_id, grant=True)
         return grant.mint_token(
-            token_type,
-            value=self.session_manager.token_handler[token_type](
-                session_id,
-                client_id=_session_info["client_id"],
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=_session_info["grant"].sub
-            ),
+            session_id=session_id,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type=token_type,
+            token_handler=self.session_manager.token_handler[token_type],
             expires_at=time_sans_frac() + 900,  # 15 minutes from now
             based_on=token_ref  # Means the token (tok) was used to mint this token
         )
@@ -251,8 +248,8 @@ class TestEndpoint(object):
     def test_process_request(self):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
-        code = self._mint_code(grant)
-        access_token = self._mint_token("access_token", grant, session_id)
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         _req = self.endpoint.parse_request(
             {}, auth="Bearer {}".format(access_token.value)
@@ -263,8 +260,8 @@ class TestEndpoint(object):
     def test_process_request_not_allowed(self):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
-        code = self._mint_code(grant)
-        access_token = self._mint_token("access_token", grant, session_id)
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         # 2 things can make the request invalid.
         # 1) The token is not valid anymore or 2) The event is not valid.
@@ -281,8 +278,8 @@ class TestEndpoint(object):
     def test_do_response(self):
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
-        code = self._mint_code(grant)
-        access_token = self._mint_token("access_token", grant, session_id)
+        code = self._mint_code(grant,session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         _req = self.endpoint.parse_request(
             {}, auth="Bearer {}".format(access_token.value)
@@ -297,8 +294,8 @@ class TestEndpoint(object):
 
         session_id = self._create_session(AUTH_REQ)
         grant = self.session_manager[session_id]
-        code = self._mint_code(grant)
-        access_token = self._mint_token("access_token", grant, session_id)
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
 
         _req = self.endpoint.parse_request(
             {}, auth="Bearer {}".format(access_token.value)

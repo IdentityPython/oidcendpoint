@@ -198,27 +198,21 @@ class TestEndpoint(object):
                                                    sub_type=sub_type)
 
     def _mint_code(self, grant, session_id):
-        # Constructing an authorization code is now done
         return grant.mint_token(
-            'authorization_code',
-            value=self.session_manager.token_handler["code"](session_id),
-            expires_at=time_sans_frac() + 300  # 5 minutes from now
+            session_id=session_id,
+            endpoint_context=self.authn_endpoint.endpoint_context,
+            token_type='authorization_code',
+            token_handler=self.session_manager.token_handler["code"]
         )
 
-    def _mint_access_token(self, grant, session_id, token_ref=None):
-        _session_info = self.session_manager.get_session_info(session_id)
+    def _mint_access_token(self, grant, session_id, token_ref=None, resources=None):
         return grant.mint_token(
-            'access_token',
-            value=self.session_manager.token_handler["access_token"](
-                session_id,
-                client_id=_session_info["client_id"],
-                aud=grant.resources,
-                user_claims=None,
-                scope=grant.scope,
-                sub=grant.sub
-            ),
-            expires_at=time_sans_frac() + 900,  # 15 minutes from now
-            based_on=token_ref  # Means the token (tok) was used to mint this token
+            session_id=session_id,
+            endpoint_context=self.authn_endpoint.endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager.token_handler["access_token"],
+            based_on=token_ref,
+            resources=resources
         )
 
     def test_to(self):

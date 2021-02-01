@@ -6,7 +6,6 @@ from cryptojwt.key_jar import build_keyjar
 from oidcmsg.oauth2 import TokenExchangeRequest
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
-from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.authz import AuthzHandling
@@ -17,7 +16,6 @@ from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import session_key
 from oidcendpoint.session.grant import ExchangeGrant
-from oidcendpoint.session.grant import Grant
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -166,23 +164,20 @@ class TestEndpoint(object):
                                                    client_id=client_id,
                                                    sub_type=sub_type)
 
-    def _mint_code(self, grant, client_id):
-        sid = session_key(self.user_id, client_id, grant.id)
-        # Constructing an authorization code is now done
-        c_handler = self.session_manager.token_handler["code"]
+    def _mint_code(self, grant, session_id):
         return grant.mint_token(
-            'authorization_code',
-            value=c_handler(sid),
-            expires_at=time_sans_frac() + c_handler.lifetime
+            session_id=session_id,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type='authorization_code',
+            token_handler=self.session_manager.token_handler["code"]
         )
 
     def _mint_access_token(self, grant, session_id, token_ref=None, resources=None):
-        _session_info = self.session_manager.get_session_info(session_id)
-        at_handler = self.session_manager.token_handler["access_token"]
         return grant.mint_token(
-            'access_token',
-            value=at_handler(session_id),
-            expires_at=time_sans_frac() + at_handler.lifetime,
+            session_id=session_id,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type='access_token',
+            token_handler=self.session_manager.token_handler["access_token"],
             based_on=token_ref,
             resources=resources
         )
@@ -200,11 +195,13 @@ class TestEndpoint(object):
     def test_do_response(self):
         session_id = self._create_session(AUTH_REQ)
         grant = self.endpoint.endpoint_context.authz(session_id, AUTH_REQ)
+        grant.usage_rules["access_token"] = {"supports_minting":["access_token"]}
+        self.session_manager[session_id] = grant
 
         grant_user_id = "https://frontend.example.com/resource"
         backend = "https://backend.example.com"
         _ = self.exchange_grant(session_id, [grant_user_id], [backend], scope=["api"])
-        code = self._mint_code(grant, AUTH_REQ['client_id'])
+        code = self._mint_code(grant, session_id)
 
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request["code"] = code.value
@@ -257,4 +254,3 @@ class TestEndpoint(object):
         msg_info = self.introspection_endpoint.do_response(request=_req, **_resp)
         assert msg_info
         print(json.loads(msg_info["response"]))
-
