@@ -202,19 +202,6 @@ ENDPOINT_CONTEXT_CONFIG = {
                 "expires_in": 43200
             }
         }
-    },
-    "token_usage_rules": {
-        "access_token": {
-            "expires_in": 600
-        },
-        "authorization_code": {
-            "expires_in": 300,
-            "can_mint": ["access_token", "refresh_token", "id_token"]
-        },
-        "refresh_token": {
-            "expires_in": 86400,
-            "can_mint": ["access_token", "refresh_token", "id_token"]
-        }
     }
 }
 

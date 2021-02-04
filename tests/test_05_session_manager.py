@@ -1,8 +1,9 @@
-import pytest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.time_util import time_sans_frac
+import pytest
 
 from oidcendpoint.authn_event import AuthnEvent
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.token import Token
@@ -82,17 +83,7 @@ class TestSessionManager:
                 },
                 "token_endpoint": {"path": "{}/token", "class": Token, "kwargs": {}},
             },
-            # "authentication": {
-            #     "anon": {
-            #         "acr": INTERNETPROTOCOLPASSWORD,
-            #         "class": "oidcendpoint.user_authn.user.NoAuthn",
-            #         "kwargs": {"user": "diana"},
-            #     }
-            # },
-            # "userinfo": {"class": "oidcendpoint.user_info.UserInfo", "kwargs": {"db": USERS}, },
-            # "client_authn": verify_client,
             "template_dir": "template",
-            # "id_token": {"class": IDToken, "kwargs": {"foo": "bar"}},
         }
 
         self.endpoint_context = EndpointContext(conf)
@@ -275,12 +266,6 @@ class TestSessionManager:
                                                          user_id='diana',
                                                          client_id="client_1")
 
-        # grant = self.session_manager.add_grant(user_id="diana",
-        #                                        client_id="client_1",
-        #                                        authn_event=self.authn_event,
-        #                                        auth_req=AUTH_REQ)
-        #
-        # _session_id = session_key('diana', 'client_1', grant.id)
         _info = self.session_manager.get_session_info(session_id, authentication_event=True)
         authn_event = _info["authentication_event"]
 
@@ -324,7 +309,6 @@ class TestSessionManager:
                                                           client_id="client_1")
 
         grant = self.session_manager.get_grant(_session_id)
-        cval = self.session_manager.token_handler.handler["code"](_session_id)
         code = self._mint_token('authorization_code', grant, _session_id)
         _session_info = self.session_manager.get_session_info_by_token(code.value)
 
@@ -334,3 +318,185 @@ class TestSessionManager:
                                              'user_id'}
         assert _session_info["user_id"] == "diana"
         assert _session_info["client_id"] == "client_1"
+
+    def test_token_usage_default(self):
+        _session_id = self.session_manager.create_session(authn_event=self.authn_event,
+                                                          auth_req=AUTH_REQ,
+                                                          user_id='diana',
+                                                          client_id="client_1")
+        grant = self.session_manager[_session_id]
+
+        code = self._mint_token('authorization_code', grant, _session_id)
+
+        assert code.usage_rules == {
+            'max_usage': 1,
+            'supports_minting': ['access_token', 'refresh_token']
+        }
+
+        token = self._mint_token("access_token", grant, _session_id, code)
+
+        assert token.usage_rules == {}
+
+        refresh_token = self._mint_token("refresh_token", grant, _session_id, code)
+
+        assert refresh_token.usage_rules == {
+            'supports_minting': ['access_token', 'refresh_token']
+        }
+
+    def test_token_usage_grant(self):
+        _session_id = self.session_manager.create_session(authn_event=self.authn_event,
+                                                          auth_req=AUTH_REQ,
+                                                          user_id='diana',
+                                                          client_id="client_1")
+        grant = self.session_manager[_session_id]
+        grant.usage_rules = {
+            "authorization_code": {
+                "max_usage": 1,
+                "supports_minting": ["access_token", "refresh_token", "id_token"],
+                "expires_in": 300
+            },
+            "access_token": {
+                "expires_in": 3600
+            },
+            "refresh_token": {
+                "supports_minting": ["access_token", "refresh_token", "id_token"]
+            }
+        }
+
+        code = self._mint_token('authorization_code', grant, _session_id)
+        assert code.usage_rules == {
+            'max_usage': 1,
+            'supports_minting': ['access_token', 'refresh_token', 'id_token'],
+            "expires_in": 300
+        }
+
+        token = self._mint_token("access_token", grant, _session_id, code)
+        assert token.usage_rules == {
+            "expires_in": 3600
+        }
+
+        refresh_token = self._mint_token("refresh_token", grant, _session_id, code)
+        assert refresh_token.usage_rules == {
+            'supports_minting': ['access_token', 'refresh_token', "id_token"]
+        }
+
+    def test_token_usage_authz(self):
+        grant_config = {
+            "usage_rules": {
+                "authorization_code": {
+                    'supports_minting': ["access_token"],
+                    "max_usage": 1,
+                    "expires_in": 120
+                },
+                "access_token": {
+                    "expires_in": 600
+                },
+                "refresh_token": {}
+            },
+            "expires_in": 43200
+        }
+
+        self.endpoint_context.authz = AuthzHandling(self.endpoint_context,
+                                                    grant_config=grant_config)
+
+        self.endpoint_context.cdb["client_1"] = {}
+
+        token_usage_rules = self.endpoint_context.authz.usage_rules('client_1')
+
+        _session_id = self.session_manager.create_session(authn_event=self.authn_event,
+                                                          auth_req=AUTH_REQ,
+                                                          user_id='diana',
+                                                          client_id="client_1",
+                                                          token_usage_rules=token_usage_rules)
+        grant = self.session_manager[_session_id]
+
+        code = self._mint_token('authorization_code', grant, _session_id)
+        assert code.usage_rules == {
+            'max_usage': 1,
+            'supports_minting': ['access_token'],
+            "expires_in": 120
+        }
+
+        token = self._mint_token("access_token", grant, _session_id, code)
+        assert token.usage_rules == {
+            "expires_in": 600
+        }
+
+        with pytest.raises(MintingNotAllowed):
+            self._mint_token("refresh_token", grant, _session_id, code)
+
+    def test_token_usage_client_config(self):
+        grant_config = {
+            "usage_rules": {
+                "authorization_code": {
+                    'supports_minting': ["access_token"],
+                    "max_usage": 1,
+                    "expires_in": 120
+                },
+                "access_token": {
+                    "expires_in": 600
+                },
+                "refresh_token": {}
+            },
+            "expires_in": 43200
+        }
+
+        self.endpoint_context.authz = AuthzHandling(self.endpoint_context,
+                                                    grant_config=grant_config)
+
+        # Change expiration time for the code and allow refresh tokens for this
+        # specific client
+        self.endpoint_context.cdb["client_1"] = {
+            "token_usage_rules": {
+                "authorization_code": {
+                    "expires_in": 600,
+                    'supports_minting': ['access_token', "refresh_token"]
+                },
+                "refresh_token": {
+                    'supports_minting': ['access_token']
+                }
+            }
+        }
+
+        token_usage_rules = self.endpoint_context.authz.usage_rules('client_1')
+
+        _session_id = self.session_manager.create_session(authn_event=self.authn_event,
+                                                          auth_req=AUTH_REQ,
+                                                          user_id='diana',
+                                                          client_id="client_1",
+                                                          token_usage_rules=token_usage_rules)
+        grant = self.session_manager[_session_id]
+
+        code = self._mint_token('authorization_code', grant, _session_id)
+        assert code.usage_rules == {
+            'max_usage': 1,
+            'supports_minting': ['access_token', 'refresh_token'],
+            "expires_in": 600
+        }
+
+        token = self._mint_token("access_token", grant, _session_id, code)
+        assert token.usage_rules == {
+            "expires_in": 600
+        }
+
+        refresh_token = self._mint_token("refresh_token", grant, _session_id, code)
+        assert refresh_token.usage_rules == {
+            'supports_minting': ['access_token']
+        }
+
+        # Test with another client
+
+        self.endpoint_context.cdb["client_2"] = {}
+
+        token_usage_rules = self.endpoint_context.authz.usage_rules('client_2')
+
+        _session_id = self.session_manager.create_session(authn_event=self.authn_event,
+                                                          auth_req=AUTH_REQ,
+                                                          user_id='diana',
+                                                          client_id="client_2",
+                                                          token_usage_rules=token_usage_rules)
+        grant = self.session_manager[_session_id]
+        code = self._mint_token('authorization_code', grant, _session_id)
+        # Not allowed to mint refresh token for this client
+        with pytest.raises(MintingNotAllowed):
+            self._mint_token("refresh_token", grant, _session_id, code)

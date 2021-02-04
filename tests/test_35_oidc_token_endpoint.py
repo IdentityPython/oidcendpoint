@@ -1,13 +1,13 @@
 import json
 import os
 
-import pytest
 from cryptojwt import JWT
 from cryptojwt.key_jar import build_keyjar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.time_util import utc_time_sans_frac
+import pytest
 
 from oidcendpoint import JWT_BEARER
 from oidcendpoint.authn_event import create_authn_event
@@ -22,7 +22,6 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import session_key
-from oidcendpoint.session.grant import get_usage_rules
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -138,31 +137,19 @@ def conf():
         "userinfo": {"class": UserInfo, "kwargs": {"db": {}}},
         "client_authn": verify_client,
         "template_dir": "template",
-        "token_usage_rules": {
-            "access_token": {
-                "expires_in": 600
-            },
-            "authorization_code": {
-                "expires_in": 300,
-                "supports_minting": ["access_token", "refresh_token", "id_token"]
-            },
-            "refresh_token": {
-                "expires_in": 86400,
-                "supports_minting": ["access_token", "refresh_token", "id_token"]
-            },
-
-        },
         "authz": {
             "class": AuthzHandling,
             "kwargs": {
                 "grant_config": {
                     "usage_rules": {
                         "authorization_code": {
+                            "expires_in": 300,
                             'supports_minting': ["access_token", "refresh_token", "id_token"],
                             "max_usage": 1
                         },
-                        "access_token": {},
+                        "access_token": {"expires_in": 600},
                         "refresh_token": {
+                            "expires_in": 86400,
                             'supports_minting': ["access_token", "refresh_token"],
                         }
                     },
@@ -206,8 +193,7 @@ class TestEndpoint(object):
 
     def _mint_code(self, grant, client_id):
         session_id = session_key(self.user_id, client_id, grant.id)
-        usage_rules = get_usage_rules("authorization_code", self.endpoint.endpoint_context,
-                                      grant, client_id)
+        usage_rules = grant.usage_rules.get("authorization_code", {})
         _exp_in = usage_rules.get("expires_in")
 
         # Constructing an authorization code is now done
@@ -228,8 +214,7 @@ class TestEndpoint(object):
 
     def _mint_access_token(self, grant, session_id, token_ref=None):
         _session_info = self.session_manager.get_session_info(session_id)
-        usage_rules = get_usage_rules("access_token", self.endpoint.endpoint_context,
-                                      grant, _session_info["client_id"])
+        usage_rules = grant.usage_rules.get("access_token", {})
         _exp_in = usage_rules.get("expires_in", 0)
 
         _token = grant.mint_token(
@@ -401,7 +386,7 @@ class TestEndpoint(object):
             "token_type",
             "expires_in",
             "refresh_token",
-            # "id_token",  Missing because the refresh_token used does support minting an ID Token.
+            "id_token",
             "scope"
         }
         msg = self.endpoint.do_response(request=_req, **_resp)

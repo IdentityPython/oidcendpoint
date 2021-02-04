@@ -87,7 +87,8 @@ class SessionManager(Database):
                      auth_req: AuthorizationRequest,
                      user_id: str,
                      client_id: Optional[str] = "",
-                     sub_type: Optional[str] = "public"):
+                     sub_type: Optional[str] = "public",
+                     token_usage_rules: Optional[dict] = None) -> str:
         """
 
         :param authn_event:
@@ -95,6 +96,7 @@ class SessionManager(Database):
         :param user_id:
         :param client_id:
         :param sub_type:
+        :param token_usage_rules:
         :return:
         """
         try:
@@ -106,7 +108,8 @@ class SessionManager(Database):
                       authentication_event=authn_event,
                       sub=self.sub_func[sub_type](
                           user_id, salt=self.salt,
-                          sector_identifier=sector_identifier)
+                          sector_identifier=sector_identifier),
+                      usage_rules=token_usage_rules
                       )
 
         self.set([user_id, client_id, grant.id], grant)
@@ -118,7 +121,8 @@ class SessionManager(Database):
                        auth_req: AuthorizationRequest,
                        user_id: str,
                        client_id: Optional[str] = "",
-                       sub_type: Optional[str] = "public"):
+                       sub_type: Optional[str] = "public",
+                       token_usage_rules: Optional[dict] = None) -> str:
         """
         Create part of a user session. The parts added are user- and client
         information and a grant.
@@ -130,6 +134,7 @@ class SessionManager(Database):
         :param sector_identifier: Identifier for a group of websites under common administrative
             control.
         :param sub_type: What kind of subject will be assigned
+        :param token_usage_rules: Rules for how tokens can be used
         :return: Session key
         """
 
@@ -153,7 +158,8 @@ class SessionManager(Database):
             authn_event=authn_event,
             user_id=user_id,
             client_id=client_id,
-            sub_type=sub_type
+            sub_type=sub_type,
+            token_usage_rules=token_usage_rules
         )
 
     def __getitem__(self, session_id: str):

@@ -136,7 +136,6 @@ class EndpointContext(OidcContext):
         self.login_hint2acrs = None
         self.userinfo = None
         self.scope2claims = SCOPE2CLAIMS
-        self.token_usage_rules = {}
         # arguments for endpoints add-ons
         self.args = {}
 

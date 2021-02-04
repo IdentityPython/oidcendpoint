@@ -1,3 +1,4 @@
+import copy
 import inspect
 import logging
 import sys
@@ -14,11 +15,42 @@ logger = logging.getLogger(__name__)
 class AuthzHandling(object):
     """ Class that allow an entity to manage authorization """
 
-    def __init__(self, endpoint_context, **kwargs):
+    def __init__(self, endpoint_context, grant_config=None, **kwargs):
         self.endpoint_context = endpoint_context
         self.cookie_dealer = endpoint_context.cookie_dealer
+        self.grant_config = grant_config or {}
         self.kwargs = kwargs
-        self.grant_config = kwargs.get("grant_config", {})
+
+    def usage_rules(self, client_id):
+        if "usage_rules" in self.grant_config:
+            _usage_rules = copy.deepcopy(self.grant_config["usage_rules"])
+        else:
+            _usage_rules = {}
+
+        try:
+            _per_client = self.endpoint_context.cdb[client_id]["token_usage_rules"]
+        except KeyError:
+            pass
+        else:
+            if _usage_rules:
+                for _token_type, _rule in _usage_rules.items():
+                    _pc = _per_client.get(_token_type)
+                    if _pc:
+                        _rule.update(_pc)
+                for _token_type, _rule in _per_client.items():
+                    if _token_type not in _usage_rules:
+                        _usage_rules[_token_type] = _rule
+            else:
+                _usage_rules = _per_client
+
+        return _usage_rules
+
+    def usage_rules_for(self, client_id, token_type):
+        _token_usage = self.usage_rules(client_id=client_id)
+        try:
+            return _token_usage[token_type]
+        except KeyError:
+            return {}
 
     def __call__(self, session_id: str, request: Union[dict, Message],
                  resources: Optional[list] = None) -> Grant:

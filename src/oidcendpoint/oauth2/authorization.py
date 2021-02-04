@@ -35,7 +35,6 @@ from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
 from oidcendpoint.session import Revoked
 from oidcendpoint.session import unpack_session_key
-from oidcendpoint.session.grant import get_usage_rules
 from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.user_authn.authn_context import pick_auth
 from oidcendpoint.util import split_uri
@@ -309,13 +308,9 @@ class Authorization(Endpoint):
         # Is the asked for response_type among those that are permitted
         return set(request["response_type"]) in _registered
 
-    def mint_token(self, token_type, grant, session_id, client_id, subject, based_on=None):
+    def mint_token(self, token_type, grant, session_id, based_on=None):
         _mngr = self.endpoint_context.session_manager
-        usage_rules = get_usage_rules("authorization_code", self.endpoint_context,
-                                      grant, client_id)
-        _exp_in = usage_rules.get("expires_in")
-        if isinstance(_exp_in, str):
-            _exp_in = int(_exp_in)
+        usage_rules = grant.usage_rules.get(token_type, {})
 
         token = grant.mint_token(
             session_id=session_id,
@@ -326,6 +321,9 @@ class Authorization(Endpoint):
             usage_rules=usage_rules
         )
 
+        _exp_in = usage_rules.get("expires_in")
+        if isinstance(_exp_in, str):
+            _exp_in = int(_exp_in)
         if _exp_in:
             token.expires_at = utc_time_sans_frac() + _exp_in
 
@@ -595,8 +593,11 @@ class Authorization(Endpoint):
             if _exp_in and "valid_until" in authn_event:
                 authn_event["valid_until"] = utc_time_sans_frac() + _exp_in
 
+            _token_usage_rules = self.endpoint_context.authz.usage_rules(
+                request["client_id"])
             _session_id = _mngr.create_session(authn_event=authn_event, auth_req=request,
-                                               user_id=user, client_id=request["client_id"])
+                                               user_id=user, client_id=request["client_id"],
+                                               token_usage_rules=_token_usage_rules)
 
         return {"session_id": _session_id, "identity": identity, "user": user}
 
@@ -672,11 +673,10 @@ class Authorization(Endpoint):
             grant = _sinfo["grant"]
 
             if "code" in request["response_type"]:
-                _code = self.mint_token('authorization_code',
-                                        grant,
-                                        _sinfo["session_id"],
-                                        _sinfo["client_id"],
-                                        grant.sub)
+                _code = self.mint_token(
+                    token_type='authorization_code',
+                    grant=grant,
+                    session_id= _sinfo["session_id"])
                 aresp["code"] = _code.value
                 handled_response_type.append("code")
             else:
@@ -688,12 +688,10 @@ class Authorization(Endpoint):
                 else:
                     based_on = None
 
-                _access_token = self.mint_token("access_token",
-                                                grant,
-                                                _sinfo["session_id"],
-                                                _sinfo["client_id"],
-                                                grant.sub,
-                                                based_on)
+                _access_token = self.mint_token(token_type="access_token",
+                                                grant=grant,
+                                                session_id=_sinfo["session_id"],
+                                                based_on=based_on)
                 aresp['access_token'] = _access_token.value
                 handled_response_type.append("token")
             else:

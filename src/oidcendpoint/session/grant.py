@@ -2,16 +2,15 @@ import json
 from typing import Optional
 from uuid import uuid1
 
+from oidcmsg.message import Message
 from oidcmsg.message import OPTIONAL_LIST_OF_SP_SEP_STRINGS
 from oidcmsg.message import OPTIONAL_LIST_OF_STRINGS
 from oidcmsg.message import SINGLE_OPTIONAL_JSON
-from oidcmsg.message import Message
 from oidcmsg.oauth2 import AuthorizationRequest
 
 from oidcendpoint.authn_event import AuthnEvent
 from oidcendpoint.session import MintingNotAllowed
 from oidcendpoint.session import unpack_session_key
-from oidcendpoint.session.token import SHORT_TYPE_NAME
 from oidcendpoint.session.token import AccessToken
 from oidcendpoint.session.token import AuthorizationCode
 from oidcendpoint.session.token import Item
@@ -286,14 +285,16 @@ def get_usage_rules(token_type, endpoint_context, grant, client_id):
     :return: Usage specification
     """
 
-    if token_type in endpoint_context.token_usage_rules:
-        _usage = endpoint_context.token_usage_rules[token_type]
-    else:
+    _usage = endpoint_context.authz.usage_rules_for(token_type)
+    if not _usage:
         _usage = DEFAULT_USAGE[token_type]
 
     _cinfo = endpoint_context.cdb.get(client_id, {})
     if "token_usage_rules" in _cinfo:
-        _usage.update(_cinfo["token_usage_rules"])
+        try:
+            _usage.update(_cinfo["token_usage_rules"][token_type])
+        except KeyError:
+            pass
 
     _grant_usage = grant.usage_rules.get(token_type)
     if _grant_usage:

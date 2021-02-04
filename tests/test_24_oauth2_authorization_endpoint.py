@@ -19,6 +19,7 @@ from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import InvalidRequest
@@ -187,6 +188,24 @@ class TestEndpoint(object):
                     },
                 },
             },
+            "authz": {
+                "class": AuthzHandling,
+                "kwargs": {
+                    "grant_config": {
+                        "usage_rules": {
+                            "authorization_code": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                                "max_usage": 1
+                            },
+                            "access_token": {},
+                            "refresh_token": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                            }
+                        },
+                        "expires_in": 43200
+                    }
+                }
+            }
         }
         endpoint_context = EndpointContext(conf)
         _clients = yaml.safe_load(io.StringIO(client_yaml))

@@ -43,11 +43,13 @@ class Token(Endpoint):
         self.allow_refresh = False
         self.new_refresh_token = new_refresh_token
 
-    def _mint_token(self, token_type, grant, session_id, client_id, subject, based_on):
+    def _mint_token(self, token_type, grant, session_id, based_on):
         _mngr = self.endpoint_context.session_manager
-        usage_rules = get_usage_rules(token_type, self.endpoint_context,
-                                      grant, client_id)
-        _exp_in = usage_rules.get("expires_in")
+        usage_rules = grant.usage_rules.get(token_type)
+        if usage_rules:
+            _exp_in = usage_rules.get("expires_in")
+        else:
+            _exp_in = 0
 
         token = grant.mint_token(
             session_id,
@@ -124,20 +126,17 @@ class Token(Endpoint):
             "state": _authn_req["state"]
         }
 
-        token = self._mint_token("access_token",
-                                 grant,
-                                 _session_info["session_id"],
-                                 _session_info["client_id"],
-                                 grant.sub,
-                                 code)
+        token = self._mint_token(token_type="access_token",
+                                 grant=grant,
+                                 session_id=_session_info["session_id"],
+                                 based_on=code)
         _response["access_token"] = token.value
 
         if issue_refresh:
-            refresh_token = self._mint_token("refresh_token", grant,
-                                             _session_info["session_id"],
-                                             _session_info["client_id"],
-                                             grant.sub,
-                                             code)
+            refresh_token = self._mint_token(token_type="refresh_token",
+                                             grant=grant,
+                                             session_id=_session_info["session_id"],
+                                             based_on=code)
             _response["refresh_token"] = refresh_token.value
 
         code.register_usage()
@@ -173,11 +172,10 @@ class Token(Endpoint):
         token = _mngr.find_token(_session_info["session_id"], token_value)
 
         _grant = _session_info["grant"]
-        access_token = self._mint_token("access_token", _grant,
-                                        _session_info["session_id"],
-                                        _session_info["client_id"],
-                                        _grant.sub,
-                                        token)
+        access_token = self._mint_token(token_type="access_token",
+                                        grant=_grant,
+                                        session_id=_session_info["session_id"],
+                                        based_on=token)
 
         _resp = {
             "access_token": access_token.value,
@@ -190,11 +188,10 @@ class Token(Endpoint):
 
         _mints = token.usage_rules.get("supports_minting")
         if "refresh_token" in _mints:
-            refresh_token = self._mint_token("refresh_token", _grant,
-                                             _session_info["session_id"],
-                                             _session_info["client_id"],
-                                             _grant.sub,
-                                             token)
+            refresh_token = self._mint_token(token_type="refresh_token",
+                                             grant=_grant,
+                                             session_id=_session_info["session_id"],
+                                             based_on=token)
             refresh_token.usage_rules = token.usage_rules.copy()
             _resp["refresh_token"] = refresh_token.value
 
