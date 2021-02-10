@@ -111,10 +111,18 @@ class Grant(Item):
             "token_map": {k: ".".join([v.__module__, v.__name__]) for k, v in
                           self.token_map.items()}
         }
-        if isinstance(self.authorization_request, Message):
-            d["authorization_request"] = self.authorization_request.to_dict()
-        if isinstance(self.authentication_event, Message):
-            d["authentication_event"] = self.authentication_event.to_dict()
+
+        if self.authorization_request:
+            if isinstance(self.authorization_request, Message):
+                d["authorization_request"] = self.authorization_request.to_dict()
+            elif isinstance(self.authorization_request, dict):
+                d["authorization_request"] = self.authorization_request
+
+        if self.authentication_event:
+            if isinstance(self.authentication_event, Message):
+                d["authentication_event"] = self.authentication_event.to_dict()
+            elif isinstance(self.authentication_event, dict):
+                d["authentication_event"] = self.authentication_event
 
         return json.dumps(d)
 
