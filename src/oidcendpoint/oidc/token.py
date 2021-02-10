@@ -121,7 +121,6 @@ class Token(Endpoint):
 
         _response = {
             "token_type": "Bearer",
-            "expires_in": 900,
             "scope": grant.scope,
             "state": _authn_req["state"]
         }
@@ -131,6 +130,7 @@ class Token(Endpoint):
                                  session_id=_session_info["session_id"],
                                  based_on=code)
         _response["access_token"] = token.value
+        _response["expires_in"] = token.expires_at - utc_time_sans_frac()
 
         if issue_refresh:
             refresh_token = self._mint_token(token_type="refresh_token",
