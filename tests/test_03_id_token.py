@@ -1,13 +1,13 @@
 import json
 import os
 
-import pytest
 from cryptojwt.jws import jws
 from cryptojwt.jwt import JWT
 from cryptojwt.key_jar import KeyJar
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RegistrationResponse
 from oidcmsg.time_util import time_sans_frac
+import pytest
 
 from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.client_authn import verify_client
@@ -391,14 +391,15 @@ class TestEndpoint(object):
         client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
         _jwt = JWT(key_jar=client_keyjar, iss="client_1")
         res = _jwt.unpack(_token)
-        # No user information
-        assert "address" not in res
-        assert "email" not in res
-        assert "nickname" not in res
+        # User information, from scopes -> claims
+        assert "address" in res
+        assert "email" in res
+        # User info, requested by claims parameter
+        assert "nickname" in res
 
     def test_client_claims_scopes_and_request_claims_one_match(self):
         _req = AREQS.copy()
-        _req["claims"] = {"id_token": {"email": None}}
+        _req["claims"] = {"id_token": {"email": {"value": "diana@example.com"}}}
 
         session_id = self._create_session(_req)
         grant = self.session_manager[session_id]
@@ -415,7 +416,7 @@ class TestEndpoint(object):
         client_keyjar.import_jwks(_jwks, self.endpoint_context.issuer)
         _jwt = JWT(key_jar=client_keyjar, iss="client_1")
         res = _jwt.unpack(_token)
-        # Only email as requested
-        assert "email" in res
-        assert "address" not in res
-        assert "nickname" not in res
+        # Email didn't match
+        assert "email" not in res
+        # Scope -> claims
+        assert "address" in res

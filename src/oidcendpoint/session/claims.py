@@ -100,9 +100,10 @@ class ClaimsInterface:
         request_claims = self.authorization_request_claims(session_id=session_id,
                                                            usage=usage)
 
-        # If the client want less then what's possible to get that's OK.
-        if request_claims:
-            claims = {k: v for k, v in claims.items() if k in request_claims}
+        # This will add claims that has not be added before and
+        # set filters on those claims that also appears in one of the sources above
+        for k,v in request_claims.items():
+            claims[k] = v
 
         return claims
 
