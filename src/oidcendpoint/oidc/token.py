@@ -1,9 +1,12 @@
 import logging
+from typing import Optional
+from typing import Union
 
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg import oidc
+from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.oidc import TokenErrorResponse
@@ -15,35 +18,36 @@ from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import ProcessError
 from oidcendpoint.session import unpack_session_key
 from oidcendpoint.session.grant import AuthorizationCode
+from oidcendpoint.session.grant import Grant
 from oidcendpoint.session.grant import RefreshToken
-from oidcendpoint.session.grant import get_usage_rules
+from oidcendpoint.session.token import Token as sessionToken
+from oidcendpoint.util import importer
 
 logger = logging.getLogger(__name__)
 
 
-class Token(Endpoint):
-    request_cls = oidc.Message
-    response_cls = oidc.AccessTokenResponse
-    error_cls = TokenErrorResponse
-    request_format = "json"
-    request_placement = "body"
-    response_format = "json"
-    response_placement = "body"
-    endpoint_name = "token_endpoint"
-    name = "token"
-    default_capabilities = {"token_endpoint_auth_signing_alg_values_supported": None}
+class TokenEndpointHelper(object):
+    def __init__(self, endpoint, config=None):
+        self.endpoint = endpoint
+        self.config = config
+        self.endpoint_context = endpoint.endpoint_context
+        self.error_cls = self.endpoint.error_cls
 
-    def __init__(self, endpoint_context, new_refresh_token=False, **kwargs):
-        Endpoint.__init__(self, endpoint_context, **kwargs)
-        self.post_parse_request.append(self._post_parse_request)
-        if "client_authn_method" in kwargs:
-            self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
-                "client_authn_method"
-            ]
-        self.allow_refresh = False
-        self.new_refresh_token = new_refresh_token
+    def post_parse_request(self, request: Union[Message, dict],
+                           client_id: Optional[str] = "",
+                           **kwargs):
+        """Context specific parsing of the request.
+        This is done after general request parsing and before processing
+        the request.
+        """
+        raise NotImplementedError
 
-    def _mint_token(self, token_type, grant, session_id, based_on):
+    def process_request(self, req: Union[Message, dict], **kwargs):
+        """Acts on a process request."""
+        raise NotImplementedError
+
+    def _mint_token(self, token_type: str, grant: Grant, session_id: str,
+                    based_on: Optional[sessionToken] = None) -> sessionToken:
         _mngr = self.endpoint_context.session_manager
         usage_rules = grant.usage_rules.get(token_type)
         if usage_rules:
@@ -72,8 +76,17 @@ class Token(Endpoint):
 
         return token
 
-    def _access_token(self, req, **kwargs):
-        _context = self.endpoint_context
+
+class AccessTokenHelper(TokenEndpointHelper):
+    def process_request(self, req: Union[Message, dict], **kwargs):
+        """
+
+        :param req:
+        :param kwargs:
+        :return:
+        """
+        _context = self.endpoint.endpoint_context
+
         _mngr = _context.session_manager
         _log_debug = logger.debug
 
@@ -159,7 +172,49 @@ class Token(Endpoint):
 
         return _response
 
-    def _refresh_access_token(self, req, **kwargs):
+    def post_parse_request(self, request: Union[Message, dict],
+                           client_id: Optional[str] = "",
+                           **kwargs):
+        """
+        This is where clients come to get their access tokens
+
+        :param request: The request
+        :param client_id: Client identifier
+        :returns:
+        """
+
+        _mngr = self.endpoint_context.session_manager
+        try:
+            _session_info = _mngr.get_session_info_by_token(request["code"],
+                                                            grant=True)
+        except KeyError:
+            logger.error("Access Code invalid")
+            return self.error_cls(error="invalid_grant",
+                                  error_description="Unknown code")
+
+        code = _mngr.find_token(_session_info["session_id"], request["code"])
+        if not isinstance(code, AuthorizationCode):
+            return self.error_cls(
+                error="invalid_request", error_description="Wrong token type"
+            )
+
+        if code.is_active() is False:
+            return self.error_cls(
+                error="invalid_request", error_description="Code inactive"
+            )
+
+        _auth_req = _session_info["grant"].authorization_request
+
+        if "client_id" not in request:  # Optional for access token request
+            request["client_id"] = _auth_req["client_id"]
+
+        logger.debug("%s: %s" % (request.__class__.__name__, sanitize(request)))
+
+        return request
+
+
+class RefreshTokenHelper(TokenEndpointHelper):
+    def process_request(self, req: Union[Message, dict], **kwargs):
         _mngr = self.endpoint_context.session_manager
 
         if req["grant_type"] != "refresh_token":
@@ -210,44 +265,9 @@ class Token(Endpoint):
 
         return _resp
 
-    def _access_token_post_parse_request(self, request, client_id="", **kwargs):
-        """
-        This is where clients come to get their access tokens
-
-        :param request: The request
-        :returns:
-        """
-
-        _mngr = self.endpoint_context.session_manager
-        try:
-            _session_info = _mngr.get_session_info_by_token(request["code"],
-                                                            grant=True)
-        except KeyError:
-            logger.error("Access Code invalid")
-            return self.error_cls(error="invalid_grant",
-                                  error_description="Unknown code")
-
-        code = _mngr.find_token(_session_info["session_id"], request["code"])
-        if not isinstance(code, AuthorizationCode):
-            return self.error_cls(
-                error="invalid_request", error_description="Wrong token type"
-            )
-
-        if code.is_active() is False:
-            return self.error_cls(
-                error="invalid_request", error_description="Code inactive"
-            )
-
-        _auth_req = _session_info["grant"].authorization_request
-
-        if "client_id" not in request:  # Optional for access token request
-            request["client_id"] = _auth_req["client_id"]
-
-        logger.debug("%s: %s" % (request.__class__.__name__, sanitize(request)))
-
-        return request
-
-    def _refresh_token_post_parse_request(self, request, client_id="", **kwargs):
+    def post_parse_request(self, request: Union[Message, dict],
+                           client_id: Optional[str] = "",
+                           **kwargs):
         """
         This is where clients come to refresh their access tokens
 
@@ -286,18 +306,87 @@ class Token(Endpoint):
 
         return request
 
-    def _post_parse_request(self, request, client_id="", **kwargs):
-        if request["grant_type"] == "authorization_code":
-            return self._access_token_post_parse_request(request, client_id, **kwargs)
-        else:  # request["grant_type"] == "refresh_token":
-            if self.allow_refresh:
-                return self._refresh_token_post_parse_request(
-                    request, client_id, **kwargs
-                )
-            else:
-                raise ProcessError("Refresh Token not allowed")
 
-    def process_request(self, request=None, **kwargs):
+HELPER_BY_GRANT_TYPE = {
+    "authorization_code": AccessTokenHelper,
+    "refresh_token": RefreshTokenHelper,
+}
+
+
+class Token(Endpoint):
+    request_cls = oidc.Message
+    response_cls = oidc.AccessTokenResponse
+    error_cls = TokenErrorResponse
+    request_format = "json"
+    request_placement = "body"
+    response_format = "json"
+    response_placement = "body"
+    endpoint_name = "token_endpoint"
+    name = "token"
+    default_capabilities = {"token_endpoint_auth_signing_alg_values_supported": None}
+
+    def __init__(self, endpoint_context, new_refresh_token=False, **kwargs):
+        Endpoint.__init__(self, endpoint_context, **kwargs)
+        self.post_parse_request.append(self._post_parse_request)
+        if "client_authn_method" in kwargs:
+            self.endpoint_info["token_endpoint_auth_methods_supported"] = kwargs[
+                "client_authn_method"
+            ]
+        self.allow_refresh = False
+        self.new_refresh_token = new_refresh_token
+        self.configure_grant_types(kwargs.get("grant_types_supported"))
+
+    def configure_grant_types(self, grant_types_supported):
+        if grant_types_supported is None:
+            self.helper = {k: v(self) for k, v in HELPER_BY_GRANT_TYPE.items()}
+            return
+
+        self.helper = {}
+        # TODO: do we want to allow any grant_type?
+        for grant_type, grant_type_options in grant_types_supported.items():
+            if (
+                    grant_type_options in (None, True)
+                    and grant_type in HELPER_BY_GRANT_TYPE
+            ):
+                self.helper[grant_type] = HELPER_BY_GRANT_TYPE[grant_type]
+                continue
+            elif grant_type_options is False:
+                continue
+
+            try:
+                grant_class = grant_type_options["class"]
+            except (KeyError, TypeError):
+                raise ProcessError(
+                    "Token Endpoint's grant types must be True, None or a dict with a"
+                    " 'class' key."
+                )
+            _conf = grant_type_options.get("kwargs", {})
+
+            if isinstance(grant_class, str):
+                try:
+                    grant_class = importer(grant_class)
+                except (ValueError, AttributeError):
+                    raise ProcessError(
+                        f"Token Endpoint's grant type class {grant_class} can't"
+                        " be imported."
+                    )
+            try:
+                self.helper[grant_type] = grant_class(self, _conf)
+            except Exception as e:
+                raise ProcessError(f"Failed to initialize class {grant_class}: {e}")
+
+    def _post_parse_request(self, request: Union[Message, dict],
+                            client_id: Optional[str] = "", **kwargs):
+        _helper = self.helper.get(request["grant_type"])
+        if _helper:
+            return _helper.post_parse_request(request, client_id, **kwargs)
+        else:
+            return self.error_cls(
+                error="invalid_request",
+                error_description=f"Unsupported grant_type: {request['grant_type']}"
+            )
+
+    def process_request(self, request: Optional[Union[Message, dict]] = None, **kwargs):
         """
 
         :param request:
@@ -306,27 +395,24 @@ class Token(Endpoint):
         """
         if isinstance(request, self.error_cls):
             return request
+
+        if request is None:
+            return self.error_cls(error="invalid_request")
+
         try:
-            if request["grant_type"] == "authorization_code":
-                logger.debug("Access Token Request")
-                response_args = self._access_token(request, **kwargs)
-            elif request["grant_type"] == "refresh_token":
-                logger.debug("Refresh Access Token Request")
-                response_args = self._refresh_access_token(request, **kwargs)
+            _helper = self.helper.get(request["grant_type"])
+            if _helper:
+                response_args = _helper.process_request(request, **kwargs)
             else:
                 return self.error_cls(
-                    error="invalid_request", error_description="Wrong grant_type"
+                    error="invalid_request",
+                    error_description=f"Unsupported grant_type: {request['grant_type']}"
                 )
         except JWEException as err:
             return self.error_cls(error="invalid_request", error_description="%s" % err)
 
         if isinstance(response_args, ResponseMessage):
             return response_args
-
-        if request["grant_type"] == "authorization_code":
-            _token = request["code"].replace(" ", "+")
-        else:
-            _token = request["refresh_token"].replace(" ", "+")
 
         _access_token = response_args["access_token"]
         _session_info = self.endpoint_context.session_manager.get_session_info_by_token(

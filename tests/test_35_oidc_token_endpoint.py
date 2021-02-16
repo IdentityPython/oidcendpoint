@@ -14,7 +14,6 @@ from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
-from oidcendpoint.exception import ProcessError
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
@@ -22,6 +21,7 @@ from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.token import Token
 from oidcendpoint.session import session_key
+from oidcendpoint.session import MintingNotAllowed
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -443,12 +443,12 @@ class TestEndpoint(object):
 
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request["code"] = code.value
+        grant.usage_rules["refresh_token"] = {"supports_minting": []}
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
 
-        self.endpoint.allow_refresh = False
-
         _request = REFRESH_TOKEN_REQ.copy()
         _request["refresh_token"] = _resp["response_args"]["refresh_token"]
-        with pytest.raises(ProcessError):
-            self.endpoint.parse_request(_request.to_json())
+        _req = self.endpoint.parse_request(_request.to_json())
+        with pytest.raises(MintingNotAllowed):
+            self.endpoint.process_request(_req)
