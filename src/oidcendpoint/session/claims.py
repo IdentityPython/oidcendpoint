@@ -64,7 +64,7 @@ class ClaimsInterface:
         elif usage == "introspection":
             if "introspection" in self.endpoint_context.endpoint:
                 module = self.endpoint_context.endpoint["introspection"]
-        elif usage == "token":
+        elif usage == "access_token":
             try:
                 module = self.endpoint_context.session_manager.token_handler["access_token"]
             except KeyError:

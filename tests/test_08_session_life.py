@@ -122,7 +122,7 @@ class TestSession():
 
         code = grant.mint_token(
             session_id=session_id,
-            endpoint_context=None,
+            endpoint_context=self.endpoint_context,
             token_type='authorization_code',
             token_handler= self.session_manager.token_handler["code"],
             expires_at=time_sans_frac() + 300  # 5 minutes from now

@@ -36,6 +36,8 @@ KEYDEFS = [
     {"type": "EC", "crv": "P-256", "use": ["sig"]},
 ]
 
+DUMMY_SESSION_ID = session_key('user_id', 'client_id', 'grant.id')
+
 
 class TestSessionManager:
     @pytest.fixture(autouse=True)
@@ -187,7 +189,7 @@ class TestSessionManager:
         assert grant.issued_token == []
         assert grant.is_active() is True
 
-        code = self._mint_token('authorization_code', grant, "session_id")
+        code = self._mint_token('authorization_code', grant, DUMMY_SESSION_ID)
         assert isinstance(code, AuthorizationCode)
         assert code.is_active()
         assert len(grant.issued_token) == 1
@@ -198,18 +200,18 @@ class TestSessionManager:
         assert grant.issued_token == []
         assert grant.is_active() is True
 
-        code = self._mint_token('authorization_code', grant, "session_id")
+        code = self._mint_token('authorization_code', grant, DUMMY_SESSION_ID)
         assert isinstance(code, AuthorizationCode)
         assert code.is_active()
         assert len(grant.issued_token) == 1
 
         assert code.usage_rules["supports_minting"] == ['access_token', 'refresh_token']
-        access_token = self._mint_token('access_token', grant, "session_id", code)
+        access_token = self._mint_token('access_token', grant, DUMMY_SESSION_ID, code)
         assert isinstance(access_token, AccessToken)
         assert access_token.is_active()
         assert len(grant.issued_token) == 2
 
-        refresh_token = self._mint_token('refresh_token', grant, "session_id", code)
+        refresh_token = self._mint_token('refresh_token', grant, DUMMY_SESSION_ID, code)
         assert isinstance(refresh_token, RefreshToken)
         assert refresh_token.is_active()
         assert len(grant.issued_token) == 3
@@ -218,7 +220,7 @@ class TestSessionManager:
         assert code.max_usage_reached() is True
 
         with pytest.raises(MintingNotAllowed):
-            self._mint_token('access_token', grant, "session_id", code)
+            self._mint_token('access_token', grant, DUMMY_SESSION_ID, code)
 
         grant.revoke_token(based_on=code.value)
 
@@ -251,8 +253,8 @@ class TestSessionManager:
         grant = self.session_manager.add_grant(user_id="diana",
                                                client_id="client_1")
 
-        code = self._mint_token('authorization_code', grant, "session_id")
-        access_token = self._mint_token('access_token', grant, "session_id", code)
+        code = self._mint_token('authorization_code', grant, DUMMY_SESSION_ID)
+        access_token = self._mint_token('access_token', grant, DUMMY_SESSION_ID, code)
 
         _session_key = session_key('diana', 'client_1', grant.id)
         _token = self.session_manager.find_token(_session_key, access_token.value)

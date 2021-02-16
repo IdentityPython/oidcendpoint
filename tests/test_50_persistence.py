@@ -314,7 +314,7 @@ class TestEndpoint(object):
         session_id = self._create_session(AUTH_REQ, index=1)
         grant = self.endpoint[1].endpoint_context.authz(session_id, AUTH_REQ)
         # grant, session_id = self._do_grant(AUTH_REQ, index=1)
-        code = self._mint_code(grant, AUTH_REQ["client_id"], index=1)
+        code = self._mint_code(grant, session_id, index=1)
         access_token = self._mint_access_token(grant, session_id, code, 1)
 
         # switch to another endpoint context instance
@@ -327,7 +327,7 @@ class TestEndpoint(object):
     def test_process_request(self):
         session_id = self._create_session(AUTH_REQ, index=1)
         grant = self.endpoint[1].endpoint_context.authz(session_id, AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ["client_id"], index=1)
+        code = self._mint_code(grant, session_id, index=1)
         access_token = self._mint_access_token(grant, session_id, code, 1)
 
         _req = self.endpoint[2].parse_request(
@@ -339,7 +339,7 @@ class TestEndpoint(object):
     def test_process_request_not_allowed(self):
         session_id = self._create_session(AUTH_REQ, index=2)
         grant = self.endpoint[2].endpoint_context.authz(session_id, AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ["client_id"], index=2)
+        code = self._mint_code(grant, session_id, index=2)
         access_token = self._mint_access_token(grant, session_id, code, 2)
 
         access_token.expires_at = utc_time_sans_frac() - 60
@@ -369,7 +369,7 @@ class TestEndpoint(object):
     def test_do_response(self):
         session_id = self._create_session(AUTH_REQ, index=2)
         grant = self.endpoint[2].endpoint_context.authz(session_id, AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ["client_id"], index=2)
+        code = self._mint_code(grant, session_id, index=2)
         access_token = self._mint_access_token(grant, session_id, code, 2)
 
         _req = self.endpoint[1].parse_request(
@@ -387,7 +387,7 @@ class TestEndpoint(object):
 
         session_id = self._create_session(AUTH_REQ, index=2)
         grant = self.endpoint[2].endpoint_context.authz(session_id, AUTH_REQ)
-        code = self._mint_code(grant, AUTH_REQ["client_id"], index=2)
+        code = self._mint_code(grant, session_id, index=2)
         access_token = self._mint_access_token(grant, session_id, code, 2)
 
         _req = self.endpoint[1].parse_request(
@@ -411,7 +411,7 @@ class TestEndpoint(object):
         }
         self.session_manager[2].set(unpack_session_key(session_id), grant)
 
-        code = self._mint_code(grant, _auth_req["client_id"], index=2)
+        code = self._mint_code(grant, session_id, index=2)
         access_token = self._mint_access_token(grant, session_id, code, 2)
 
         _req = self.endpoint[1].parse_request(

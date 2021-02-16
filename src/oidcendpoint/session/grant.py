@@ -152,22 +152,27 @@ class Grant(Item):
 
         return self
 
-    def payload_arguments(self, session_id: str, endpoint_context, token_type: str) -> dict:
+    def payload_arguments(self, session_id: str, endpoint_context,
+                          token_type: str, scope: Optional[dict] = None) -> dict:
         """
 
         :return: dictionary containing information to place in a token value
         """
+        if not scope:
+            scope = self.scope
+
         payload = {
-            "scope": self.scope,
+            "scope": scope,
             "aud": self.resources
         }
 
-        _claims_restriction = self.claims.get(token_type)
-        if _claims_restriction:
-            user_id, _, _ = unpack_session_key(session_id)
-            user_info = endpoint_context.claims_interface.get_user_claims(
-                user_id, _claims_restriction)
-            payload.update(user_info)
+        _claims_restriction = endpoint_context.claims_interface.get_claims(session_id,
+                                                                           scopes=scope,
+                                                                           usage=token_type)
+        user_id, _, _ = unpack_session_key(session_id)
+        user_info = endpoint_context.claims_interface.get_user_claims(user_id,
+                                                                      _claims_restriction)
+        payload.update(user_info)
 
         return payload
 
@@ -178,6 +183,7 @@ class Grant(Item):
                    token_handler: TToken,
                    based_on: Optional[Token] = None,
                    usage_rules: Optional[dict] = None,
+                   scope: Optional[list] = None,
                    **kwargs) -> Optional[Token]:
         """
 
@@ -187,6 +193,7 @@ class Grant(Item):
         :param token_handler:
         :param based_on:
         :param usage_rules:
+        :param scope:
         :param kwargs:
         :return:
         """
@@ -209,6 +216,7 @@ class Grant(Item):
             item = token_class(type=token_type,
                                based_on=_base_on_ref,
                                usage_rules=usage_rules,
+                               scope=scope,
                                **kwargs)
             if token_handler is None:
                 token_handler = endpoint_context.session_manager.token_handler.handler[
@@ -217,7 +225,8 @@ class Grant(Item):
             item.value = token_handler(session_id=session_id,
                                        **self.payload_arguments(session_id,
                                                                 endpoint_context,
-                                                                token_type=token_type))
+                                                                token_type=token_type,
+                                                                scope=scope))
         else:
             raise ValueError("Can not mint that kind of token")
 
