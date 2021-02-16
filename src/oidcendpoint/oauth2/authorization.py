@@ -693,6 +693,9 @@ class Authorization(Endpoint):
                                                 session_id=_sinfo["session_id"],
                                                 based_on=based_on)
                 aresp['access_token'] = _access_token.value
+                aresp['token_type'] = "Bearer"
+                if _access_token.expires_at:
+                    aresp["expires_in"] = _access_token.expires_at - utc_time_sans_frac()
                 handled_response_type.append("token")
             else:
                 _access_token = None
