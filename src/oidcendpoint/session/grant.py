@@ -152,7 +152,7 @@ class Grant(Item):
 
         return self
 
-    def payload_arguments(self, session_id, endpoint_context):
+    def payload_arguments(self, session_id: str, endpoint_context, token_type: str) -> dict:
         """
 
         :return: dictionary containing information to place in a token value
@@ -162,7 +162,7 @@ class Grant(Item):
             "aud": self.resources
         }
 
-        _claims_restriction = self.claims.get("token")
+        _claims_restriction = self.claims.get(token_type)
         if _claims_restriction:
             user_id, _, _ = unpack_session_key(session_id)
             user_info = endpoint_context.claims_interface.get_user_claims(
@@ -216,7 +216,8 @@ class Grant(Item):
 
             item.value = token_handler(session_id=session_id,
                                        **self.payload_arguments(session_id,
-                                                                endpoint_context))
+                                                                endpoint_context,
+                                                                token_type=token_type))
         else:
             raise ValueError("Can not mint that kind of token")
 
