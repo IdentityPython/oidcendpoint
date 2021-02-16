@@ -403,7 +403,7 @@ class TestEndpoint(object):
         assert "given_name" in _resp["response_args"]["__verified_id_token"]
         assert "nickname" in _resp["response_args"]["__verified_id_token"]
         # Could have gotten email but didn't ask for it
-        assert "email" not in _resp["response_args"]["__verified_id_token"]
+        assert "email" in _resp["response_args"]["__verified_id_token"]
 
     def test_re_authenticate(self):
         request = {"prompt": "login"}

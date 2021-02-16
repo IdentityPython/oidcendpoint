@@ -294,6 +294,8 @@ class TestCollectUserInfo:
         assert res == {
             'eduperson_scoped_affiliation': ['staff@example.org'],
             "email": "diana@example.org",
+            "nickname": "Dina",
+            "email_verified": False
         }
 
         _id_token_restriction = self.claims_interface.get_claims(session_id=session_id,
