@@ -102,8 +102,8 @@ class ClaimsInterface:
 
         # This will add claims that has not be added before and
         # set filters on those claims that also appears in one of the sources above
-        for k,v in request_claims.items():
-            claims[k] = v
+        if request_claims:
+            claims.update(request_claims)
 
         return claims
 
