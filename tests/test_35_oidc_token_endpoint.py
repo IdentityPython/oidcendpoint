@@ -6,6 +6,7 @@ from cryptojwt.key_jar import build_keyjar
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
 from oidcmsg.oidc import RefreshAccessTokenRequest
+from oidcmsg.oidc import TokenErrorResponse
 from oidcmsg.time_util import utc_time_sans_frac
 import pytest
 
@@ -443,6 +444,8 @@ class TestEndpoint(object):
 
         _token_request = TOKEN_REQ_DICT.copy()
         _token_request["code"] = code.value
+        # This is weird, issuing a refresh token that can't be used to mint anything
+        # but it's testing so anything goes.
         grant.usage_rules["refresh_token"] = {"supports_minting": []}
         _req = self.endpoint.parse_request(_token_request)
         _resp = self.endpoint.process_request(request=_req)
@@ -452,3 +455,27 @@ class TestEndpoint(object):
         _req = self.endpoint.parse_request(_request.to_json())
         with pytest.raises(MintingNotAllowed):
             self.endpoint.process_request(_req)
+
+    def test_do_refresh_access_token_revoked(self):
+        areq = AUTH_REQ.copy()
+        areq["scope"] = ["openid", "offline_access"]
+
+        session_id = self._create_session(areq)
+        grant = self.endpoint.endpoint_context.authz(session_id, areq)
+        code = self._mint_code(grant, areq['client_id'])
+
+        _cntx = self.endpoint.endpoint_context
+
+        _token_request = TOKEN_REQ_DICT.copy()
+        _token_request["code"] = code.value
+        _req = self.endpoint.parse_request(_token_request)
+        _resp = self.endpoint.process_request(request=_req)
+
+        _refresh_token = _resp["response_args"]["refresh_token"]
+        self.endpoint.endpoint_context.session_manager.revoke_token(session_id, _refresh_token)
+
+        _request = REFRESH_TOKEN_REQ.copy()
+        _request["refresh_token"] = _refresh_token
+        _req = self.endpoint.parse_request(_request.to_json())
+        # A revoked token is caught already when parsing the query.
+        assert isinstance(_req, TokenErrorResponse)
