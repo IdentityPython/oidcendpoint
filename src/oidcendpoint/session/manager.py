@@ -88,10 +88,13 @@ class SessionManager(Database):
                      user_id: str,
                      client_id: Optional[str] = "",
                      sub_type: Optional[str] = "public",
-                     token_usage_rules: Optional[dict] = None) -> str:
+                     token_usage_rules: Optional[dict] = None,
+                     scopes: Optional[list] = None
+                     ) -> str:
         """
 
-        :param authn_event:
+        :param scopes: Scopes
+        :param authn_event: AuthnEvent instance
         :param auth_req:
         :param user_id:
         :param client_id:
@@ -109,7 +112,8 @@ class SessionManager(Database):
                       sub=self.sub_func[sub_type](
                           user_id, salt=self.salt,
                           sector_identifier=sector_identifier),
-                      usage_rules=token_usage_rules
+                      usage_rules=token_usage_rules,
+                      scope=scopes
                       )
 
         self.set([user_id, client_id, grant.id], grant)
@@ -122,11 +126,14 @@ class SessionManager(Database):
                        user_id: str,
                        client_id: Optional[str] = "",
                        sub_type: Optional[str] = "public",
-                       token_usage_rules: Optional[dict] = None) -> str:
+                       token_usage_rules: Optional[dict] = None,
+                       scopes: Optional[list] = None
+                       ) -> str:
         """
         Create part of a user session. The parts added are user- and client
         information and a grant.
 
+        :param scopes:
         :param authn_event: Authentication Event information
         :param auth_req: Authorization Request
         :param client_id: Client ID
@@ -159,7 +166,8 @@ class SessionManager(Database):
             user_id=user_id,
             client_id=client_id,
             sub_type=sub_type,
-            token_usage_rules=token_usage_rules
+            token_usage_rules=token_usage_rules,
+            scopes=scopes
         )
 
     def __getitem__(self, session_id: str):
