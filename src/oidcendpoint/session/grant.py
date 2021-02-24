@@ -16,7 +16,7 @@ from oidcendpoint.session.token import AuthorizationCode
 from oidcendpoint.session.token import Item
 from oidcendpoint.session.token import RefreshToken
 from oidcendpoint.session.token import Token
-from oidcendpoint.token import Token as TToken
+from oidcendpoint.token import Token as TokenHandler
 from oidcendpoint.util import importer
 
 
@@ -36,9 +36,9 @@ GRANT_TYPE_MAP = {
 }
 
 
-def find_token(issued, id):
+def find_token(issued, token_id):
     for iss in issued:
-        if iss.id == id:
+        if iss.id == token_id:
             return iss
     return None
 
@@ -108,6 +108,7 @@ class Grant(Item):
             "revoked": self.revoked,
             "issued_token": [t.to_json() for t in self.issued_token],
             "id": self.id,
+            "usage_rules": self.usage_rules,
             "token_map": {k: ".".join([v.__module__, v.__name__]) for k, v in
                           self.token_map.items()}
         }
@@ -129,7 +130,8 @@ class Grant(Item):
     def from_json(self, json_str: str) -> 'Grant':
         d = json.loads(json_str)
         for attr in ["scope", "authorization_details", "claims", "resources", "sub",
-                     "issued_at", "not_before", "expires_at", "revoked", "id"]:
+                     "issued_at", "not_before", "expires_at", "revoked", "id",
+                     "usage_rules"]:
             if attr in d:
                 setattr(self, attr, d[attr])
 
@@ -180,7 +182,7 @@ class Grant(Item):
                    session_id: str,
                    endpoint_context: object,
                    token_type: str,
-                   token_handler: TToken,
+                   token_handler: TokenHandler,
                    based_on: Optional[Token] = None,
                    usage_rules: Optional[dict] = None,
                    scope: Optional[list] = None,
@@ -303,16 +305,9 @@ def get_usage_rules(token_type, endpoint_context, grant, client_id):
     :return: Usage specification
     """
 
-    _usage = endpoint_context.authz.usage_rules_for(token_type)
+    _usage = endpoint_context.authz.usage_rules_for(client_id, token_type)
     if not _usage:
         _usage = DEFAULT_USAGE[token_type]
-
-    _cinfo = endpoint_context.cdb.get(client_id, {})
-    if "token_usage_rules" in _cinfo:
-        try:
-            _usage.update(_cinfo["token_usage_rules"][token_type])
-        except KeyError:
-            pass
 
     _grant_usage = grant.usage_rules.get(token_type)
     if _grant_usage:
