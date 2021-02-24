@@ -44,7 +44,10 @@ class ClaimsInterface:
         client_info = self.endpoint_context.cdb.get(client_id, {})
         return client_info.get("{}_claims".format(usage), {})
 
-    def get_claims(self, session_id: str, scopes: str, usage: str) -> dict:
+    def get_claims(self,
+                   session_id: str,
+                   usage: str,
+                   scopes: Optional[str] = None) -> dict:
         """
 
         :param session_id: Session identifier
@@ -87,14 +90,16 @@ class ClaimsInterface:
 
         # Scopes can in some cases equate to set of claims, is that used here ?
         if module and module.kwargs.get("add_claims_by_scope"):
-            _supported = self.endpoint_context.provider_info.get("scopes_supported", [])
-            if _supported:
-                _scopes = set(_supported).intersection(set(scopes))
-            else:
-                _scopes = scopes
+            if scopes:
+                _supported = self.endpoint_context.provider_info.get("scopes_supported", [])
+                if _supported:
+                    _scopes = set(_supported).intersection(set(scopes))
+                else:
+                    _scopes = scopes
 
-            _claims = convert_scopes2claims(_scopes, map=self.endpoint_context.scope2claims)
-            claims.update(_claims)
+                _claims = convert_scopes2claims(_scopes,
+                                                map=self.endpoint_context.scope2claims)
+                claims.update(_claims)
 
         # Bring in claims specification from the authorization request
         request_claims = self.authorization_request_claims(session_id=session_id,
