@@ -108,13 +108,6 @@ class AccessTokenHelper(TokenEndpointHelper):
         code = _mngr.find_token(_session_info["session_id"], _access_code)
         _authn_req = grant.authorization_request
 
-        if "state" in req:
-            # verify that state in this request is the same as the one in the
-            # authorization request
-            if _authn_req["state"] != req["state"]:
-                logger.error("State value mismatch")
-                return self.error_cls(error="invalid_request")
-
         # If redirect_uri was in the initial authorization request
         # verify that the one given here is the correct one.
         if "redirect_uri" in _authn_req:
