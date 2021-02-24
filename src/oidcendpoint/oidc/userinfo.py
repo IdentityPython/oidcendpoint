@@ -11,6 +11,7 @@ from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.session.token import AccessToken
 from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
@@ -34,8 +35,15 @@ class UserInfo(Endpoint):
         "client_authn_method": ["bearer_header"],
     }
 
-    def __init__(self, endpoint_context, **kwargs):
-        Endpoint.__init__(self, endpoint_context, **kwargs)
+    def __init__(self, endpoint_context: EndpointContext,
+                 add_claims_by_scope: Optional[bool] = True,
+                 **kwargs):
+        Endpoint.__init__(
+            self,
+            endpoint_context,
+            add_claims_by_scope=add_claims_by_scope,
+            **kwargs,
+        )
         # Add the issuer ID as an allowed JWT target
         self.allowed_targets.append("")
 
@@ -132,10 +140,10 @@ class UserInfo(Endpoint):
             #     pass
 
         if allowed:
-            # Scope can translate to userinfo_claims
-            _restrictions = _grant.claims.get("userinfo")
+            _claims = _grant.claims.get("userinfo")
             info = self.endpoint_context.claims_interface.get_user_claims(
-                user_id=_session_info["user_id"], claims_restriction=_restrictions)
+                user_id=_session_info["user_id"],
+                claims_restriction=_claims)
             info["sub"] = _grant.sub
         else:
             info = {
