@@ -386,8 +386,8 @@ class TestEndpoint:
         _c_interface = self.introspection_endpoint.endpoint_context.claims_interface
         grant.claims = {
             "introspection": _c_interface.get_claims(session_id,
-                                                     AUTH_REQ["scope"],
-                                                     "introspection")
+                                                     scopes=AUTH_REQ["scope"],
+                                                     usage="introspection")
         }
 
         _context = self.introspection_endpoint.endpoint_context
