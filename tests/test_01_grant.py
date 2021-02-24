@@ -6,6 +6,7 @@ from oidcendpoint.session import session_key
 from oidcendpoint.session.grant import Grant
 from oidcendpoint.session.grant import TOKEN_MAP
 from oidcendpoint.session.grant import find_token
+from oidcendpoint.session.grant import get_usage_rules
 from oidcendpoint.session.token import AuthorizationCode
 from oidcendpoint.session.token import Token
 from oidcendpoint.token import DefaultToken
@@ -343,3 +344,18 @@ def test_get_spec():
         }
     }
     assert spec["resources"] == ["https://api.example.com"]
+
+
+def test_get_usage_rules():
+    grant = Grant(scope=["openid", "email", "address"],
+                  claims={"userinfo": {"given_name": None, "email": None}},
+                  resources=["https://api.example.com"]
+                  )
+
+    # Default usage rules
+    ENDPOINT_CONTEXT.cdb["client_id"] = {}
+    rules = get_usage_rules("access_token", ENDPOINT_CONTEXT, grant, "client_id")
+    assert rules == {'supports_minting': [], 'expires_in': 3600}
+
+    # client specific usage rules
+    ENDPOINT_CONTEXT.cdb["client_id"] = {"access_token": {"expires_in": 600}}
