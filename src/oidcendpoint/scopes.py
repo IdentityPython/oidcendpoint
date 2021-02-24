@@ -73,3 +73,7 @@ class Scopes:
             else:
                 return available_scopes(endpoint_context)
         return []
+
+    def filter_scopes(self, client_id, endpoint_context, scopes):
+        allowed_scopes = self.allowed_scopes(client_id, endpoint_context)
+        return [s for s in scopes if s in allowed_scopes]
