@@ -407,7 +407,7 @@ class TestEndpoint(object):
 
         grant.claims = {
             "userinfo": self.endpoint[1].endpoint_context.claims_interface.get_claims(
-                session_id, _auth_req["scope"], "userinfo")
+                session_id, scopes=_auth_req["scope"], usage="userinfo")
         }
         self.session_manager[2].set(unpack_session_key(session_id), grant)
 
