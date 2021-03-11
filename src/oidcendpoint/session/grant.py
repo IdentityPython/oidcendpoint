@@ -199,6 +199,7 @@ class Grant(Item):
         :param kwargs:
         :return:
         """
+
         if self.is_active() is False:
             return None
 

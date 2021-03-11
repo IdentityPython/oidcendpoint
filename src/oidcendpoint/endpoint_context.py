@@ -112,7 +112,7 @@ class EndpointContext(OidcContext):
         )
 
         self.cwd = cwd
-
+        
         # Those that use seed wants bytes but I can only store str.
         try:
             self.set("seed", conf["seed"])

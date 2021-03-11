@@ -1,6 +1,8 @@
 class OidcEndpointError(Exception):
     pass
 
+class OidcEndpointConfigurationError(Exception):
+    pass
 
 class InvalidRedirectURIError(OidcEndpointError):
     pass

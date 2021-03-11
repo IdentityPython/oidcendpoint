@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
-from oidcendpoint.exception import OidcEndpointError
+from oidcendpoint.exception import OidcEndpointError, OidcEndpointConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +61,18 @@ def build_endpoints(conf, endpoint_context, issuer):
             kwargs = spec["kwargs"]
         except KeyError:
             kwargs = {}
-
-        if isinstance(spec["class"], str):
-            _instance = importer(spec["class"])(
-                endpoint_context=endpoint_context, **kwargs
-            )
-        else:
-            _instance = spec["class"](endpoint_context=endpoint_context, **kwargs)
-
+        
+        try:
+            if isinstance(spec["class"], str):
+                _instance = importer(spec["class"])(
+                    endpoint_context=endpoint_context, **kwargs
+                )
+            else:
+                _instance = spec["class"](endpoint_context=endpoint_context, **kwargs)
+        except Exception as e:
+            logger.error(f'{spec["class"]}(endpoint_context={endpoint_context}, {kwargs}) -> {e}')
+            raise OidcEndpointConfigurationError()
+        
         try:
             _path = spec["path"]
         except KeyError:

@@ -653,12 +653,15 @@ class Authorization(Endpoint):
         if request.get("state"):
             aresp["state"] = request["state"]
 
+
         if "response_type" in request and request["response_type"] == ["none"]:
             fragment_enc = False
         else:
             _context = self.endpoint_context
             _mngr = self.endpoint_context.session_manager
+
             _sinfo = _mngr.get_session_info(sid, grant=True)
+
 
             if request.get("scope"):
                 aresp["scope"] = request["scope"]
