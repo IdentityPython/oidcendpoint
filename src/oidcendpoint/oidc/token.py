@@ -1,13 +1,16 @@
 import logging
 from typing import Optional
 from typing import Union
+from urllib.parse import urlparse
 
+from cryptojwt.exception import JWKESTException
 from cryptojwt.jwe.exception import JWEException
 from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg import oidc
 from oidcmsg.message import Message
-from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.exception import MissingRequiredValue, MissingRequiredAttribute
+from oidcmsg.oauth2 import TokenExchangeRequest, ResponseMessage, TokenExchangeResponse
 from oidcmsg.oidc import RefreshAccessTokenRequest
 from oidcmsg.oidc import TokenErrorResponse
 from oidcmsg.time_util import time_sans_frac
@@ -16,11 +19,12 @@ from oidcendpoint import sanitize
 from oidcendpoint.cookie import new_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.exception import ProcessError
-from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session import unpack_session_key, MintingNotAllowed
 from oidcendpoint.session.grant import AuthorizationCode
 from oidcendpoint.session.grant import Grant
 from oidcendpoint.session.grant import RefreshToken
-from oidcendpoint.session.token import Token as sessionToken
+from oidcendpoint.session.token import AccessToken, Token as sessionToken
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import importer
 
 logger = logging.getLogger(__name__)
@@ -300,9 +304,179 @@ class RefreshTokenHelper(TokenEndpointHelper):
         return request
 
 
+class TokenExchangeHelper(TokenEndpointHelper):
+    """Implements Token Exchange a.k.a. RFC8693"""
+
+    def __init__(self, endpoint, config=None):
+        TokenEndpointHelper.__init__(self, endpoint=endpoint, config=config)
+
+        # TODO: should we even have a policy for the simple use cases?
+        if config is None:
+            self.policy = {}
+        else:
+            self.policy = config.get('policy', {})
+
+        # TODO: Make this a part of the policy. Note the distinction between
+        # requested_token_type, subject_token_type, actor_token_type, issued_token_type
+        self.token_types_allowed = [
+            "urn:ietf:params:oauth:token-type:access_token",
+            "urn:ietf:params:oauth:token-type:jwt",
+            # "urn:ietf:params:oauth:token-type:id_token",
+            # "urn:ietf:params:oauth:token-type:refresh_token",
+        ]
+
+    def post_parse_request(self, request, client_id="", **kwargs):
+        request = TokenExchangeRequest(**request.to_dict())
+
+        # if "client_id" not in request:
+        #     request["client_id"] = client_id
+
+        keyjar = getattr(self.endpoint_context, "keyjar", "")
+
+        try:
+            request.verify(keyjar=keyjar, opponent_id=client_id)
+        except (
+            MissingRequiredAttribute,
+            ValueError,
+            MissingRequiredValue,
+            JWKESTException,
+        ) as err:
+            return self.endpoint.error_cls(
+                error="invalid_request", error_description="%s" % err
+            )
+
+
+        error = self.check_for_errors(request=request)
+        if error is not None:
+            return error
+
+        _mngr = self.endpoint_context.session_manager
+        try:
+            _session_info = _mngr.get_session_info_by_token(
+                request["subject_token"], grant=True
+            )
+        except (KeyError, UnknownToken):
+            logger.error("Subject token invalid.")
+            return self.error_cls(
+                error="invalid_request",
+                error_description="Subject token invalid"
+            )
+
+        token = _mngr.find_token(_session_info["session_id"], request["subject_token"])
+
+        if not isinstance(token, AccessToken):
+            return self.error_cls(
+                error="invalid_request", error_description="Wrong token type"
+            )
+
+        if token.is_active() is False:
+            return self.error_cls(
+                error="invalid_request", error_description="Subject token inactive"
+            )
+
+        return request
+
+    def check_for_errors(self, request):
+        context = self.endpoint.endpoint_context
+        if "resource" in request:
+            iss = urlparse(context.issuer)
+            if any(
+                urlparse(res).netloc != iss.netloc for res in request["resource"]
+            ):
+                return TokenErrorResponse(
+                    error="invalid_target", error_description="Unknown resource"
+                )
+
+        if "audience" in request:
+            if any(
+                aud != context.issuer for aud in request["audience"]
+            ):
+                return TokenErrorResponse(
+                    error="invalid_target", error_description="Unknown audience"
+                )
+
+        # TODO: if requested type is jwt make sure our tokens are jwt
+        if (
+            "requested_token_type" in request
+            and request["requested_token_type"] not in self.token_types_allowed
+        ):
+            return TokenErrorResponse(
+                error="invalid_target",
+                error_description="Unsupported requested token type"
+            )
+
+        if "actor_token" in request or "actor_token_type" in request:
+            return TokenErrorResponse(
+                error="invalid_request", error_description="Actor token not supported"
+            )
+
+        # TODO: also check if the (valid) subject_token matches subject_token_type
+        if request["subject_token_type"] not in self.token_types_allowed:
+            return TokenErrorResponse(
+                error="invalid_request",
+                error_description="Unsupported subject token type",
+            )
+
+    def token_exchange_response(self, token):
+        response_args = {
+            "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
+            "token_type": token.type,
+            "access_token": token.value,
+            "scope": token.scope,
+            "expires_in": token.usage_rules["expires_in"]
+        }
+        return TokenExchangeResponse(**response_args)
+
+    def process_request(self, request, **kwargs):
+        # TODO: should we even have a policy for the simple use cases?
+        # client_policy = self.policy.get(req["client_id"]) or self.policy.get("default")
+        # if not client_policy:
+        #     logger.error(
+        #         "TokenExchange policy for client {req['client_id']} or default missing."
+        #     )
+        #     return TokenErrorResponse(
+        #         error="invalid_request", error_description="Not allowed"
+        #     )
+        _mngr = self.endpoint_context.session_manager
+        try:
+            _session_info = _mngr.get_session_info_by_token(
+                request["subject_token"],
+                grant=True,
+            )
+        except KeyError:
+            logger.error("Subject token invalid.")
+            return self.error_cls(
+                error="invalid_grant",
+                error_description="Subject token invalid",
+            )
+
+        token = _mngr.find_token(_session_info["session_id"], request["subject_token"])
+        grant = _session_info["grant"]
+
+        try:
+            new_token = grant.mint_token(
+                session_id=_session_info["session_id"],
+                endpoint_context=self.endpoint_context,
+                token_type='access_token',
+                token_handler=_mngr.token_handler["access_token"],
+                based_on=token,
+                resources=request.get("resource"),
+                scope=request.get("scope"),
+            )
+        except MintingNotAllowed:
+            logger.error("Minting not allowed for 'access_token'")
+            return self.error_cls(
+                error="invalid_grant",
+                error_description="Token Exchange not allowed with that token",
+            )
+
+        return self.token_exchange_response(token=new_token)
+
+
 HELPER_BY_GRANT_TYPE = {
     "authorization_code": AccessTokenHelper,
     "refresh_token": RefreshTokenHelper,
+    "urn:ietf:params:oauth:grant-type:token-exchange": TokenExchangeHelper,
 }
 
 
