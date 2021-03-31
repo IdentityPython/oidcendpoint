@@ -106,7 +106,7 @@ class AccessTokenHelper(TokenEndpointHelper):
         _session_info = _mngr.get_session_info_by_token(_access_code, grant=True)
         grant = _session_info["grant"]
 
-        code = _mngr.find_token(_session_info["session_id"], _access_code)
+        code = grant.get_token(_access_code)
         _authn_req = grant.authorization_request
 
         # If redirect_uri was in the initial authorization request
