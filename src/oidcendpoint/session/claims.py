@@ -42,7 +42,10 @@ class ClaimsInterface:
 
     def _get_client_claims(self, client_id, usage):
         client_info = self.endpoint_context.cdb.get(client_id, {})
-        return client_info.get("{}_claims".format(usage), {})
+        client_claims = client_info.get("{}_claims".format(usage), {})
+        if isinstance(client_claims, list):
+            client_claims = {k: None for k in client_claims}
+        return client_claims
 
     def get_claims(self,
                    session_id: str,
