@@ -21,6 +21,7 @@ from oidcendpoint.session.grant import AuthorizationCode
 from oidcendpoint.session.grant import Grant
 from oidcendpoint.session.grant import RefreshToken
 from oidcendpoint.session.token import Token as sessionToken
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import importer
 
 logger = logging.getLogger(__name__)
@@ -180,7 +181,7 @@ class AccessTokenHelper(TokenEndpointHelper):
         try:
             _session_info = _mngr.get_session_info_by_token(request["code"],
                                                             grant=True)
-        except KeyError:
+        except (KeyError, UnknownToken):
             logger.error("Access Code invalid")
             return self.error_cls(error="invalid_grant",
                                   error_description="Unknown code")
