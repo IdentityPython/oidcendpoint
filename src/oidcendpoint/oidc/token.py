@@ -129,7 +129,6 @@ class AccessTokenHelper(TokenEndpointHelper):
         _response = {
             "token_type": "Bearer",
             "scope": grant.scope,
-            "state": _authn_req["state"]
         }
 
         token = self._mint_token(token_type="access_token",
