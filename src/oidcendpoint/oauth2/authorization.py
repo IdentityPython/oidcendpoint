@@ -794,7 +794,7 @@ class Authorization(Endpoint):
         _cookie = new_cookie(
             self.endpoint_context,
             sid=session_id,
-            state=request["state"],
+            state=request.get("state"),
             cookie_name=self.endpoint_context.cookie_name["session"],
         )
 
