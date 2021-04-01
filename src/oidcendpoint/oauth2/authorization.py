@@ -316,7 +316,6 @@ class Authorization(Endpoint):
             session_id=session_id,
             endpoint_context=self.endpoint_context,
             token_type=token_type,
-            token_handler=_mngr.token_handler["access_token"],
             based_on=based_on,
             usage_rules=usage_rules
         )
@@ -795,7 +794,7 @@ class Authorization(Endpoint):
         _cookie = new_cookie(
             self.endpoint_context,
             sid=session_id,
-            state=request["state"],
+            state=request.get("state"),
             cookie_name=self.endpoint_context.cookie_name["session"],
         )
 

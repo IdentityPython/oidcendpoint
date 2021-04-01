@@ -62,7 +62,9 @@ class AuthzHandling(object):
 
         claims = request.get("claims")
         if claims:
-            args["claims"] = claims.to_dict()
+            if isinstance(request, Message):
+                claims = claims.to_dict()
+            args["claims"] = claims
 
         session_info = self.endpoint_context.session_manager.get_session_info(
             session_id=session_id, grant=True

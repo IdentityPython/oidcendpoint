@@ -21,6 +21,7 @@ from oidcendpoint.session.grant import AuthorizationCode
 from oidcendpoint.session.grant import Grant
 from oidcendpoint.session.grant import RefreshToken
 from oidcendpoint.session.token import Token as sessionToken
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import importer
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ class AccessTokenHelper(TokenEndpointHelper):
         _session_info = _mngr.get_session_info_by_token(_access_code, grant=True)
         grant = _session_info["grant"]
 
-        code = _mngr.find_token(_session_info["session_id"], _access_code)
+        code = grant.get_token(_access_code)
         _authn_req = grant.authorization_request
 
         # If redirect_uri was in the initial authorization request
@@ -128,7 +129,6 @@ class AccessTokenHelper(TokenEndpointHelper):
         _response = {
             "token_type": "Bearer",
             "scope": grant.scope,
-            "state": _authn_req["state"]
         }
 
         token = self._mint_token(token_type="access_token",
@@ -180,7 +180,7 @@ class AccessTokenHelper(TokenEndpointHelper):
         try:
             _session_info = _mngr.get_session_info_by_token(request["code"],
                                                             grant=True)
-        except KeyError:
+        except (KeyError, UnknownToken):
             logger.error("Access Code invalid")
             return self.error_cls(error="invalid_grant",
                                   error_description="Unknown code")
