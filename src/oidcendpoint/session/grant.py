@@ -182,7 +182,7 @@ class Grant(Item):
                    session_id: str,
                    endpoint_context: object,
                    token_type: str,
-                   token_handler: TokenHandler,
+                   token_handler: TokenHandler = None,
                    based_on: Optional[Token] = None,
                    usage_rules: Optional[dict] = None,
                    scope: Optional[list] = None,
