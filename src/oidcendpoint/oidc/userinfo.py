@@ -111,7 +111,7 @@ class UserInfo(Endpoint):
         _session_info = _mngr.get_session_info_by_token(request["access_token"],
                                                         grant=True)
         _grant = _session_info["grant"]
-        token = _mngr.find_token(_session_info["session_id"], request["access_token"])
+        token = _grant.get_token(request["access_token"])
         # should be an access token
         if not isinstance(token, AccessToken):
             return self.error_cls(
