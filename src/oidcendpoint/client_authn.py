@@ -431,13 +431,19 @@ def client_auth_setup(auth_set, endpoint_context):
     res = []
 
     for item in auth_set:
-        if item is None or item.lower() == "none":
+        if item is None or (isinstance(item, str) and item.lower() == "none"):
             res.append(None)
         else:
-            _cls = CLIENT_AUTHN_METHOD.get(item)
-            if _cls:
-                res.append(_cls(endpoint_context))
+            if isinstance(item, dict):
+                module = item.get("class")
+                kwargs = item.get("kwargs")
             else:
-                res.append(importer(item)(endpoint_context))
+                # For backwards compatibility
+                module = item
+                kwargs = {}
+            _cls = CLIENT_AUTHN_METHOD.get(module)
+            if not _cls:
+                _cls = importer(module)
+            res.append(_cls(endpoint_context, **kwargs))
 
     return res

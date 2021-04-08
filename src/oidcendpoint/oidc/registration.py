@@ -108,15 +108,15 @@ def comb_uri(args):
 
         args[param] = val
 
-    request_uris = args.get('request_uris')
+    request_uris = args.get("request_uris")
     if request_uris:
         val = []
-        for base,frag in request_uris:
+        for base, frag in request_uris:
             if frag:
-                val.append('{}#{}'.format(base, frag))
+                val.append("{}#{}".format(base, frag))
             else:
                 val.append(base)
-        args['request_uris'] = val
+        args["request_uris"] = val
 
 
 class Registration(Endpoint):
@@ -193,9 +193,9 @@ class Registration(Endpoint):
                     return err
                 if _up.fragment:
                     # store base and fragment
-                    _uris.append(uri.split('#'))
+                    _uris.append(uri.split("#"))
                 else:
-                    _uris.append([uri, ''])
+                    _uris.append([uri, ""])
             _cinfo["request_uris"] = _uris
 
         if "sector_identifier_uri" in request:
@@ -376,7 +376,7 @@ class Registration(Endpoint):
         try:
             request.verify()
         except (MessageException, ValueError) as err:
-            logger.error('request.verify() on %s', request)
+            logger.error("request.verify() on %s", request)
             return ResponseMessage(
                 error="invalid_configuration_request", error_description="%s" % err
             )
@@ -455,7 +455,7 @@ class Registration(Endpoint):
         try:
             reg_resp = self.client_registration_setup(request, new_id, set_secret)
         except Exception as err:
-            logger.error('client_registration_setup: %s', request)
+            logger.error("client_registration_setup: %s", request)
             return ResponseMessage(
                 error="invalid_configuration_request", error_description="%s" % err
             )

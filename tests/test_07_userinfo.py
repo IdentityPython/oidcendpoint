@@ -533,3 +533,135 @@ class TestCollectUserInfoCustomScopes:
             'given_name': 'Diana',
             'name': 'Diana Krall'
         }
+
+
+class TestCollectUserInfoAllowedScopes:
+    @pytest.fixture(autouse=True)
+    def create_endpoint_context(self):
+        self.endpoint_context = EndpointContext(
+            {
+                "userinfo": {"class": UserInfo, "kwargs": {"db": USERINFO_DB}},
+                "password": "we didn't start the fire",
+                "issuer": "https://example.com/op",
+                "token_expires_in": 900,
+                "grant_expires_in": 600,
+                "refresh_token_expires_in": 86400,
+                "endpoint": {
+                    "provider_config": {
+                        "path": "{}/.well-known/openid-configuration",
+                        "class": ProviderConfiguration,
+                        "kwargs": {},
+                    },
+                    "registration": {
+                        "path": "{}/registration",
+                        "class": Registration,
+                        "kwargs": {},
+                    },
+                    "authorization": {
+                        "path": "{}/authorization",
+                        "class": Authorization,
+                        "kwargs": {
+                            "response_types_supported": [
+                                " ".join(x) for x in RESPONSE_TYPES_SUPPORTED
+                            ],
+                            "response_modes_supported": [
+                                "query",
+                                "fragment",
+                                "form_post",
+                            ],
+                            "claims_parameter_supported": True,
+                            "request_parameter_supported": True,
+                            "request_uri_parameter_supported": True,
+                        },
+                    },
+                },
+                "keys": {
+                    "public_path": "jwks.json",
+                    "key_defs": KEYDEFS,
+                    "uri_path": "static/jwks.json",
+                },
+                "authentication": {
+                    "anon": {
+                        "acr": INTERNETPROTOCOLPASSWORD,
+                        "class": "oidcendpoint.user_authn.user.NoAuthn",
+                        "kwargs": {"user": "diana"},
+                    }
+                },
+                "template_dir": "template",
+            }
+        )
+        # Just has to be there
+        self.endpoint_context.cdb["client1"] = {
+            "allowed_scopes": ['openid', 'email', 'ciao']
+        }
+
+    def test_collect_user_info(self):
+        _req = OIDR.copy()
+        _req["claims"] = CLAIMS_2
+
+        _session_info = {"authn_req": _req}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "nickname": "Dina",
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
+        }
+
+    def test_collect_user_info_2(self):
+        _req = OIDR.copy()
+        _req["scope"] = "openid email"
+        del _req["claims"]
+
+        _session_info = {"authn_req": _req}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        self.endpoint_context.provider_info["scopes_supported"] = [
+            "openid",
+            "email",
+            "offline_access",
+        ]
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
+        }
+
+    def test_collect_user_info_scope_not_supported(self):
+        _req = OIDR.copy()
+        _req["scope"] = "openid email address"
+        del _req["claims"]
+
+        _session_info = {"authn_req": _req}
+        session = _session_info.copy()
+        session["sub"] = "doe"
+        session["uid"] = "diana"
+        session["authn_event"] = create_authn_event("diana", "salt")
+
+        # Scope address generally supported
+        self.endpoint_context.provider_info["scopes_supported"] = [
+            "openid",
+            "email",
+            "address"
+            "offline_access",
+        ]
+
+        # Scope address not supported for the specific client
+        res = collect_user_info(self.endpoint_context, session)
+
+        assert res == {
+            "sub": "doe",
+            "email": "diana@example.org",
+            "email_verified": False,
+        }
