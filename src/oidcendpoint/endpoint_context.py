@@ -1,6 +1,7 @@
 import logging
 import os
 
+from oidcmsg.storage.init import init_storage
 import requests
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
@@ -94,6 +95,7 @@ class EndpointContext(OidcContext):
     ):
         OidcContext.__init__(self, conf, keyjar, entity_id=conf.get("issuer", ""))
         self.conf = conf
+        self.db_conf = conf.get("db_conf", {})
 
         # For my Dev environment
         self.cdb = None
@@ -247,6 +249,10 @@ class EndpointContext(OidcContext):
             self.add_boxes({"dev_auth": "dev_auth_db"}, self.db_conf)
 
         self.claims_interface = ClaimsInterface(self)
+
+    def add_boxes(self, boxes, db_conf):
+        for key, attr in boxes.items():
+            setattr(self, attr, init_storage(db_conf, key))
 
     def set_scopes_handler(self):
         _spec = self.conf.get("scopes_handler")
@@ -407,3 +413,9 @@ class EndpointContext(OidcContext):
             _provider_info["claims_supported"] = STANDARD_CLAIMS[:]
 
         return _provider_info
+
+    def set(self, key, val):
+        setattr(self, key, val)
+
+    def get(self, key):
+        return getattr(self, key)
