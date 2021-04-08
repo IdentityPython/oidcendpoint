@@ -6,11 +6,14 @@ from urllib.parse import urlparse
 
 from cryptojwt import as_unicode
 from cryptojwt import b64d
+from cryptojwt.jwe.aes import AES_GCMEncrypter
+from cryptojwt.jwe.utils import split_ctx_and_tag
 from cryptojwt.jws.exception import JWSException
 from cryptojwt.jws.jws import factory
 from cryptojwt.jws.utils import alg2keytype
 from cryptojwt.jwt import JWT
 from cryptojwt.utils import as_bytes
+from cryptojwt.utils import b64e
 from oidcmsg.exception import InvalidRequest
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
@@ -18,11 +21,13 @@ from oidcmsg.oidc import verified_claim_name
 from oidcmsg.oidc.session import BACK_CHANNEL_LOGOUT_EVENT
 from oidcmsg.oidc.session import EndSessionRequest
 
+from oidcendpoint import rndstr
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
-from oidcendpoint.common.authorization import verify_uri
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.endpoint import Endpoint
 from oidcendpoint.endpoint_context import add_path
+from oidcendpoint.oauth2.authorization import verify_uri
+from oidcendpoint.session import session_key
 
 logger = logging.getLogger(__name__)
 
@@ -85,13 +90,24 @@ class Session(Endpoint):
         if _csi and not _csi.startswith("http"):
             kwargs["check_session_iframe"] = add_path(endpoint_context.issuer, _csi)
         Endpoint.__init__(self, endpoint_context, **kwargs)
+        self.iv = as_bytes(rndstr(24))
 
-    def do_back_channel_logout(self, cinfo, sub, sid):
+    def _encrypt_sid(self, sid):
+        encrypter = AES_GCMEncrypter(key=as_bytes(self.endpoint_context.symkey))
+        enc_msg = encrypter.encrypt(as_bytes(sid), iv=self.iv)
+        return as_unicode(b64e(enc_msg))
+
+    def _decrypt_sid(self, enc_msg):
+        _msg = b64d(as_bytes(enc_msg))
+        encrypter = AES_GCMEncrypter(key=as_bytes(self.endpoint_context.symkey))
+        ctx, tag = split_ctx_and_tag(_msg)
+        return as_unicode(encrypter.decrypt(as_bytes(ctx), iv=self.iv, tag=as_bytes(tag)))
+
+    def do_back_channel_logout(self, cinfo, sid):
         """
 
         :param cinfo: Client information
-        :param sub: Subject identifier
-        :param sid: The Issuer ID
+        :param sid: The session ID
         :return: Tuple with logout URI and signed logout token
         """
 
@@ -102,10 +118,16 @@ class Session(Endpoint):
         except KeyError:
             return None
 
+        # Create the logout token
         # always include sub and sid so I don't check for
         # backchannel_logout_session_required
 
-        payload = {"sub": sub, "sid": sid, "events": {BACK_CHANNEL_LOGOUT_EVENT: {}}}
+        enc_msg = self._encrypt_sid(sid)
+
+        payload = {
+            "sid": enc_msg,
+            "events": {BACK_CHANNEL_LOGOUT_EVENT: {}}
+        }
 
         try:
             alg = cinfo["id_token_signed_response_alg"]
@@ -114,59 +136,43 @@ class Session(Endpoint):
 
         _jws = JWT(_cntx.keyjar, iss=_cntx.issuer, lifetime=86400, sign_alg=alg)
         _jws.with_jti = True
-        sjwt = _jws.pack(payload=payload, recv=cinfo["client_id"])
+        _logout_token = _jws.pack(payload=payload, recv=cinfo["client_id"])
 
-        return back_channel_logout_uri, sjwt
+        return back_channel_logout_uri, _logout_token
 
     def clean_sessions(self, usids):
-        # Clean out all sessions
-        _sdb = self.endpoint_context.sdb
-        _sso_db = self.endpoint_context.sdb.sso_db
+        # Revoke all sessions
         for sid in usids:
-            # remove session information
-            del _sdb[sid]
-            _sso_db.remove_session_id(sid)
+            self.endpoint_context.session_manager.revoke_client_session(sid)
 
-    def logout_all_clients(self, sid, client_id):
-        _sdb = self.endpoint_context.sdb
-        _sso_db = self.endpoint_context.sdb.sso_db
-
-        # Find all RPs this user has logged it from
-        uid = _sso_db.get_uid_by_sid(sid)
-        if uid is None:
-            logger.debug("Can not translate sid:%s into a user id", sid)
-            return {}
-
-        _client_sid = {}
-        usids = _sso_db.get_sids_by_uid(uid)
-        if usids is None:
-            logger.debug("No sessions found for uid: %s", uid)
-            return {}
-
-        for usid in usids:
-            _client_sid[_sdb[usid]["authn_req"]["client_id"]] = usid
+    def logout_all_clients(self, sid):
+        _mngr = self.endpoint_context.session_manager
+        _session_info = _mngr.get_session_info(sid, user_session_info=True,
+                                               client_session_info=True)
 
         # Front-/Backchannel logout ?
         _cdb = self.endpoint_context.cdb
         _iss = self.endpoint_context.issuer
+        _user_id = _session_info["user_id"]
         bc_logouts = {}
         fc_iframes = {}
-        for _cid, _csid in _client_sid.items():
-            if "backchannel_logout_uri" in _cdb[_cid]:
-                _sub = _sso_db.get_sub_by_sid(_csid)
-                _spec = self.do_back_channel_logout(_cdb[_cid], _sub, _csid)
+        _rel_sid = []
+        for _client_id in _session_info["user_session_info"]["subordinate"]:
+            if "backchannel_logout_uri" in _cdb[_client_id]:
+                _sid = session_key(_user_id, _client_id)
+                _rel_sid.append(_sid)
+                _spec = self.do_back_channel_logout(_cdb[_client_id], _sid)
                 if _spec:
-                    bc_logouts[_cid] = _spec
-            elif "frontchannel_logout_uri" in _cdb[_cid]:
+                    bc_logouts[_client_id] = _spec
+            elif "frontchannel_logout_uri" in _cdb[_client_id]:
                 # Construct an IFrame
-                _spec = do_front_channel_logout_iframe(_cdb[_cid], _iss, _csid)
+                _sid = session_key(_user_id, _client_id)
+                _rel_sid.append(_sid)
+                _spec = do_front_channel_logout_iframe(_cdb[_client_id], _iss, _sid)
                 if _spec:
-                    fc_iframes[_cid] = _spec
+                    fc_iframes[_client_id] = _spec
 
-        try:
-            self.clean_sessions(usids)
-        except KeyError:
-            pass
+        self.clean_sessions(_rel_sid)
 
         res = {}
         if bc_logouts:
@@ -189,33 +195,26 @@ class Session(Endpoint):
         else:
             raise ValueError("Not a signed JWT")
 
-    def logout_from_client(self, sid, client_id):
+    def logout_from_client(self, sid):
         _cdb = self.endpoint_context.cdb
-        _sso_db = self.endpoint_context.sdb.sso_db
-
-        # Kill the session
-        _sdb = self.endpoint_context.sdb
-        _sdb.revoke_session(sid=sid)
+        _session_information = self.endpoint_context.session_manager.get_session_info(
+            sid, grant=True)
+        _client_id = _session_information["client_id"]
 
         res = {}
-        if "backchannel_logout_uri" in _cdb[client_id]:
-            _sub = _sso_db.get_sub_by_sid(sid)
-            _spec = self.do_back_channel_logout(_cdb[client_id], _sub, sid)
+        if "backchannel_logout_uri" in _cdb[_client_id]:
+            _spec = self.do_back_channel_logout(_cdb[_client_id], sid)
             if _spec:
-                res["blu"] = {client_id: _spec}
-        elif "frontchannel_logout_uri" in _cdb[client_id]:
+                res["blu"] = {_client_id: _spec}
+        elif "frontchannel_logout_uri" in _cdb[_client_id]:
             # Construct an IFrame
             _spec = do_front_channel_logout_iframe(
-                _cdb[client_id], self.endpoint_context.issuer, sid
+                _cdb[_client_id], self.endpoint_context.issuer, sid
             )
             if _spec:
-                res["flu"] = {client_id: _spec}
+                res["flu"] = {_client_id: _spec}
 
-        try:
-            self.clean_sessions([sid])
-        except KeyError:
-            pass
-
+        self.clean_sessions([sid])
         return res
 
     def process_request(self, request=None, cookie=None, **kwargs):
@@ -228,7 +227,7 @@ class Session(Endpoint):
         :return:
         """
         _cntx = self.endpoint_context
-        _sdb = _cntx.sdb
+        _mngr = _cntx.session_manager
 
         if "post_logout_redirect_uri" in request:
             if "id_token_hint" not in request:
@@ -249,63 +248,31 @@ class Session(Endpoint):
             # value is a base64 encoded JSON document
             _cookie_info = json.loads(as_unicode(b64d(as_bytes(part[0]))))
             logger.debug("Cookie info: {}".format(_cookie_info))
-            _sid = _cookie_info["sid"]
+            try:
+                _session_info = _mngr.get_session_info(_cookie_info["sid"],
+                                                       grant=True)
+            except KeyError:
+                raise ValueError("Can't find any corresponding session")
         else:
             logger.debug("No relevant cookie")
-            _sid = ""
-            _cookie_info = {}
+            raise ValueError("Missing cookie")
 
-        if "id_token_hint" in request:
+        if "id_token_hint" in request and _session_info:
+            _id_token = request[verified_claim_name("id_token_hint")]
             logger.debug(
-                "ID token hint: {}".format(
-                    request[verified_claim_name("id_token_hint")]
-                )
+                "ID token hint: {}".format(_id_token)
             )
 
-            auds = request[verified_claim_name("id_token_hint")]["aud"]
-            _ith_sid = ""
-            _sids = _sdb.sso_db.get_sids_by_sub(
-                request[verified_claim_name("id_token_hint")]["sub"]
-            )
+            _aud = _id_token["aud"]
+            if _session_info["client_id"] not in _aud:
+                raise ValueError("Client ID doesn't match")
 
-            if _sids is None:
-                raise ValueError("Unknown subject identifier")
-
-            for _isid in _sids:
-                if _sdb[_isid]["authn_req"]["client_id"] in auds:
-                    _ith_sid = _isid
-                    break
-
-            if not _ith_sid:
-                raise ValueError("Unknown subject")
-
-            if _sid:
-                if _ith_sid != _sid:  # someone's messing with me
-                    raise ValueError("Wrong ID Token hint")
-            else:
-                _sid = _ith_sid
+            if _id_token["sub"] != _session_info["grant"].sub:
+                raise ValueError("Sub doesn't match")
         else:
-            auds = []
+            _aud = []
 
-        try:
-            session = _sdb[_sid]
-        except KeyError:
-            raise ValueError("Can't find any corresponding session")
-
-        client_id = session["authn_req"]["client_id"]
-        # Does this match what's in the cookie ?
-        if _cookie_info:
-            if client_id != _cookie_info["client_id"]:
-                logger.warning(
-                    "Client ID in authz request and in cookie does not match"
-                )
-                raise ValueError("Wrong Client")
-
-        if auds:
-            if client_id not in auds:
-                raise ValueError("Incorrect ID Token hint")
-
-        _cinfo = _cntx.cdb[client_id]
+        _cinfo = _cntx.cdb[_session_info["client_id"]]
 
         # verify that the post_logout_redirect_uri if present are among the ones
         # registered
@@ -320,12 +287,11 @@ class Session(Endpoint):
             plur = False
         else:
             plur = True
-            verify_uri(_cntx, request, "post_logout_redirect_uri", client_id=client_id)
+            verify_uri(_cntx, request, "post_logout_redirect_uri",
+                       client_id=_session_info["client_id"])
 
         payload = {
-            "sid": _sid,
-            "client_id": client_id,
-            "user": session["authn_event"]["uid"],
+            "sid": _session_info["session_id"],
         }
 
         # redirect user to OP logout verification page
@@ -387,20 +353,20 @@ class Session(Endpoint):
                 pass
             else:
                 if (
-                    _ith.jws_header["alg"]
-                    not in self.endpoint_context.provider_info[
-                        "id_token_signing_alg_values_supported"
-                    ]
+                        _ith.jws_header["alg"]
+                        not in self.endpoint_context.provider_info[
+                    "id_token_signing_alg_values_supported"
+                ]
                 ):
                     raise JWSException("Unsupported signing algorithm")
 
         return request
 
-    def do_verified_logout(self, sid, client_id, alla=False, **kwargs):
+    def do_verified_logout(self, sid, alla=False, **kwargs):
         if alla:
-            _res = self.logout_all_clients(sid=sid, client_id=client_id)
+            _res = self.logout_all_clients(sid=sid)
         else:
-            _res = self.logout_from_client(sid=sid, client_id=client_id)
+            _res = self.logout_from_client(sid=sid)
 
         bcl = _res.get("blu")
         if bcl:

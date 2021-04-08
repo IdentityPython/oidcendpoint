@@ -6,6 +6,7 @@ from secrets import choice
 
 import pytest
 import yaml
+from oidcmsg.message import Message
 from oidcmsg.oauth2 import AuthorizationErrorResponse
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
@@ -17,7 +18,7 @@ from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.add_on.pkce import CC_METHOD
 from oidcendpoint.oidc.authorization import Authorization
-from oidcendpoint.oidc.token_coop import TokenCoop
+from oidcendpoint.oidc.token import Token
 
 BASECH = string.ascii_letters + string.digits + "-._~"
 
@@ -119,9 +120,6 @@ def conf():
         "verify_ssl": False,
         "capabilities": CAPABILITIES,
         "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
-        "userinfo": {
-            "class": "oidcendpoint.user_info.UserInfo",
-        },
         "id_token": {
             "class": IDToken,
             "kwargs": {
@@ -139,7 +137,7 @@ def conf():
             },
             "token": {
                 "path": "{}/token",
-                "class": TokenCoop,
+                "class": Token,
                 "kwargs": {
                     "client_authn_method": [
                         "client_secret_post",
@@ -218,6 +216,7 @@ class TestEndpoint(object):
     @pytest.fixture(autouse=True)
     def create_endpoint(self, conf):
         endpoint_context = create_endpoint(conf)
+        self.session_manager = endpoint_context.session_manager
         self.authn_endpoint = endpoint_context.endpoint["authorization"]
         self.token_endpoint = endpoint_context.endpoint["token"]
 
@@ -245,55 +244,7 @@ class TestEndpoint(object):
         _token_request["code_verifier"] = _cc_info["code_verifier"]
         _req = self.token_endpoint.parse_request(_token_request)
 
-        assert isinstance(_req, AccessTokenRequest)
-
-    def test_reuse_code(self):
-        """
-        Parsing should no fail because of pkce if the code is reused
-        """
-        _cc_info = _code_challenge()
-        _authn_req = AUTH_REQ.copy()
-        _authn_req["code_challenge"] = _cc_info["code_challenge"]
-        _authn_req["code_challenge_method"] = _cc_info["code_challenge_method"]
-
-        _pr_resp = self.authn_endpoint.parse_request(_authn_req.to_dict())
-        resp = self.authn_endpoint.process_request(_pr_resp)
-
-        assert isinstance(resp["response_args"], AuthorizationResponse)
-
-        _token_request = TOKEN_REQ.copy()
-        _token_request["code"] = resp["response_args"]["code"]
-        _token_request["code_verifier"] = _cc_info["code_verifier"]
-        _req = self.token_endpoint.parse_request(_token_request)
-        self.token_endpoint.process_request(_req)
-
-        _req = self.token_endpoint.parse_request(_token_request)
-        resp = self.token_endpoint.process_request(_req)
-        assert isinstance(resp, TokenErrorResponse)
-
-    def test_invalid_code(self):
-        """
-        Parsing should no fail because of pkce if the code is invalid
-        """
-        _cc_info = _code_challenge()
-        _authn_req = AUTH_REQ.copy()
-        _authn_req["code_challenge"] = _cc_info["code_challenge"]
-        _authn_req["code_challenge_method"] = _cc_info["code_challenge_method"]
-
-        _pr_resp = self.authn_endpoint.parse_request(_authn_req.to_dict())
-        resp = self.authn_endpoint.process_request(_pr_resp)
-
-        assert isinstance(resp["response_args"], AuthorizationResponse)
-
-        _token_request = TOKEN_REQ.copy()
-        _token_request["code"] = resp["response_args"]["code"]
-        _token_request["code_verifier"] = _cc_info["code_verifier"]
-        _req = self.token_endpoint.parse_request(_token_request)
-        self.token_endpoint.process_request(_req)
-
-        _req = self.token_endpoint.parse_request(_token_request)
-        resp = self.token_endpoint.process_request(_req)
-        assert isinstance(resp, TokenErrorResponse)
+        assert isinstance(_req, Message)
 
     def test_no_code_challenge_method(self):
         _cc_info = _code_challenge()
@@ -305,17 +256,18 @@ class TestEndpoint(object):
 
         assert isinstance(resp["response_args"], AuthorizationResponse)
 
-        session = self.token_endpoint.endpoint_context.sdb[
-            resp["response_args"]["code"]
-        ]
-        session["authn_req"]["code_challenge_method"] == "plain"
+        session_info = self.session_manager.get_session_info_by_token(
+            resp["response_args"]["code"],
+            grant=True)
+
+        session_info["grant"].authorization_request["code_challenge_method"] = "plain"
 
         _token_request = TOKEN_REQ.copy()
-        _token_request["code"] = session["code"]
+        _token_request["code"] = resp["response_args"]["code"]
         _token_request["code_verifier"] = _cc_info["code_challenge"]
         _req = self.token_endpoint.parse_request(_token_request)
 
-        assert isinstance(_req, AccessTokenRequest)
+        assert isinstance(_req, Message)
 
     def test_no_code_challenge(self):
         _authn_req = AUTH_REQ.copy()
@@ -342,7 +294,7 @@ class TestEndpoint(object):
         _token_request["code"] = resp["response_args"]["code"]
         _req = token_endpoint.parse_request(_token_request)
 
-        assert isinstance(_req, AccessTokenRequest)
+        assert isinstance(_req, Message)
 
     def test_unknown_code_challenge_method(self):
         _authn_req = AUTH_REQ.copy()
@@ -354,8 +306,8 @@ class TestEndpoint(object):
         assert isinstance(_pr_resp, AuthorizationErrorResponse)
         assert _pr_resp["error"] == "invalid_request"
         assert _pr_resp[
-            "error_description"
-        ] == "Unsupported code_challenge_method={}".format(
+                   "error_description"
+               ] == "Unsupported code_challenge_method={}".format(
             _authn_req["code_challenge_method"]
         )
 
@@ -374,8 +326,8 @@ class TestEndpoint(object):
         assert isinstance(_pr_resp, AuthorizationErrorResponse)
         assert _pr_resp["error"] == "invalid_request"
         assert _pr_resp[
-            "error_description"
-        ] == "Unsupported code_challenge_method={}".format(
+                   "error_description"
+               ] == "Unsupported code_challenge_method={}".format(
             _authn_req["code_challenge_method"]
         )
 
@@ -389,10 +341,7 @@ class TestEndpoint(object):
         resp = self.authn_endpoint.process_request(_pr_resp)
 
         _token_request = TOKEN_REQ.copy()
-        session = self.token_endpoint.endpoint_context.sdb[
-            resp["response_args"]["code"]
-        ]
-        _token_request["code"] = session["code"]
+        _token_request["code"] = resp["response_args"]["code"]
         _token_request["code_verifier"] = "aba"
         resp = self.token_endpoint.parse_request(_token_request)
 
@@ -410,63 +359,9 @@ class TestEndpoint(object):
         resp = self.authn_endpoint.process_request(_pr_resp)
 
         _token_request = TOKEN_REQ.copy()
-        session = self.token_endpoint.endpoint_context.sdb[
-            resp["response_args"]["code"]
-        ]
-        _token_request["code"] = session["code"]
+        _token_request["code"] = resp["response_args"]["code"]
         resp = self.token_endpoint.parse_request(_token_request)
 
         assert isinstance(resp, TokenErrorResponse)
         assert resp["error"] == "invalid_grant"
         assert resp["error_description"] == "Missing code_verifier"
-
-    def test_no_authorization_endpoint(self, conf, caplog):
-        """
-        Test that PKCE configuration does not crash when there is no authorization
-        endpoint and a warning is logged.
-        """
-        del conf["endpoint"]["authorization"]
-        create_endpoint(conf)
-        assert "WARNING" in caplog.text
-        assert (
-            "No authorization endpoint found, skipping PKCE configuration"
-            in caplog.text
-        )
-
-    def test_no_token_endpoint(self, conf, caplog):
-        """
-        Test that PKCE configuration does not crash when there is no token endpoint
-        and a warning is logged.
-        """
-        del conf["endpoint"]["token"]
-        create_endpoint(conf)
-        assert "WARNING" in caplog.text
-        assert "No token endpoint found, skipping PKCE configuration" in caplog.text
-
-    def test_plain_challenge_method_not_supported_and_PKCE_not_essential(self, conf):
-        """
-        Test that an authentication request without PKCE parameters does not fail when
-        "plain" code_challenge_method is not supported and PKCE is not essential.
-        """
-        conf["add_on"]["pkce"]["kwargs"]["code_challenge_methods"] = ["S256"]
-        conf["add_on"]["pkce"]["kwargs"]["essential"] = False
-        endpoint_context = create_endpoint(conf)
-        authn_endpoint = endpoint_context.endpoint["authorization"]
-        token_endpoint = endpoint_context.endpoint["token"]
-
-        authentication_request = AUTH_REQ.copy()
-
-        parsed_request = authn_endpoint.parse_request(authentication_request.to_dict())
-
-        assert not isinstance(parsed_request, AuthorizationErrorResponse)
-        assert isinstance(parsed_request, AuthorizationRequest)
-
-        response = authn_endpoint.process_request(parsed_request)
-
-        assert isinstance(response["response_args"], AuthorizationResponse)
-
-        token_request = TOKEN_REQ.copy()
-        token_request["code"] = response["response_args"]["code"]
-        parsed_token_request = token_endpoint.parse_request(token_request)
-
-        assert isinstance(parsed_token_request, AccessTokenRequest)

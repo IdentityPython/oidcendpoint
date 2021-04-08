@@ -1,11 +1,10 @@
 """Implements RFC7662"""
 import logging
 
-from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oauth2
-from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint.endpoint import Endpoint
+from oidcendpoint.token.exception import UnknownToken
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,59 +22,36 @@ class Introspection(Endpoint):
     def __init__(self, **kwargs):
         Endpoint.__init__(self, **kwargs)
         self.offset = kwargs.get("offset", 0)
-        self.enable_claims_per_client = kwargs.get("enable_claims_per_client", False)
 
-    def get_client_id_from_token(self, endpoint_context, token, request=None):
-        """
-        Will try to match tokens against information in the session DB.
-
-        :param endpoint_context:
-        :param token:
-        :param request:
-        :return: client_id if there was a match
-        """
-        sinfo = endpoint_context.sdb[token]
-        return sinfo["authn_req"]["client_id"]
-
-    def _get_client_claims(self, token):
-        client_id = self.get_client_id_from_token(self.endpoint_context, token)
-        client = self.endpoint_context.cdb.get(client_id, {})
-        return client.get("introspection_claims")
-
-    def _get_user_info(self, token_info):
-        user_id = self.endpoint_context.sdb.sso_db.get_uid_by_sid(token_info["sid"])
-        return self.endpoint_context.userinfo(user_id, client_id=None)
-
-    def _add_claims(self, token_info, claims, payload):
-        user_info = self._get_user_info(token_info)
-        for attr in claims:
-            try:
-                payload[attr] = user_info[attr]
-            except KeyError:
-                pass
-
-    def _introspect(self, token):
-        try:
-            info = self.endpoint_context.sdb[token]
-        except (KeyError, UnknownToken):
-            return None
-
+    def _introspect(self, token, client_id, grant):
         # Make sure that the token is an access_token or a refresh_token
-        if token != info.get("access_token") and token != info.get("refresh_token"):
+        if token.type not in ["access_token", "refresh_token"]:
             return None
 
-        eat = info.get("expires_at")
-        if eat and eat < utc_time_sans_frac():
+        if not token.is_active():
             return None
 
-        if info:  # Now what can be returned ?
-            ret = info.to_dict()
-            ret["iss"] = self.endpoint_context.issuer
+        scope = token.scope
+        if not scope:
+            scope = grant.scope
+        aud = token.resources
+        if not aud:
+            aud = grant.resources
 
-            if "scope" not in ret:
-                ret["scope"] = " ".join(info["authn_req"]["scope"])
+        ret = {
+            "active": True,
+            "scope": " ".join(scope),
+            "client_id": client_id,
+            "token_type": token.type,
+            "exp": token.expires_at,
+            "iat": token.issued_at,
+            "sub": grant.sub,
+            "iss": self.endpoint_context.issuer
+        }
+        if aud:
+            ret["aud"] = aud
 
-            return ret
+        return ret
 
     def process_request(self, request=None, **kwargs):
         """
@@ -88,29 +64,38 @@ class Introspection(Endpoint):
         if "error" in _introspect_request:
             return _introspect_request
 
-        _token = _introspect_request["token"]
+        request_token = _introspect_request["token"]
         _resp = self.response_cls(active=False)
 
-        _info = self._introspect(_token)
+        try:
+            _session_info = self.endpoint_context.session_manager.get_session_info_by_token(
+                request_token, grant=True)
+        except UnknownToken:
+            return {"response_args": _resp}
+
+        _grant = _session_info["grant"]
+        _token = _grant.get_token(request_token)
+
+        _info = self._introspect(_token, _session_info["client_id"], _grant)
         if _info is None:
             return {"response_args": _resp}
 
         if "release" in self.kwargs:
             if "username" in self.kwargs["release"]:
                 try:
-                    _info["username"] = self.endpoint_context.userinfo.search(
-                        sub=_info["sub"]
-                    )
+                    _info["username"] = _session_info["user_id"]
                 except KeyError:
                     pass
 
         _resp.update(_info)
         _resp.weed()
 
-        if self.enable_claims_per_client:
-            client_claims = self._get_client_claims(_token)
-            if client_claims:
-                self._add_claims(_info, client_claims, _resp)
+        _claims_restriction = _grant.claims.get("introspection")
+        if _claims_restriction:
+            user_info = self.endpoint_context.claims_interface.get_user_claims(
+                _session_info["user_id"], _claims_restriction)
+            if user_info:
+                _resp.update(user_info)
 
         _resp["active"] = True
 

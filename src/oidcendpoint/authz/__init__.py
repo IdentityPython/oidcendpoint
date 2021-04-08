@@ -1,9 +1,13 @@
+import copy
 import inspect
 import logging
 import sys
+from typing import Optional
+from typing import Union
 
-from oidcendpoint import sanitize
-from oidcendpoint.cookie import cookie_value
+from oidcmsg.message import Message
+
+from oidcendpoint.session.grant import Grant
 
 logger = logging.getLogger(__name__)
 
@@ -11,53 +15,89 @@ logger = logging.getLogger(__name__)
 class AuthzHandling(object):
     """ Class that allow an entity to manage authorization """
 
-    def __init__(self, endpoint_context, **kwargs):
+    def __init__(self, endpoint_context, grant_config=None, **kwargs):
         self.endpoint_context = endpoint_context
         self.cookie_dealer = endpoint_context.cookie_dealer
-        self.permdb = {}
+        self.grant_config = grant_config or {}
         self.kwargs = kwargs
 
-    def __call__(self, *args, **kwargs):
-        return ""
-
-    def set(self, uid, client_id, permission):
-        try:
-            self.permdb[uid][client_id] = permission
-        except KeyError:
-            self.permdb[uid] = {client_id: permission}
-
-    def permissions(self, cookie=None, **kwargs):
-        if cookie is None:
-            return None
+    def usage_rules(self, client_id):
+        if "usage_rules" in self.grant_config:
+            _usage_rules = copy.deepcopy(self.grant_config["usage_rules"])
         else:
-            logger.debug("kwargs: %s" % sanitize(kwargs))
+            _usage_rules = {}
 
-            val = self.cookie_dealer.get_cookie_value(cookie)
-            if val is None:
-                return None
-            else:
-                b64, _ts, typ = val
-
-            info = cookie_value(b64)
-            return self.get(info["sub"], info["client_id"])
-
-    def get(self, uid, client_id):
         try:
-            return self.permdb[uid][client_id]
+            _per_client = self.endpoint_context.cdb[client_id]["token_usage_rules"]
         except KeyError:
-            return None
+            pass
+        else:
+            if _usage_rules:
+                for _token_type, _rule in _usage_rules.items():
+                    _pc = _per_client.get(_token_type)
+                    if _pc:
+                        _rule.update(_pc)
+                for _token_type, _rule in _per_client.items():
+                    if _token_type not in _usage_rules:
+                        _usage_rules[_token_type] = _rule
+            else:
+                _usage_rules = _per_client
+
+        return _usage_rules
+
+    def usage_rules_for(self, client_id, token_type):
+        _token_usage = self.usage_rules(client_id=client_id)
+        try:
+            return _token_usage[token_type]
+        except KeyError:
+            return {}
+
+    def __call__(self, session_id: str, request: Union[dict, Message],
+                 resources: Optional[list] = None) -> Grant:
+        args = self.grant_config.copy()
+
+        scope = request.get("scope")
+        if scope:
+            args["scope"] = scope
+
+        claims = request.get("claims")
+        if claims:
+            if isinstance(request, Message):
+                claims = claims.to_dict()
+            args["claims"] = claims
+
+        session_info = self.endpoint_context.session_manager.get_session_info(
+            session_id=session_id, grant=True
+        )
+        grant = session_info["grant"]
+
+        for key, val in args.items():
+            if key == "expires_in":
+                grant.set_expires_at(val)
+            else:
+                setattr(grant, key, val)
+
+        if resources is None:
+            grant.resources = [session_info["client_id"]]
+        else:
+            grant.resources = resources
+
+        # This is where user consent should be handled
+        for interface in ["userinfo", "introspection", "id_token", "access_token"]:
+            grant.claims[interface] = self.endpoint_context.claims_interface.get_claims(
+                session_id=session_id, scopes=request["scope"], usage=interface
+            )
+        return grant
 
 
 class Implicit(AuthzHandling):
-    def __init__(self, endpoint_context, permission="implicit"):
-        AuthzHandling.__init__(self, endpoint_context)
-        self.permission = permission
-
-    def permissions(self, cookie=None, **kwargs):
-        return self.permission
-
-    def get(self, uid, client_id):
-        return self.permission
+    def __call__(self, session_id: str, request: Union[dict, Message],
+                 resources: Optional[list] = None) -> Grant:
+        args = self.grant_config.copy()
+        grant = self.endpoint_context.session_manager.get_grant(session_id=session_id)
+        for arg, val in args:
+            setattr(grant, arg, val)
+        return grant
 
 
 def factory(msgtype, endpoint_context, **kwargs):

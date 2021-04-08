@@ -5,17 +5,12 @@ import os
 import pytest
 import yaml
 from cryptojwt import KeyJar
-from cryptojwt.jwt import utc_time_sans_frac
 from oidcmsg.oidc import AuthorizationRequest
 
-from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.oidc.authorization import Authorization
-from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_authn.authn_context import UNSPECIFIED
 from oidcendpoint.user_authn.user import NoAuthn
-from oidcendpoint.user_authn.user import UserPassJinja2
-from oidcendpoint.util import JSONDictDB
 
 KEYDEFS = [
     {"type": "RSA", "key": "", "use": ["sig"]}
@@ -34,7 +29,7 @@ RESPONSE_TYPES_SUPPORTED = [
 ]
 
 CAPABILITIES = {
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",
@@ -56,7 +51,7 @@ AUTH_REQ = AuthorizationRequest(
 AUTH_REQ_DICT = AUTH_REQ.to_dict()
 
 AUTH_REQ_2 = AuthorizationRequest(
-    client_id="client3",
+    client_id="client_3",
     redirect_uri="https://127.0.0.1:8090/authz_cb/bobcat",
     scope=["openid"],
     state="STATE2",
@@ -64,10 +59,18 @@ AUTH_REQ_2 = AuthorizationRequest(
 )
 
 AUTH_REQ_3 = AuthorizationRequest(
-    client_id="client2",
+    client_id="client_2",
     redirect_uri="https://app1.example.net/foo",
     scope=["openid"],
     state="STATE3",
+    response_type="code",
+)
+
+AUTH_REQ_4 = AuthorizationRequest(
+    client_id="client_1",
+    redirect_uri="https://example.com/cb",
+    scope=["openid", "email"],
+    state="STATE",
     response_type="code",
 )
 
@@ -94,14 +97,14 @@ oidc_clients:
         - 'code id_token'
         - 'id_token'
         - 'code id_token token'
-  client2:
+  client_2:
     client_secret: "spraket_sr.se"
     redirect_uris:
       - ['https://app1.example.net/foo', '']
       - ['https://app2.example.net/bar', '']
     response_types:
       - code
-  client3:
+  client_3:
     client_secret: '2222222222222222222222222222222222222222'
     redirect_uris:
       - ['https://127.0.0.1:8090/authz_cb/bobcat', '']
@@ -139,23 +142,6 @@ class TestUserAuthn(object):
             },
             "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
             "authentication": {
-                "user": {
-                    "acr": INTERNETPROTOCOLPASSWORD,
-                    "class": UserPassJinja2,
-                    "verify_endpoint": "verify/user",
-                    "kwargs": {
-                        "template": "user_pass.jinja2",
-                        "sym_key": "24AA/LR6HighEnergy",
-                        "db": {
-                            "class": JSONDictDB,
-                            "kwargs": {"json_path": full_path("passwd.json")},
-                        },
-                        "page_header": "Testing log in",
-                        "submit_btn": "Get me in!",
-                        "user_label": "Nickname",
-                        "passwd_label": "Secret sauce",
-                    },
-                },
                 "anon": {
                     "acr": UNSPECIFIED,
                     "class": NoAuthn,
@@ -197,70 +183,65 @@ class TestUserAuthn(object):
         info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=None)
         # info = self.endpoint.process_request(request)
 
-        assert "function" in info
+        assert "user" in info
 
-        authn_event = create_authn_event(
-            "diana",
-            "",
-            authn_info=INTERNETPROTOCOLPASSWORD,
-            time_stamp=utc_time_sans_frac(),
-        )
-
-        info = {"user": "diana", "authn_event": authn_event}
-
-        res = self.endpoint.authz_part2(
-            info["user"], info["authn_event"], request, cookie=""
-        )
+        res = self.endpoint.authz_part2(request, info["session_id"], cookie="")
         assert res
         cookie = res["cookie"]
 
-        # second login
+        # second login - from 2nd client
+        request = self.endpoint.parse_request(AUTH_REQ_2.to_dict())
+        redirect_uri = request["redirect_uri"]
+        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
+        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=None)
+
+        assert set(info.keys()) == {"session_id", "identity", "user"}
+        assert info["user"] == "diana"
+
+        self.endpoint.authz_part2(request, info["session_id"], cookie="")
+        cookie = res["cookie"]
+
+        # third login - from 3rd client
+        request = self.endpoint.parse_request(AUTH_REQ_3.to_dict())
+        redirect_uri = request["redirect_uri"]
+        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
+        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=None)
+
+        assert set(info.keys()) == {"session_id", "identity", "user"}
+        assert info["user"] == "diana"
+
+        self.endpoint.authz_part2(request, info["session_id"], cookie="")
+
+        # fourth login - from 1st client
+        request = self.endpoint.parse_request(AUTH_REQ_4.to_dict())
+        redirect_uri = request["redirect_uri"]
+        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
+        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=cookie[0])
+
+        assert set(info.keys()) == {"session_id", "identity", "user"}
+        assert info["user"] == "diana"
+
+        self.endpoint.authz_part2(request, info["session_id"], cookie="")
+
+        # Fifth login - from 2nd client - wrong cookie
         request = self.endpoint.parse_request(AUTH_REQ_2.to_dict())
         redirect_uri = request["redirect_uri"]
         cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
         info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=cookie[0])
 
-        assert set(info.keys()) == {"authn_event", "identity", "user"}
-        assert info["user"] == "diana"
+        assert set(info.keys()) == {"args", "function"}
 
-        authn_event = create_authn_event(
-            "diana",
-            "",
-            authn_info=INTERNETPROTOCOLPASSWORD,
-            time_stamp=utc_time_sans_frac(),
-        )
+        user_session_info = self.endpoint.endpoint_context.session_manager.get(["diana"])
+        assert len(user_session_info["subordinate"]) == 3
+        assert set(user_session_info["subordinate"]) == {"client_1", "client_2", "client_3"}
 
-        info = {"user": "diana", "authn_event": authn_event}
+        # Should be one grant for each of client_2 and client_3 and
+        # 2 grants for client_1
 
-        res = self.endpoint.authz_part2(
-            info["user"], info["authn_event"], request, cookie=""
-        )
-        cookie = res["cookie"]
+        csi1 = self.endpoint.endpoint_context.session_manager.get(["diana", "client_1"])
+        csi2 = self.endpoint.endpoint_context.session_manager.get(["diana", "client_2"])
+        csi3 = self.endpoint.endpoint_context.session_manager.get(["diana", "client_3"])
 
-        # third login
-        request = self.endpoint.parse_request(AUTH_REQ_3.to_dict())
-        redirect_uri = request["redirect_uri"]
-        cinfo = self.endpoint.endpoint_context.cdb[request["client_id"]]
-        info = self.endpoint.setup_auth(request, redirect_uri, cinfo, cookie=cookie[0])
-
-        assert set(info.keys()) == {"authn_event", "identity", "user"}
-        assert info["user"] == "diana"
-
-        authn_event = create_authn_event(
-            "diana",
-            "",
-            authn_info=INTERNETPROTOCOLPASSWORD,
-            time_stamp=utc_time_sans_frac(),
-        )
-
-        info = {"user": "diana", "authn_event": authn_event}
-
-        self.endpoint.authz_part2(info["user"], info["authn_event"], request, cookie="")
-
-        sids = self.endpoint.endpoint_context.sdb.sso_db.get_sids_by_uid("diana")
-        assert len(sids) == 3
-        # from which clients
-        clients = [
-            self.endpoint.endpoint_context.session_db[s]["client_id"] for s in sids
-        ]
-        assert set(clients) == {"client_1", "client2", "client3"}
+        assert len(csi1["subordinate"]) == 2
+        assert len(csi2["subordinate"]) == 1
+        assert len(csi3["subordinate"]) == 1

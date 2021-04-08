@@ -5,17 +5,15 @@ import requests
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
 from oidcmsg.context import OidcContext
-from oidcmsg.oidc import IdToken
 
 from oidcendpoint import authz
 from oidcendpoint import rndstr
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.scopes import SCOPE2CLAIMS
-from oidcendpoint.scopes import STANDARD_CLAIMS
-from oidcendpoint.scopes import Claims
 from oidcendpoint.scopes import Scopes
-from oidcendpoint.session import create_session_db
-from oidcendpoint.sso_db import SSODb
+from oidcendpoint.session.claims import STANDARD_CLAIMS
+from oidcendpoint.session.claims import ClaimsInterface
+from oidcendpoint.session.manager import create_session_manager
 from oidcendpoint.template_handler import Jinja2TemplateHandler
 from oidcendpoint.user_authn.authn_context import populate_authn_broker
 from oidcendpoint.util import allow_refresh_token
@@ -87,34 +85,28 @@ def get_token_handlers(conf):
 
 class EndpointContext(OidcContext):
     def __init__(
-        self,
-        conf,
-        keyjar=None,
-        cwd="",
-        cookie_dealer=None,
-        httpc=None,
-        cookie_name=None,
-        jwks_uri_path=None,
+            self,
+            conf,
+            keyjar=None,
+            cwd="",
+            cookie_dealer=None,
+            httpc=None,
     ):
         OidcContext.__init__(self, conf, keyjar, entity_id=conf.get("issuer", ""))
         self.conf = conf
 
         # For my Dev environment
-        self.sso_db = None
-        self.session_db = None
-        self.state_db = None
         self.cdb = None
         self.jti_db = None
         self.registration_access_token = None
+        self.session_db = None
 
         self.add_boxes(
             {
-                "state": "state_db",
                 "client": "cdb",
                 "jti": "jti_db",
                 "registration_access_token": "registration_access_token",
-                "sso": "sso_db",
-                "session": "session_db",
+                "session": "session_db"
             },
             self.db_conf,
         )
@@ -134,7 +126,7 @@ class EndpointContext(OidcContext):
         self.jwks_uri = None
         self.sso_ttl = 14400  # 4h
         self.symkey = rndstr(24)
-        self.id_token_schema = IdToken
+        # self.id_token_schema = IdToken
         self.idtoken = None
         self.authn_broker = None
         self.authz = None
@@ -152,7 +144,7 @@ class EndpointContext(OidcContext):
             "sso_ttl",
             "symkey",
             "client_authn",
-            "id_token_schema",
+            # "id_token_schema",
         ]:
             try:
                 setattr(self, param, conf[param])
@@ -172,9 +164,7 @@ class EndpointContext(OidcContext):
         # has to be after the above
         self.set_session_db()
 
-        if cookie_name:
-            self.cookie_name = cookie_name
-        elif "cookie_name" in conf:
+        if "cookie_name" in conf:
             self.cookie_name = conf["cookie_name"]
         else:
             self.cookie_name = {
@@ -196,11 +186,7 @@ class EndpointContext(OidcContext):
             self.template_handler = Jinja2TemplateHandler(loader)
 
         self.setup = {}
-        if not jwks_uri_path:
-            try:
-                jwks_uri_path = conf["keys"]["uri_path"]
-            except KeyError:
-                pass
+        jwks_uri_path = conf["keys"]["uri_path"]
 
         try:
             if self.issuer.endswith("/"):
@@ -248,7 +234,7 @@ class EndpointContext(OidcContext):
             self.httpc_params = {"verify": conf.get("verify_ssl")}
 
         self.set_scopes_handler()
-        self.set_claims_handler()
+        # self.set_claims_handler()
 
         # If pushed authorization is supported
         if "pushed_authorization_request_endpoint" in self.provider_info:
@@ -260,6 +246,8 @@ class EndpointContext(OidcContext):
             self.dev_auth_db = None
             self.add_boxes({"dev_auth": "dev_auth_db"}, self.db_conf)
 
+        self.claims_interface = ClaimsInterface(self)
+
     def set_scopes_handler(self):
         _spec = self.conf.get("scopes_handler")
         if _spec:
@@ -269,20 +257,19 @@ class EndpointContext(OidcContext):
         else:
             self.scopes_handler = Scopes()
 
-    def set_claims_handler(self):
-        _spec = self.conf.get("claims_handler")
-        if _spec:
-            _kwargs = _spec.get("kwargs", {})
-            _cls = importer(_spec["class"])(**_kwargs)
-            self.claims_handler = _cls(_kwargs)
-        else:
-            self.claims_handler = Claims()
+    # def set_claims_handler(self):
+    #     _spec = self.conf.get("claims_handler")
+    #     if _spec:
+    #         _kwargs = _spec.get("kwargs", {})
+    #         _cls = importer(_spec["class"])(**_kwargs)
+    #         self.claims_handler = _cls(_kwargs)
+    #     else:
+    #         self.claims_handler = Claims()
 
     def set_session_db(self):
-        self.do_session_db(SSODb(db=self.sso_db), self.session_db)
+        self.do_session_manager()
         # append userinfo db to the session db
         self.do_userinfo()
-        logger.debug("Session DB: {}".format(self.sdb.__dict__))
 
     def do_add_on(self):
         if self.conf.get("add_on"):
@@ -311,9 +298,9 @@ class EndpointContext(OidcContext):
     def do_userinfo(self):
         _conf = self.conf.get("userinfo")
         if _conf:
-            if self.sdb:
+            if self.session_manager:
                 self.userinfo = init_user_info(_conf, self.cwd)
-                self.sdb.userinfo = self.userinfo
+                self.session_manager.userinfo = self.userinfo
             else:
                 logger.warning("Cannot init_user_info if no session_db was provided.")
 
@@ -357,10 +344,15 @@ class EndpointContext(OidcContext):
                 else:
                     self._sub_func[key] = args["function"]
 
-    def do_session_db(self, sso_db, db=None):
-        self.sdb = create_session_db(
-            self, self.th_args, db=db, sso_db=sso_db, sub_func=self._sub_func
-        )
+    def do_session_manager(self, db=None):
+        if self.session_db is None:
+            self.session_manager = create_session_manager(
+                self, self.th_args, db=db, sub_func=self._sub_func
+            )
+        else:
+            self.session_manager = create_session_manager(
+                self, self.th_args, db=self.session_db, sub_func=self._sub_func
+            )
 
     def do_endpoints(self):
         self.endpoint = build_endpoints(

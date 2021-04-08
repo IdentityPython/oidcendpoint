@@ -1,11 +1,13 @@
 import logging
+import uuid
 
 from cryptojwt.jws.utils import left_hash
 from cryptojwt.jwt import JWT
 
 from oidcendpoint.endpoint import construct_endpoint_info
-from oidcendpoint.userinfo import collect_user_info
-from oidcendpoint.userinfo import userinfo_in_id_token_claims
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.session.claims import claims_match
+from oidcendpoint.session.info import SessionInfo
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,7 @@ def include_session_id(endpoint_context, client_id, where):
 
 
 def get_sign_and_encrypt_algorithms(
-    endpoint_context, client_info, payload_type, sign=False, encrypt=False
+        endpoint_context, client_info, payload_type, sign=False, encrypt=False
 ):
     args = {"sign": sign, "encrypt": encrypt}
     if sign:
@@ -112,49 +114,49 @@ class IDToken(object):
     def __init__(self, endpoint_context, **kwargs):
         self.endpoint_context = endpoint_context
         self.kwargs = kwargs
-        self.enable_claims_per_client = kwargs.get("enable_claims_per_client", False)
-        self.add_c_hash = kwargs.get("add_c_hash", True)
-        self.add_at_hash = kwargs.get("add_at_hash", True)
         self.scope_to_claims = None
         self.provider_info = construct_endpoint_info(
             self.default_capabilities, **kwargs
         )
 
     def payload(
-        self,
-        session,
-        acr="",
-        alg="RS256",
-        code=None,
-        access_token=None,
-        user_info=None,
-        auth_time=0,
-        lifetime=None,
-        extra_claims=None,
+            self,
+            session_id,
+            alg="RS256",
+            code=None,
+            access_token=None,
+            extra_claims=None,
     ):
         """
 
-        :param session: Session information
-        :param acr: Default Assurance/Authentication context class reference
+        :param session_id: Session identifier
         :param alg: Which signing algorithm to use for the IdToken
         :param code: Access grant
         :param access_token: Access Token
-        :param user_info: If user info are to be part of the IdToken
-        :param auth_time:
-        :param lifetime: Life time of the ID Token
         :param extra_claims: extra claims to be added to the ID Token
         :return: IDToken instance
         """
 
-        _args = {"sub": session["sub"]}
+        _mngr = self.endpoint_context.session_manager
+        session_information = _mngr.get_session_info(session_id, grant=True)
+        grant = session_information["grant"]
+        _args = {"sub": grant.sub}
+        if grant.authentication_event:
+            for claim, attr in {"authn_time": "auth_time", "authn_info": "acr"}.items():
+                _val = grant.authentication_event.get(claim)
+                if _val:
+                    _args[attr] = _val
 
-        if lifetime is None:
-            lifetime = DEF_LIFETIME
-
-        if auth_time:
-            _args["auth_time"] = auth_time
-        if acr:
-            _args["acr"] = acr
+        _claims_restriction = grant.claims.get("id_token")
+        if _claims_restriction == {}:
+            user_info = None
+        else:
+            user_info = self.endpoint_context.claims_interface.get_user_claims(
+                user_id=session_information["user_id"],
+                claims_restriction=_claims_restriction)
+            if _claims_restriction and "acr" in _claims_restriction and "acr" in _args:
+                if claims_match(_args["acr"], _claims_restriction["acr"]) is False:
+                    raise ValueError("Could not match expected 'acr'")
 
         if user_info:
             try:
@@ -178,46 +180,37 @@ class IDToken(object):
         halg = "HS%s" % alg[-3:]
         if code:
             _args["c_hash"] = left_hash(code.encode("utf-8"), halg)
-        elif self.add_c_hash and session.get("code"):
-            _args["c_hash"] = left_hash(
-                session.get("code").encode("utf-8"), halg
-            )
         if access_token:
             _args["at_hash"] = left_hash(access_token.encode("utf-8"), halg)
-        elif self.add_at_hash and session.get("access_token"):
-            _args["at_hash"] = left_hash(
-                session.get("access_token").encode("utf-8"), halg
-            )
 
-        authn_req = session["authn_req"]
+        authn_req = grant.authorization_request
         if authn_req:
             try:
                 _args["nonce"] = authn_req["nonce"]
             except KeyError:
                 pass
 
-        return {"payload": _args, "lifetime": lifetime}
+        return _args
 
     def sign_encrypt(
-        self,
-        session_info,
-        client_id,
-        code=None,
-        access_token=None,
-        user_info=None,
-        sign=True,
-        encrypt=False,
-        lifetime=None,
-        extra_claims=None,
+            self,
+            session_id,
+            client_id,
+            code=None,
+            access_token=None,
+            sign=True,
+            encrypt=False,
+            lifetime=None,
+            extra_claims=None,
     ):
         """
         Signed and or encrypt a IDToken
 
+        :param lifetime: How long the ID Token should be valid
         :param session_info: Session information
         :param client_id: Client ID
         :param code: Access grant
         :param access_token: Access Token
-        :param user_info: User information
         :param sign: If the JWT should be signed
         :param encrypt: If the JWT should be encrypted
         :param extra_claims: Extra claims to be added to the ID Token
@@ -231,69 +224,52 @@ class IDToken(object):
             _cntx, client_info, "id_token", sign=sign, encrypt=encrypt
         )
 
-        _authn_event = session_info["authn_event"]
-
-        _idt_info = self.payload(
-            session_info,
-            acr=_authn_event["authn_info"],
+        _payload = self.payload(
+            session_id=session_id,
             alg=alg_dict["sign_alg"],
             code=code,
             access_token=access_token,
-            user_info=user_info,
-            auth_time=_authn_event["authn_time"],
-            lifetime=lifetime,
-            extra_claims=extra_claims,
+            extra_claims=extra_claims
         )
+
+        if lifetime is None:
+            lifetime = DEF_LIFETIME
 
         _jwt = JWT(
-            _cntx.keyjar, iss=_cntx.issuer, lifetime=_idt_info["lifetime"], **alg_dict
+            _cntx.keyjar, iss=_cntx.issuer, lifetime=lifetime, **alg_dict
         )
 
-        return _jwt.pack(_idt_info["payload"], recv=client_id)
+        return _jwt.pack(_payload, recv=client_id)
 
-    def make(self, req, sess_info, authn_req=None, user_claims=False, **kwargs):
+    def make(self, session_id, **kwargs):
         _context = self.endpoint_context
 
-        if authn_req:
-            _client_id = authn_req["client_id"]
-        else:
-            _client_id = req["client_id"]
+        user_id, client_id, grant_id = unpack_session_key(session_id)
 
-        _cinfo = _context.cdb[_client_id]
+        # Should I add session ID. This is about Single Logout.
+        if include_session_id(_context, client_id, "back") or include_session_id(
+                _context, client_id, "front"):
 
-        idtoken_claims = dict(self.kwargs.get("available_claims", {}))
-        if self.enable_claims_per_client:
-            idtoken_claims.update(_cinfo.get("id_token_claims", {}))
-        lifetime = self.kwargs.get("lifetime")
-
-        userinfo = userinfo_in_id_token_claims(_context, sess_info, idtoken_claims)
-
-        if user_claims:
-            info = collect_user_info(_context, sess_info)
-            if userinfo is None:
-                userinfo = info
-            else:
-                userinfo.update(info)
-
-        # Should I add session ID
-        req_sid = include_session_id(
-            _context, _client_id, "back"
-        ) or include_session_id(_context, _client_id, "front")
-
-        if req_sid:
-            xargs = {
-                "sid": _context.sdb.get_sid_by_sub_and_client_id(
-                    sess_info["sub"], _client_id
-                )
-            }
+            # Note that this session ID is not the session ID the session manager is using.
+            # It must be possible to map from one to the other.
+            logout_session_id = uuid.uuid4().get_hex()
+            _item = SessionInfo()
+            _item.set("user_id", user_id)
+            _item.set("client_id", client_id)
+            # Store the map
+            _mngr = self.endpoint_context.session_manager
+            _mngr.set([logout_session_id], _item)
+            # add identifier to extra arguments
+            xargs = {"sid": logout_session_id}
         else:
             xargs = {}
 
+        lifetime = self.kwargs.get("lifetime")
+
         return self.sign_encrypt(
-            sess_info,
-            _client_id,
+            session_id,
+            client_id,
             sign=True,
-            user_info=userinfo,
             lifetime=lifetime,
             extra_claims=xargs,
             **kwargs
