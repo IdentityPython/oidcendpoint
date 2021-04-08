@@ -34,7 +34,7 @@ class TokenCoop(Endpoint):
     name = "token"
     default_capabilities = {"token_endpoint_auth_signing_alg_values_supported": None}
 
-    def __init__(self, endpoint_context, **kwargs):
+    def __init__(self, endpoint_context, new_refresh_token=False, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
         self.post_parse_request.append(self._post_parse_request)
         if "client_authn_method" in kwargs:
@@ -42,13 +42,14 @@ class TokenCoop(Endpoint):
                 "client_authn_method"
             ]
         self.allow_refresh = False
+        self.new_refresh_token = new_refresh_token
 
     def _refresh_access_token(self, req, **kwargs):
         _sdb = self.endpoint_context.sdb
 
         rtoken = req["refresh_token"]
         try:
-            _info = _sdb.refresh_token(rtoken)
+            _info = _sdb.refresh_token(rtoken, new_refresh=self.new_refresh_token)
         except ExpiredToken:
             return self.error_cls(
                 error="invalid_request", error_description="Refresh token is expired"
@@ -119,7 +120,7 @@ class TokenCoop(Endpoint):
                 _idtoken = _context.idtoken.make(req, _info, _authn_req)
             except (JWEException, NoSuitableSigningKeys) as err:
                 logger.warning(str(err))
-                resp = TokenErrorResponse(
+                resp = self.error_cls(
                     error="invalid_request",
                     error_description="Could not sign/encrypt id_token",
                 )

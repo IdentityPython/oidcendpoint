@@ -66,6 +66,10 @@ class UnAuthorizedClient(OidcEndpointError):
     pass
 
 
+class UnAuthorizedClientScope(OidcEndpointError):
+    pass
+
+
 class InvalidCookieSign(Exception):
     pass
 

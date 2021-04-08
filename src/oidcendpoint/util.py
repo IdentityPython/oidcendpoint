@@ -17,12 +17,12 @@ def modsplit(s):
     if ":" in s:
         c = s.split(":")
         if len(c) != 2:
-            raise ValueError("Syntax error: {}".format(s))
+            raise ValueError(f"Syntax error: {s}")
         return c[0], c[1]
     else:
         c = s.split(".")
         if len(c) < 2:
-            raise ValueError("Syntax error: {}".format(s))
+            raise ValueError(f"Syntax error: {s}")
         return ".".join(c[:-1]), c[-1]
 
 

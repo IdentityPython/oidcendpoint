@@ -7,10 +7,9 @@ from cryptojwt.utils import as_bytes
 from cryptojwt.utils import as_unicode
 from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oauth2
 from oidcmsg.exception import ParameterError
-from oidcmsg.oauth2 import AuthorizationErrorResponse
-from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oidc import AuthorizationResponse
 from oidcmsg.oidc import verified_claim_name
 
@@ -33,70 +32,12 @@ from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ServiceError
 from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
+from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.scopes import available_scopes
 from oidcendpoint.session import setup_session
 from oidcendpoint.user_authn.authn_context import pick_auth
 
 logger = logging.getLogger(__name__)
-
-
-def create_authn_response(endpoint, request, sid):
-    """
-
-    :param endpoint:
-    :param request:
-    :param sid:
-    :return:
-    """
-    # create the response
-    aresp = AuthorizationResponse()
-    if request.get("state"):
-        aresp["state"] = request["state"]
-
-    if "response_type" in request and request["response_type"] == ["none"]:
-        fragment_enc = False
-    else:
-        _context = endpoint.endpoint_context
-        _sinfo = _context.sdb[sid]
-
-        if request.get("scope"):
-            aresp["scope"] = request["scope"]
-
-        rtype = set(request["response_type"][:])
-        handled_response_type = []
-
-        fragment_enc = True
-        if len(rtype) == 1 and "code" in rtype:
-            fragment_enc = False
-
-        if "code" in request["response_type"]:
-            _code = aresp["code"] = _context.sdb[sid]["code"]
-            handled_response_type.append("code")
-        else:
-            _context.sdb.update(sid, code=None)
-            _code = None
-
-        if "token" in rtype:
-            _dic = _context.sdb.upgrade_to_token(issue_refresh=False, key=sid)
-
-            logger.debug("_dic: %s" % sanitize(_dic))
-            for key, val in _dic.items():
-                if key in aresp.parameters() and val is not None:
-                    aresp[key] = val
-
-            handled_response_type.append("token")
-
-        _access_token = aresp.get("access_token", None)
-
-        not_handled = rtype.difference(handled_response_type)
-        if not_handled:
-            resp = AuthorizationErrorResponse(
-                error="invalid_request", error_description="unsupported_response_type"
-            )
-            return {"response_args": resp, "fragment_enc": fragment_enc}
-
-    return {"response_args": aresp, "fragment_enc": fragment_enc}
 
 
 # For the time being. This is JAR specific and should probably be configurable.
@@ -120,9 +61,25 @@ def re_authenticate(request, authn):
     return False
 
 
+def check_unknown_scopes_policy(request_info, cinfo, endpoint_context):
+    op_capabilities = endpoint_context.conf['capabilities']
+    client_allowed_scopes = cinfo.get('allowed_scopes') or \
+                            op_capabilities['scopes_supported']
+
+    # this prevents that authz would be released for unavailable scopes
+    for scope in request_info['scope']:
+        if op_capabilities.get('deny_unknown_scopes') and \
+           scope not in client_allowed_scopes:
+            _msg = '{} requested an unauthorized scope ({})'
+            logger.warning(_msg.format(cinfo['client_id'],
+                                       scope))
+            raise UnAuthorizedClientScope()
+
+
 class Authorization(Endpoint):
     request_cls = oauth2.AuthorizationRequest
     response_cls = oauth2.AuthorizationResponse
+    error_cls = oauth2.AuthorizationErrorResponse
     request_format = "urlencoded"
     response_format = "urlencoded"
     response_placement = "url"
@@ -195,7 +152,7 @@ class Authorization(Endpoint):
             )
             if _resp.status_code == 200:
                 args = {"keyjar": endpoint_context.keyjar}
-                request = AuthorizationRequest().from_jwt(_resp.text, **args)
+                request = self.request_cls().from_jwt(_resp.text, **args)
                 self.allowed_request_algorithms(
                     client_id,
                     endpoint_context,
@@ -233,7 +190,7 @@ class Authorization(Endpoint):
         """
         if not request:
             logger.debug("No AuthzRequest")
-            return AuthorizationErrorResponse(
+            return self.error_cls(
                 error="invalid_request", error_description="Can not parse AuthzRequest"
             )
 
@@ -244,13 +201,13 @@ class Authorization(Endpoint):
             logger.error(
                 "Client ID ({}) not in client database".format(request["client_id"])
             )
-            return AuthorizationErrorResponse(
+            return self.error_cls(
                 error="unauthorized_client", error_description="unknown client"
             )
 
         # Is the asked for response_type among those that are permitted
         if not self.verify_response_type(request, _cinfo):
-            return AuthorizationErrorResponse(
+            return self.error_cls(
                 error="invalid_request",
                 error_description="Trying to use unregistered response_type",
             )
@@ -259,7 +216,7 @@ class Authorization(Endpoint):
         try:
             redirect_uri = get_uri(endpoint_context, request, "redirect_uri")
         except (RedirectURIError, ParameterError, UnknownClient) as err:
-            return AuthorizationErrorResponse(
+            return self.error_cls(
                 error="invalid_request",
                 error_description="{}: {}".format(err.__class__.__name__, err),
             )
@@ -320,6 +277,10 @@ class Authorization(Endpoint):
             _ts = 0
         except ToOld:
             logger.info("Too old authentication")
+            identity = None
+            _ts = 0
+        except UnknownToken:
+            logger.info("Unknown Token")
             identity = None
             _ts = 0
         else:
@@ -388,6 +349,63 @@ class Authorization(Endpoint):
 
         return {"authn_event": authn_event, "identity": identity, "user": user}
 
+    def create_authn_response(self, request, sid):
+        """
+
+        :param self:
+        :param request:
+        :param sid:
+        :return:
+        """
+        # create the response
+        aresp = AuthorizationResponse()
+        if request.get("state"):
+            aresp["state"] = request["state"]
+
+        if "response_type" in request and request["response_type"] == ["none"]:
+            fragment_enc = False
+        else:
+            _context = self.endpoint_context
+            _sinfo = _context.sdb[sid]
+
+            if request.get("scope"):
+                aresp["scope"] = request["scope"]
+
+            rtype = set(request["response_type"][:])
+            handled_response_type = []
+
+            fragment_enc = True
+            if len(rtype) == 1 and "code" in rtype:
+                fragment_enc = False
+
+            if "code" in request["response_type"]:
+                _code = aresp["code"] = _context.sdb[sid]["code"]
+                handled_response_type.append("code")
+            else:
+                _context.sdb.update(sid, code=None)
+                _code = None
+
+            if "token" in rtype:
+                _dic = _context.sdb.upgrade_to_token(issue_refresh=False, key=sid)
+
+                logger.debug("_dic: %s" % sanitize(_dic))
+                for key, val in _dic.items():
+                    if key in aresp.parameters() and val is not None:
+                        aresp[key] = val
+
+                handled_response_type.append("token")
+
+            _access_token = aresp.get("access_token", None)
+
+            not_handled = rtype.difference(handled_response_type)
+            if not_handled:
+                resp = self.error_cls(
+                    error="invalid_request", error_description="unsupported_response_type"
+                )
+                return {"response_args": resp, "fragment_enc": fragment_enc}
+
+        return {"response_args": aresp, "fragment_enc": fragment_enc}
+
     def aresp_check(self, aresp, request):
         return ""
 
@@ -422,7 +440,7 @@ class Authorization(Endpoint):
         return kwargs
 
     def error_response(self, response_info, error, error_description):
-        resp = AuthorizationErrorResponse(
+        resp = self.error_cls(
             error=error, error_description=error_description
         )
         response_info["response_args"] = resp
@@ -471,7 +489,7 @@ class Authorization(Endpoint):
                 response_info, "access_denied", "Session is revoked"
             )
 
-        response_info = create_authn_response(self, request, sid)
+        response_info = self.create_authn_response(request, sid)
 
         try:
             redirect_uri = get_uri(self.endpoint_context, request, "redirect_uri")
@@ -585,11 +603,16 @@ class Authorization(Endpoint):
         :return: dictionary
         """
 
-        if isinstance(request_info, AuthorizationErrorResponse):
+        if isinstance(request_info, self.error_cls):
             return request_info
 
         _cid = request_info["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
+
+        logger.debug("client {}: {}".format(_cid, cinfo))
+
+        # this apply the default optionally deny_unknown_scopes policy
+        check_unknown_scopes_policy(request_info, cinfo, self.endpoint_context)
 
         cookie = kwargs.get("cookie", "")
         if cookie:

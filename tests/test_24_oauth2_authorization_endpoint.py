@@ -19,7 +19,6 @@ from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
 
 from oidcendpoint.common.authorization import FORM_POST
-from oidcendpoint.common.authorization import create_authn_response
 from oidcendpoint.common.authorization import get_uri
 from oidcendpoint.common.authorization import inputs
 from oidcendpoint.common.authorization import join_query
@@ -31,6 +30,8 @@ from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnknownClient
+from oidcendpoint.exception import UnAuthorizedClientScope
+from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.session import SessionInfo
@@ -116,11 +117,11 @@ client_yaml = """
 clients:
   client_1:
     "client_secret": 'hemligtkodord'
-    "redirect_uris": 
+    "redirect_uris":
         - ['https://example.com/cb', '']
     "client_salt": "salted"
     'token_endpoint_auth_method': 'client_secret_post'
-    'response_types': 
+    'response_types':
         - 'code'
         - 'token'
   client2:
@@ -239,13 +240,14 @@ class TestEndpoint(object):
         assert "code" in _query
 
     def test_do_response_code_token(self):
+        """UnAuthorized Client
+        """
         _orig_req = AUTH_REQ_DICT.copy()
         _orig_req["response_type"] = "code token"
+        msg = ''
         _pr_resp = self.endpoint.parse_request(_orig_req)
-        _resp = self.endpoint.process_request(_pr_resp)
-        msg = self.endpoint.do_response(response_msg=_resp)
-        assert isinstance(msg, dict)
-        assert msg["response"]["error"] == "invalid_request"
+        assert isinstance(_pr_resp, AuthorizationErrorResponse)
+        assert _pr_resp["error"] == "invalid_request"
 
     def test_verify_uri_unknown_client(self):
         request = {"redirect_uri": "https://rp.example.com/cb"}
@@ -408,7 +410,7 @@ class TestEndpoint(object):
             "id_token_signed_response_alg": "ES256",
         }
 
-        resp = create_authn_response(self.endpoint, request, "session_id")
+        resp = self.endpoint.create_authn_response(request, "session_id")
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
 
     def test_setup_auth(self):
@@ -462,6 +464,38 @@ class TestEndpoint(object):
         assert set(res.keys()) == {"function", "args"}
 
         item["method"].file = ""
+
+    def test_setup_auth_invalid_scope(self):
+        request = AuthorizationRequest(
+            client_id="client_id",
+            redirect_uri="https://rp.example.com/cb",
+            response_type=["id_token"],
+            state="state",
+            nonce="nonce",
+            scope="openid THAT-BLOODY_SCOPE",
+        )
+        redirect_uri = request["redirect_uri"]
+        cinfo = {
+            "client_id": "client_id",
+            "redirect_uris": [("https://rp.example.com/cb", {})],
+            "id_token_signed_response_alg": "RS256",
+        }
+
+        _ec = self.endpoint.endpoint_context
+        _ec.cdb["client_id"] = cinfo
+
+        kaka = self.endpoint.endpoint_context.cookie_dealer.create_cookie(
+            "value", "sso")
+
+        # force to 400 Http Error message if the release scope policy is heavy!
+        self.endpoint.endpoint_context.conf['capabilities']['deny_unknown_scopes'] = True
+        excp = None
+        try:
+            res = self.endpoint.process_request(request)
+        except UnAuthorizedClientScope as e:
+            excp = e
+        assert excp
+        assert isinstance(excp, UnAuthorizedClientScope)
 
     def test_setup_auth_user(self):
         request = AuthorizationRequest(

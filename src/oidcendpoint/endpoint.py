@@ -4,10 +4,11 @@ from urllib.parse import urlparse
 
 from cryptojwt import jwe
 from cryptojwt.jws.jws import SIGNER_ALGS
+from oidcendpoint.token_handler import UnknownToken
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.message import Message
-from oidcmsg.oauth2 import ResponseMessage
+from oidcmsg.oauth2 import ResponseMessage, AuthorizationErrorResponse
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
@@ -287,7 +288,7 @@ class Endpoint(object):
                 self.get_client_id_from_token,
                 **kwargs
             )
-        except UnknownOrNoAuthnMethod:
+        except (UnknownOrNoAuthnMethod, UnknownToken):
             if self.client_authn_method is None:
                 return {}
             else:
@@ -309,6 +310,8 @@ class Endpoint(object):
 
     def do_post_parse_request(self, request, client_id="", **kwargs):
         for meth in self.post_parse_request:
+            if isinstance(request, self.error_cls):
+                break
             request = meth(
                 request, client_id, endpoint_context=self.endpoint_context, **kwargs
             )
