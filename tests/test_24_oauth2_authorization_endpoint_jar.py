@@ -182,6 +182,8 @@ class TestEndpoint(object):
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
         self.endpoint = endpoint_context.endpoint["authorization"]
+        self.session_manager = endpoint_context.session_manager
+        self.user_id = "diana"
 
         self.rp_keyjar = KeyJar()
         self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")

@@ -2,19 +2,20 @@ import json
 import os
 
 import pytest
-from cryptojwt.jwt import utc_time_sans_frac
+from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import AccessTokenRequest
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import time_sans_frac
 
 from oidcendpoint import user_info
+from oidcendpoint.authn_event import create_authn_event
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc import userinfo
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.provider_config import ProviderConfiguration
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token import AccessToken
-from oidcendpoint.session import setup_session
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -35,7 +36,7 @@ RESPONSE_TYPES_SUPPORTED = [
 ]
 
 CAPABILITIES = {
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",
@@ -103,7 +104,7 @@ class TestEndpoint(object):
                 },
                 "token": {
                     "path": "token",
-                    "class": AccessToken,
+                    "class": Token,
                     "kwargs": {
                         "client_authn_methods": [
                             "client_secret_post",
@@ -151,8 +152,7 @@ class TestEndpoint(object):
                             "email_verified",
                             "sub",
                             "eduperson_scoped_affiliation",
-                        ],
-                        "foobar": []
+                        ]
                     },
                 }
             },
@@ -166,133 +166,123 @@ class TestEndpoint(object):
             "response_types": ["code", "token", "code id_token", "id_token"],
         }
         self.endpoint = endpoint_context.endpoint["userinfo"]
+        self.session_manager = endpoint_context.session_manager
+        self.user_id = "diana"
+
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
+        ae = create_authn_event(self.user_id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
+
+    def _mint_code(self, grant, session_id):
+        # Constructing an authorization code is now done
+        return grant.mint_token(
+            session_id=session_id,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type='authorization_code',
+            token_handler=self.session_manager.token_handler["code"],
+            expires_at=time_sans_frac() + 300  # 5 minutes from now
+        )
+
+    def _mint_token(self, token_type, grant, session_id, token_ref=None):
+        _session_info = self.session_manager.get_session_info(session_id, grant=True)
+        return grant.mint_token(
+            session_id=session_id,
+            endpoint_context=self.endpoint.endpoint_context,
+            token_type=token_type,
+            token_handler=self.session_manager.token_handler[token_type],
+            expires_at=time_sans_frac() + 900,  # 15 minutes from now
+            based_on=token_ref  # Means the token (tok) was used to mint this token
+        )
 
     def test_init(self):
         assert self.endpoint
         assert set(
             self.endpoint.endpoint_context.provider_info["claims_supported"]
         ) == {
-            "address",
-            "birthdate",
-            "email",
-            "email_verified",
-            "eduperson_scoped_affiliation",
-            "family_name",
-            "gender",
-            "given_name",
-            "locale",
-            "middle_name",
-            "name",
-            "nickname",
-            "phone_number",
-            "phone_number_verified",
-            "picture",
-            "preferred_username",
-            "profile",
-            "sub",
-            "updated_at",
-            "website",
-            "zoneinfo",
-        }
+                   "address",
+                   "birthdate",
+                   "email",
+                   "email_verified",
+                   "eduperson_scoped_affiliation",
+                   "family_name",
+                   "gender",
+                   "given_name",
+                   "locale",
+                   "middle_name",
+                   "name",
+                   "nickname",
+                   "phone_number",
+                   "phone_number_verified",
+                   "picture",
+                   "preferred_username",
+                   "profile",
+                   "sub",
+                   "updated_at",
+                   "website",
+                   "zoneinfo",
+               }
 
     def test_parse(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            AUTH_REQ,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
-        )
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
 
+        # Free standing access token, not based on an authorization code
+        access_token = self._mint_token("access_token", grant, session_id)
+        _req = self.endpoint.parse_request({}, auth="Bearer {}".format(access_token.value))
         assert set(_req.keys()) == {"client_id", "access_token"}
+        assert _req["client_id"] == AUTH_REQ['client_id']
+        assert _req["access_token"] == access_token.value
 
     def test_parse_invalid_token(self):
         _req = self.endpoint.parse_request({}, auth="Bearer invalid")
-
         assert _req['error'] == "invalid_token"
 
     def test_process_request(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            AUTH_REQ,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
+
         _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
+            {}, auth="Bearer {}".format(access_token.value)
         )
         args = self.endpoint.process_request(_req)
         assert args
 
     def test_process_request_not_allowed(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            AUTH_REQ,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac() - 7200,
-                "valid_until": utc_time_sans_frac() - 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
+
+        # 2 things can make the request invalid.
+        # 1) The token is not valid anymore or 2) The event is not valid.
+        _event = grant.authentication_event
+        _event['authn_time'] -= 9000
+        _event['valid_until'] -= 9000
+
         _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
+            {}, auth="Bearer {}".format(access_token.value)
         )
         args = self.endpoint.process_request(_req)
         assert set(args["response_args"].keys()) == {"error", "error_description"}
 
-    def test_process_request_offline_access(self):
-        auth_req = AUTH_REQ.copy()
-        auth_req["scope"] = ["openid", "offline_access"]
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            auth_req,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac() ,
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
-        )
-        args = self.endpoint.process_request(_req)
-        assert set(args["response_args"].keys()) == {"sub"}
-
     def test_do_response(self):
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            AUTH_REQ,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        code = self._mint_code(grant,session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
+
         _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
+            {}, auth="Bearer {}".format(access_token.value)
         )
         args = self.endpoint.process_request(_req)
         assert args
@@ -300,24 +290,15 @@ class TestEndpoint(object):
         assert res
 
     def test_do_signed_response(self):
-        self.endpoint.endpoint_context.cdb["client_1"][
-            "userinfo_signed_response_alg"
-        ] = "ES256"
+        self.endpoint.endpoint_context.cdb["client_1"]["userinfo_signed_response_alg"] = "ES256"
 
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            AUTH_REQ,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        session_id = self._create_session(AUTH_REQ)
+        grant = self.session_manager[session_id]
+        code = self._mint_code(grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
+
         _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
+            {}, auth="Bearer {}".format(access_token.value)
         )
         args = self.endpoint.process_request(_req)
         assert args
@@ -327,70 +308,55 @@ class TestEndpoint(object):
     def test_custom_scope(self):
         _auth_req = AUTH_REQ.copy()
         _auth_req["scope"] = ["openid", "research_and_scholarship"]
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            _auth_req,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
-        _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
-        )
-        args = self.endpoint.process_request(_req)
-        assert set(args["response_args"].keys()) == {
-            "sub",
-            "name",
-            "given_name",
-            "family_name",
-            "email",
-            "email_verified",
-            "eduperson_scoped_affiliation",
+
+        session_id = self._create_session(_auth_req)
+        grant = self.session_manager[session_id]
+        access_token = self._mint_token("access_token", grant, session_id)
+
+        self.endpoint.kwargs["add_claims_by_scope"] = True
+        self.endpoint.endpoint_context.claims_interface.add_claims_by_scope = True
+        grant.claims = {
+            "userinfo": self.endpoint.endpoint_context.claims_interface.get_claims(
+                session_id=session_id, scopes=_auth_req["scope"], usage="userinfo")
         }
 
-    def test_custom_scope_2(self):
-        _auth_req = AUTH_REQ.copy()
-        _auth_req["scope"] = ["openid", "foobar"]
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            _auth_req,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
         _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
+            {}, auth="Bearer {}".format(access_token.value)
         )
         args = self.endpoint.process_request(_req)
-        assert set(args["response_args"].keys()) == {"sub"}
+        assert set(args["response_args"].keys()) == {'eduperson_scoped_affiliation', 'given_name',
+                                                     'email_verified', 'email', 'family_name',
+                                                     'name', "sub"}
 
-    def test_unknown_scope(self):
+    def test_wrong_type_of_token(self):
         _auth_req = AUTH_REQ.copy()
-        _auth_req["scope"] = ["openid", "fubar"]
-        session_id = setup_session(
-            self.endpoint.endpoint_context,
-            _auth_req,
-            uid="userID",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-                "valid_until": utc_time_sans_frac() + 3600,
-            },
-        )
-        _dic = self.endpoint.endpoint_context.sdb.upgrade_to_token(key=session_id)
+        _auth_req["scope"] = ["openid", "research_and_scholarship"]
+
+        session_id = self._create_session(_auth_req)
+        grant = self.session_manager[session_id]
+        refresh_token = self._mint_token("refresh_token", grant, session_id)
+
         _req = self.endpoint.parse_request(
-            {}, auth="Bearer {}".format(_dic["access_token"])
+            {}, auth="Bearer {}".format(refresh_token.value)
         )
         args = self.endpoint.process_request(_req)
-        assert set(args["response_args"].keys()) == {"sub"}
+
+        assert isinstance(args, ResponseMessage)
+        assert args['error_description'] == "Wrong type of token"
+
+    def test_invalid_token(self):
+        _auth_req = AUTH_REQ.copy()
+        _auth_req["scope"] = ["openid", "research_and_scholarship"]
+
+        session_id = self._create_session(_auth_req)
+        grant = self.session_manager[session_id]
+        access_token = self._mint_token("access_token", grant, session_id)
+
+        _req = self.endpoint.parse_request(
+            {}, auth="Bearer {}".format(access_token.value)
+        )
+        access_token.expires_at = time_sans_frac() - 10
+        args = self.endpoint.process_request(_req)
+
+        assert isinstance(args, ResponseMessage)
+        assert args['error_description'] == "Invalid Token"

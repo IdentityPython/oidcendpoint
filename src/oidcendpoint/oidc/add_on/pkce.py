@@ -47,8 +47,11 @@ def post_authn_parse(request, client_id, endpoint_context, **kwargs):
         request["code_challenge_method"] = "plain"
 
     if (
-        request["code_challenge_method"]
-        not in endpoint_context.args["pkce"]["code_challenge_methods"]
+        "code_challenge" in request
+        and (
+            request["code_challenge_method"]
+            not in endpoint_context.args["pkce"]["code_challenge_methods"]
+        )
     ):
         return AuthorizationErrorResponse(
             error="invalid_request",
@@ -90,12 +93,14 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
         return request
 
     try:
-        _info = endpoint_context.sdb[request["code"]]
+        _session_info = endpoint_context.session_manager.get_session_info_by_token(
+            request["code"], grant=True)
     except KeyError:
         return TokenErrorResponse(
             error="invalid_grant", error_description="Unknown access grant"
         )
-    _authn_req = _info["authn_req"]
+
+    _authn_req = _session_info["grant"].authorization_request
 
     if "code_challenge" in _authn_req:
         if "code_verifier" not in request:
@@ -104,11 +109,11 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
                 error_description="Missing code_verifier",
             )
 
-        _method = _info["authn_req"]["code_challenge_method"]
+        _method = _authn_req["code_challenge_method"]
 
         if not verify_code_challenge(
             request["code_verifier"],
-            _info["authn_req"]["code_challenge"],
+            _authn_req["code_challenge"],
             _method,
         ):
             return TokenErrorResponse(
@@ -119,7 +124,22 @@ def post_token_parse(request, client_id, endpoint_context, **kwargs):
 
 
 def add_pkce_support(endpoint, **kwargs):
-    endpoint["authorization"].post_parse_request.append(post_authn_parse)
+    authn_endpoint = endpoint.get("authorization")
+    if authn_endpoint is None:
+        LOGGER.warning(
+            "No authorization endpoint found, skipping PKCE configuration"
+        )
+        return
+
+    token_endpoint = endpoint.get("token")
+    if token_endpoint is None:
+        LOGGER.warning(
+            "No token endpoint found, skipping PKCE configuration"
+        )
+        return
+
+    authn_endpoint.post_parse_request.append(post_authn_parse)
+    token_endpoint.post_parse_request.append(post_token_parse)
 
     if "essential" not in kwargs:
         kwargs["essential"] = False
@@ -134,6 +154,4 @@ def add_pkce_support(endpoint, **kwargs):
             raise ValueError("Unsupported method: {}".format(method))
         kwargs["code_challenge_methods"][method] = CC_METHOD[method]
 
-    endpoint["authorization"].endpoint_context.args["pkce"] = kwargs
-
-    endpoint["token"].post_parse_request.append(post_token_parse)
+    authn_endpoint.endpoint_context.args["pkce"] = kwargs

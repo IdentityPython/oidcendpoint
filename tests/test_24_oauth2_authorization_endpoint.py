@@ -18,23 +18,23 @@ from oidcmsg.oauth2 import AuthorizationRequest
 from oidcmsg.oauth2 import AuthorizationResponse
 from oidcmsg.time_util import in_a_while
 
-from oidcendpoint.common.authorization import FORM_POST
-from oidcendpoint.common.authorization import get_uri
-from oidcendpoint.common.authorization import inputs
-from oidcendpoint.common.authorization import join_query
-from oidcendpoint.common.authorization import verify_uri
+from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.cookie import CookieDealer
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import InvalidRequest
 from oidcendpoint.exception import NoSuchAuthentication
 from oidcendpoint.exception import RedirectURIError
 from oidcendpoint.exception import ToOld
-from oidcendpoint.exception import UnknownClient
 from oidcendpoint.exception import UnAuthorizedClientScope
-from oidcendpoint.exception import UnAuthorizedClient
+from oidcendpoint.exception import UnknownClient
 from oidcendpoint.id_token import IDToken
+from oidcendpoint.oauth2.authorization import FORM_POST
 from oidcendpoint.oauth2.authorization import Authorization
-from oidcendpoint.session import SessionInfo
+from oidcendpoint.oauth2.authorization import get_uri
+from oidcendpoint.oauth2.authorization import inputs
+from oidcendpoint.oauth2.authorization import join_query
+from oidcendpoint.oauth2.authorization import verify_uri
 from oidcendpoint.user_info import UserInfo
 
 KEYDEFS = [
@@ -140,9 +140,6 @@ class TestEndpoint(object):
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt zebra",
-            "token_expires_in": 600,
-            "grant_expires_in": 300,
-            "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "keys": {"uri_path": "static/jwks.json", "key_defs": KEYDEFS},
@@ -191,6 +188,24 @@ class TestEndpoint(object):
                     },
                 },
             },
+            "authz": {
+                "class": AuthzHandling,
+                "kwargs": {
+                    "grant_config": {
+                        "usage_rules": {
+                            "authorization_code": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                                "max_usage": 1
+                            },
+                            "access_token": {},
+                            "refresh_token": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                            }
+                        },
+                        "expires_in": 43200
+                    }
+                }
+            }
         }
         endpoint_context = EndpointContext(conf)
         _clients = yaml.safe_load(io.StringIO(client_yaml))
@@ -199,6 +214,8 @@ class TestEndpoint(object):
             endpoint_context.keyjar.export_jwks(True, ""), conf["issuer"]
         )
         self.endpoint = endpoint_context.endpoint["authorization"]
+        self.session_manager = endpoint_context.session_manager
+        self.user_id = "diana"
 
         self.rp_keyjar = KeyJar()
         self.rp_keyjar.add_symmetric("client_1", "hemligtkodord1234567890")
@@ -206,12 +223,24 @@ class TestEndpoint(object):
             "client_1", "hemligtkodord1234567890"
         )
 
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        if sector_identifier:
+            areq = auth_req.copy()
+            areq["sector_identifier_uri"] = sector_identifier
+        else:
+            areq = auth_req
+
+        client_id = areq['client_id']
+        ae = create_authn_event(self.user_id)
+        return self.session_manager.create_session(ae, areq, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
+
     def test_init(self):
         assert self.endpoint
 
     def test_parse(self):
         _req = self.endpoint.parse_request(AUTH_REQ_DICT)
-
         assert isinstance(_req, AuthorizationRequest)
         assert set(_req.keys()) == set(AUTH_REQ.keys())
 
@@ -223,6 +252,7 @@ class TestEndpoint(object):
             "fragment_enc",
             "return_uri",
             "cookie",
+            "session_id"
         }
 
     def test_do_response_code(self):
@@ -393,24 +423,15 @@ class TestEndpoint(object):
             scope="openid",
         )
 
-        _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-        )
-        _ec.cdb["client_id"] = {
+        self.endpoint.endpoint_context.cdb["client_id"] = {
             "client_id": "client_id",
             "redirect_uris": [("https://rp.example.com/cb", {})],
             "id_token_signed_response_alg": "ES256",
         }
 
-        resp = self.endpoint.create_authn_response(request, "session_id")
+        session_id = self._create_session(request)
+
+        resp = self.endpoint.create_authn_response(request, session_id)
         assert isinstance(resp["response_args"], AuthorizationErrorResponse)
 
     def test_setup_auth(self):
@@ -434,7 +455,7 @@ class TestEndpoint(object):
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, kaka)
-        assert set(res.keys()) == {"authn_event", "identity", "user"}
+        assert set(res.keys()) == {"session_id", "identity", "user"}
 
     def test_setup_auth_error(self):
         request = AuthorizationRequest(
@@ -512,25 +533,16 @@ class TestEndpoint(object):
             "redirect_uris": [("https://rp.example.com/cb", {})],
             "id_token_signed_response_alg": "RS256",
         }
-        _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-        )
 
-        item = _ec.authn_broker.db["anon"]
+        session_id = self._create_session(request)
+
+        item = self.endpoint.endpoint_context.authn_broker.db["anon"]
         item["method"].user = b64e(
-            as_bytes(json.dumps({"uid": "krall", "sid": "session_id"}))
+            as_bytes(json.dumps({"uid": "krall", "sid": session_id}))
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
-        assert set(res.keys()) == {"authn_event", "identity", "user"}
+        assert set(res.keys()) == {"session_id", "identity", "user"}
         assert res["identity"]["uid"] == "krall"
 
     def test_setup_auth_session_revoked(self):
@@ -548,22 +560,17 @@ class TestEndpoint(object):
             "redirect_uris": [("https://rp.example.com/cb", {})],
             "id_token_signed_response_alg": "RS256",
         }
-        _ec = self.endpoint.endpoint_context
-        _ec.sdb["session_id"] = SessionInfo(
-            authn_req=request,
-            uid="diana",
-            sub="abcdefghijkl",
-            authn_event={
-                "authn_info": "loa1",
-                "uid": "diana",
-                "authn_time": utc_time_sans_frac(),
-            },
-            revoked=True,
-        )
 
+        session_id = self._create_session(request)
+
+        _mngr = self.endpoint.endpoint_context.session_manager
+        _csi = _mngr[session_id]
+        _csi.revoked = True
+
+        _ec = self.endpoint.endpoint_context
         item = _ec.authn_broker.db["anon"]
         item["method"].user = b64e(
-            as_bytes(json.dumps({"uid": "krall", "sid": "session_id"}))
+            as_bytes(json.dumps({"uid": "krall", "sid": session_id}))
         )
 
         res = self.endpoint.setup_auth(request, redirect_uri, cinfo, None)
@@ -597,6 +604,30 @@ class TestEndpoint(object):
 
         info = self.endpoint.response_mode(request)
         assert set(info.keys()) == {"fragment_enc"}
+
+    # def test_sso(self):
+    #     _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT)
+    #     _resp = self.endpoint.process_request(_pr_resp)
+    #     msg = self.endpoint.do_response(**_resp)
+    #
+    #     request = AuthorizationRequest(
+    #         client_id="client_2",
+    #         redirect_uri="https://rp.example.org/cb",
+    #         response_type=["code"],
+    #         state="state",
+    #         scope="openid",
+    #     )
+    #
+    #     cinfo = {
+    #         "client_id": "client_2",
+    #         "redirect_uris": [(request["redirect_uri"], {})]
+    #     }
+    #
+    #     _pr_resp = self.endpoint.parse_request(AUTH_REQ_DICT, cookie="kaka")
+    #     _resp = self.endpoint.process_request(_pr_resp)
+    #     msg = self.endpoint.do_response(**_resp)
+    #
+    #     assert set(res.keys()) == {"authn_event", "identity", "user"}
 
 
 def test_inputs():

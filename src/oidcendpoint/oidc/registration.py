@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 from urllib.parse import urlparse
 
 from cryptojwt.jws.utils import alg2keytype
+from cryptojwt.utils import as_bytes
 from oidcmsg.exception import MessageException
 from oidcmsg.oauth2 import ResponseMessage
 from oidcmsg.oidc import ClientRegistrationErrorResponse
@@ -86,7 +87,7 @@ def verify_url(url, urlset):
 
 def secret(seed, sid):
     msg = "{}{:.6f}{}".format(time.time(), random(), sid).encode("utf-8")
-    csum = hmac.new(seed, msg, hashlib.sha224)
+    csum = hmac.new(as_bytes(seed), msg, hashlib.sha224)
     return csum.hexdigest()
 
 

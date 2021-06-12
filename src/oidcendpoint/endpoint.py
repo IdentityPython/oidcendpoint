@@ -1,20 +1,22 @@
 import logging
 from functools import cmp_to_key
+from typing import Optional
+from typing import Union
 from urllib.parse import urlparse
 
 from cryptojwt import jwe
 from cryptojwt.jws.jws import SIGNER_ALGS
-from oidcendpoint.token_handler import UnknownToken
 from oidcmsg.exception import MissingRequiredAttribute
 from oidcmsg.exception import MissingRequiredValue
 from oidcmsg.message import Message
-from oidcmsg.oauth2 import ResponseMessage, AuthorizationErrorResponse
+from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint import sanitize
 from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
 from oidcendpoint.client_authn import client_auth_setup
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.exception import UnAuthorizedClient
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 __author__ = "Roland Hedberg"
@@ -38,24 +40,25 @@ do_response
             - post_construct (*)
     - update_http_args
 
-do_response returns a dictionary that can look like this:
-{
-  'response':
-    _response as a string or as a Message instance_
-  'http_headers': [
-    ('Content-type', 'application/json'),
-    ('Pragma', 'no-cache'),
-    ('Cache-Control', 'no-store')
-  ],
-  'cookie': _list of cookies_,
-  'response_placement': 'body'
-}
+do_response returns a dictionary that can look like this::
+
+    {
+      'response':
+        _response as a string or as a Message instance_
+      'http_headers': [
+        ('Content-type', 'application/json'),
+        ('Pragma', 'no-cache'),
+        ('Cache-Control', 'no-store')
+      ],
+      'cookie': _list of cookies_,
+      'response_placement': 'body'
+    }
 
 "response" MUST be present
 "http_headers" MAY be present
 "cookie": MAY be present
 "response_placement": If absent defaults to the endpoints response_placement
-    parameter value or if that is also missing 'url'
+parameter value or if that is also missing 'url'
 """
 
 
@@ -117,6 +120,14 @@ def construct_endpoint_info(default_capabilities, **kwargs):
                     _info[attr] = default_val
                 elif "signing_alg_values_supported" in attr:
                     _info[attr] = assign_algorithms("signing_alg")
+                    if (
+                            attr
+                            == "token_endpoint_auth_signing_alg_values_supported"
+                    ):
+                        # none must not be in
+                        # token_endpoint_auth_signing_alg_values_supported
+                        if "none" in _info[attr]:
+                            _info[attr].remove("none")
                 elif "encryption_alg_values_supported" in attr:
                     _info[attr] = assign_algorithms("encryption_alg")
                 elif "encryption_enc_values_supported" in attr:
@@ -183,7 +194,7 @@ class Endpoint(object):
         if _methods:
             self.client_authn_method = client_auth_setup(_methods, endpoint_context)
         elif (
-            _methods is not None
+                _methods is not None
         ):  # [] or '' or something not None but regarded as nothing.
             self.client_authn_method = [None]  # Ignore default value
         elif self.default_capabilities:
@@ -197,8 +208,9 @@ class Endpoint(object):
         # This is for matching against aud in JWTs
         # By default the endpoint's endpoint URL is an allowed target
         self.allowed_targets = [self.name]
+        self.client_verification_method = []
 
-    def parse_request(self, request, auth=None, **kwargs):
+    def parse_request(self, request: str, auth=None, **kwargs):
         """
 
         :param request: The request the server got
@@ -299,9 +311,9 @@ class Endpoint(object):
 
         LOGGER.debug("authn_info: %s", authn_info)
         if (
-            authn_info == {}
-            and self.client_authn_method
-            and len(self.client_authn_method)
+                authn_info == {}
+                and self.client_authn_method
+                and len(self.client_authn_method)
         ):
             LOGGER.debug("client_authn_method: %s", self.client_authn_method)
             raise UnAuthorizedClient("Authorization failed")
@@ -333,7 +345,7 @@ class Endpoint(object):
 
         return response_args
 
-    def process_request(self, request=None, **kwargs):
+    def process_request(self, request: Optional[Union[Message, dict]] = None, **kwargs):
         """
 
         :param request: The request, can be in a number of formats
@@ -341,7 +353,10 @@ class Endpoint(object):
         """
         return {}
 
-    def construct(self, response_args, request, **kwargs):
+    def construct(self,
+                  response_args: Optional[dict] = None,
+                  request: Optional[Union[Message, dict]] = None,
+                  **kwargs):
         """
         Construct the response
 
@@ -357,12 +372,20 @@ class Endpoint(object):
 
         return self.do_post_construct(response, request, **kwargs)
 
-    def response_info(self, response_args, request, **kwargs):
+    def response_info(self,
+                      response_args: Optional[dict] = None,
+                      request: Optional[Union[Message, dict]] = None,
+                      **kwargs) -> dict:
         return self.construct(response_args, request, **kwargs)
 
-    def do_response(self, response_args=None, request=None, error="", **kwargs):
+    def do_response(self,
+                    response_args: Optional[dict] = None,
+                    request: Optional[Union[Message, dict]] = None,
+                    error: Optional[str] = "", **kwargs) -> dict:
         """
-
+        :param response_args: Information to use when constructing the response
+        :param request: The original request
+        :param error: Possible error encountered while processing the request
         """
         do_placement = True
         content_type = "text/html"

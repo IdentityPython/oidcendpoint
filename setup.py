@@ -52,7 +52,7 @@ setup(
     packages=["oidcendpoint", 'oidcendpoint/oidc', 'oidcendpoint/authz',
               'oidcendpoint/user_authn', 'oidcendpoint/user_info',
               'oidcendpoint/oauth2', 'oidcendpoint/oidc/add_on',
-              'oidcendpoint/common'],
+              'oidcendpoint/session', 'oidcendpoint/token'],
     package_dir={"": "src"},
     classifiers=[
         "Development Status :: 4 - Beta",

@@ -2,6 +2,7 @@ import importlib
 import json
 import logging
 from urllib.parse import parse_qs
+from urllib.parse import urlparse
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
@@ -174,7 +175,8 @@ def split_uri(uri):
 
 def allow_refresh_token(endpoint_context):
     # Are there a refresh_token handler
-    refresh_token_handler = endpoint_context.sdb.handler.handler.get("refresh_token")
+    refresh_token_handler = endpoint_context.session_manager.token_handler.handler[
+        "refresh_token"]
 
     # Is refresh_token grant type supported
     _token_supported = False
@@ -195,3 +197,20 @@ def allow_refresh_token(endpoint_context):
         raise OidcEndpointError('Grant type "refresh_token" lacks support')
 
     return False
+
+
+def sector_id_from_redirect_uris(uris):
+    if not uris:
+        return ""
+
+    hostname = urlparse(uris[0]).netloc
+    for uri in uris:
+        parsed = urlparse(uri)
+
+        if hostname != parsed.netloc:
+            raise OidcEndpointError(
+                "All redirect_uris must have the same hostname in order to "
+                "generate "
+            )
+
+    return hostname

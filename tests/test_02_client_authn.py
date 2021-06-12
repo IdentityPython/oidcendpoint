@@ -24,7 +24,7 @@ from oidcendpoint.exception import MultipleUsage
 from oidcendpoint.exception import NotForMe
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.registration import Registration
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.oidc.userinfo import UserInfo
 
 KEYDEFS = [
@@ -37,14 +37,12 @@ KEYJAR = build_keyjar(KEYDEFS)
 CONF = {
     "issuer": "https://example.com/",
     "password": "mycket hemligt",
-    "token_expires_in": 600,
     "grant_expires_in": 300,
-    "refresh_token_expires_in": 86400,
     "verify_ssl": False,
     "endpoint": {
         "token": {
             "path": "token",
-            "class": AccessToken,
+            "class": Token,
             "kwargs": {
                 "client_authn_method": [
                     "private_key_jwt",

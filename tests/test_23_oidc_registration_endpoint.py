@@ -1,9 +1,9 @@
 # -*- coding: latin-1 -*-
 import json
 
-from cryptojwt.key_jar import init_key_jar
 import pytest
 import responses
+from cryptojwt.key_jar import init_key_jar
 from oidcmsg.oidc import RegistrationRequest
 from oidcmsg.oidc import RegistrationResponse
 
@@ -12,7 +12,7 @@ from oidcendpoint.id_token import IDToken
 from oidcendpoint.oidc.authorization import Authorization
 from oidcendpoint.oidc.registration import Registration
 from oidcendpoint.oidc.registration import match_sp_sep
-from oidcendpoint.oidc.token import AccessToken
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.oidc.userinfo import UserInfo
 
 KEYDEFS = [
@@ -72,7 +72,7 @@ class TestEndpoint(object):
             "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": {
-                "subject_types_supported": ["public", "pairwise"],
+                "subject_types_supported": ["public", "pairwise", "ephemeral"],
                 "grant_types_supported": [
                     "authorization_code",
                     "implicit",
@@ -108,7 +108,7 @@ class TestEndpoint(object):
                 },
                 "token": {
                     "path": "token",
-                    "class": AccessToken,
+                    "class": Token,
                     "kwargs": {
                         "client_authn_method": [
                             "client_secret_post",

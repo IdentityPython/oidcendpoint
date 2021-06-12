@@ -1,27 +1,26 @@
 import json
 import logging
-import time
+from typing import Union
+from urllib.parse import unquote
+from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 from cryptojwt import BadSyntax
+from cryptojwt import as_unicode
+from cryptojwt import b64d
+from cryptojwt.jwe.exception import JWEException
+from cryptojwt.jws.exception import NoSuitableSigningKeys
 from cryptojwt.utils import as_bytes
-from cryptojwt.utils import as_unicode
-from cryptojwt.utils import b64d
 from cryptojwt.utils import b64e
-from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oauth2
 from oidcmsg.exception import ParameterError
-from oidcmsg.oidc import AuthorizationResponse
+from oidcmsg.exception import URIError
+from oidcmsg.message import Message
 from oidcmsg.oidc import verified_claim_name
+from oidcmsg.time_util import utc_time_sans_frac
 
 from oidcendpoint import rndstr
-from oidcendpoint import sanitize
 from oidcendpoint.authn_event import create_authn_event
-from oidcendpoint.common.authorization import FORM_POST
-from oidcendpoint.common.authorization import AllowedAlgorithms
-from oidcendpoint.common.authorization import authn_args_gather
-from oidcendpoint.common.authorization import get_uri
-from oidcendpoint.common.authorization import inputs
-from oidcendpoint.common.authorization import max_age
 from oidcendpoint.cookie import append_cookie
 from oidcendpoint.cookie import compute_session_state
 from oidcendpoint.cookie import new_cookie
@@ -34,11 +33,13 @@ from oidcendpoint.exception import TamperAllert
 from oidcendpoint.exception import ToOld
 from oidcendpoint.exception import UnAuthorizedClientScope
 from oidcendpoint.exception import UnknownClient
-from oidcendpoint.session import setup_session
+from oidcendpoint.session import Revoked
+from oidcendpoint.session import unpack_session_key
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.user_authn.authn_context import pick_auth
+from oidcendpoint.util import split_uri
 
 logger = logging.getLogger(__name__)
-
 
 # For the time being. This is JAR specific and should probably be configurable.
 ALG_PARAMS = {
@@ -56,9 +57,195 @@ ALG_PARAMS = {
     ],
 }
 
+FORM_POST = """<html>
+  <head>
+    <title>Submit This Form</title>
+  </head>
+  <body onload="javascript:document.forms[0].submit()">
+    <form method="post" action="{action}">
+        {inputs}
+    </form>
+  </body>
+</html>"""
 
-def re_authenticate(request, authn):
-    return False
+
+def inputs(form_args):
+    """
+    Creates list of input elements
+    """
+    element = []
+    html_field = '<input type="hidden" name="{}" value="{}"/>'
+    for name, value in form_args.items():
+        element.append(html_field.format(name, value))
+    return "\n".join(element)
+
+
+def max_age(request):
+    verified_request = verified_claim_name("request")
+    return request.get(verified_request, {}).get("max_age") or request.get("max_age", 0)
+
+
+def verify_uri(endpoint_context, request, uri_type, client_id=None):
+    """
+    A redirect URI
+    MUST NOT contain a fragment
+    MAY contain query component
+
+    :param endpoint_context: An EndpointContext instance
+    :param request: The authorization request
+    :param uri_type: redirect_uri or post_logout_redirect_uri
+    :return: An error response if the redirect URI is faulty otherwise
+        None
+    """
+    _cid = request.get("client_id", client_id)
+
+    if not _cid:
+        logger.error("No client id found")
+        raise UnknownClient("No client_id provided")
+    else:
+        logger.debug("Client ID: {}".format(_cid))
+
+    _redirect_uri = unquote(request[uri_type])
+
+    part = urlparse(_redirect_uri)
+    if part.fragment:
+        raise URIError("Contains fragment")
+
+    (_base, _query) = split_uri(_redirect_uri)
+    # if _query:
+    #     _query = parse_qs(_query)
+
+    match = False
+    # Get the clients registered redirect uris
+    client_info = endpoint_context.cdb.get(_cid, {})
+    if not client_info:
+        raise KeyError("No such client")
+    logger.debug("Client info: {}".format(client_info))
+    redirect_uris = client_info.get("{}s".format(uri_type))
+    if not redirect_uris:
+        if _cid not in endpoint_context.cdb:
+            logger.debug("CIDs: {}".format(list(endpoint_context.cdb.keys())))
+            raise KeyError("No such client")
+        raise ValueError("No registered {}".format(uri_type))
+    else:
+        for regbase, rquery in redirect_uris:
+            # The URI MUST exactly match one of the Redirection URI
+            if _base == regbase:
+                # every registered query component must exist in the uri
+                if rquery:
+                    if not _query:
+                        raise ValueError("Missing query part")
+
+                    for key, vals in rquery.items():
+                        if key not in _query:
+                            raise ValueError('"{}" not in query part'.format(key))
+
+                        for val in vals:
+                            if val not in _query[key]:
+                                raise ValueError(
+                                    "{}={} value not in query part".format(key, val)
+                                )
+
+                # and vice versa, every query component in the uri
+                # must be registered
+                if _query:
+                    if not rquery:
+                        raise ValueError("No registered query part")
+
+                    for key, vals in _query.items():
+                        if key not in rquery:
+                            raise ValueError('"{}" extra in query part'.format(key))
+                        for val in vals:
+                            if val not in rquery[key]:
+                                raise ValueError(
+                                    "Extra {}={} value in query part".format(key, val)
+                                )
+                match = True
+                break
+        if not match:
+            raise RedirectURIError("Doesn't match any registered uris")
+
+
+def join_query(base, query):
+    """
+
+    :param base: URL base
+    :param query: query part as a dictionary
+    :return:
+    """
+    if query:
+        return "{}?{}".format(base, urlencode(query, doseq=True))
+    else:
+        return base
+
+
+def get_uri(endpoint_context, request, uri_type):
+    """ verify that the redirect URI is reasonable.
+
+    :param endpoint_context: An EndpointContext instance
+    :param request: The Authorization request
+    :param uri_type: 'redirect_uri' or 'post_logout_redirect_uri'
+    :return: redirect_uri
+    """
+    uri = ""
+
+    if uri_type in request:
+        verify_uri(endpoint_context, request, uri_type)
+        uri = request[uri_type]
+    else:
+        uris = "{}s".format(uri_type)
+        client_id = str(request["client_id"])
+        if client_id in endpoint_context.cdb:
+            _specs = endpoint_context.cdb[client_id].get(uris)
+            if not _specs:
+                raise ParameterError("Missing {} and none registered".format(uri_type))
+
+            if len(_specs) > 1:
+                raise ParameterError(
+                    "Missing {} and more than one registered".format(uri_type)
+                )
+
+            uri = join_query(*_specs[0])
+
+    return uri
+
+
+def authn_args_gather(request, authn_class_ref, cinfo, **kwargs):
+    """
+    Gather information to be used by the authentication method
+
+    :param request: The request either as a dictionary or as a Message instance
+    :param authn_class_ref: Authentication class reference
+    :param cinfo: Client information
+    :param kwargs: Extra keyword arguments
+    :return: Authentication arguments
+    """
+    authn_args = {
+        "authn_class_ref": authn_class_ref,
+        "return_uri": request["redirect_uri"],
+    }
+
+    if isinstance(request, Message):
+        authn_args["query"] = request.to_urlencoded()
+    elif isinstance(request, dict):
+        authn_args["query"] = urlencode(request)
+    else:
+        ValueError("Wrong request format")
+
+    if "req_user" in kwargs:
+        authn_args["as_user"] = (kwargs["req_user"],)
+
+    # Below are OIDC specific. Just ignore if OAuth2
+    if cinfo:
+        for attr in ["policy_uri", "logo_uri", "tos_uri"]:
+            if cinfo.get(attr):
+                authn_args[attr] = cinfo[attr]
+
+    for attr in ["ui_locales", "acr_values", "login_hint"]:
+        if request.get(attr):
+            authn_args[attr] = request[attr]
+
+    return authn_args
 
 
 def check_unknown_scopes_policy(request_info, cinfo, endpoint_context):
@@ -69,7 +256,7 @@ def check_unknown_scopes_policy(request_info, cinfo, endpoint_context):
     # this prevents that authz would be released for unavailable scopes
     for scope in request_info['scope']:
         if op_capabilities.get('deny_unknown_scopes') and \
-           scope not in client_allowed_scopes:
+                scope not in client_allowed_scopes:
             _msg = '{} requested an unauthorized scope ({})'
             logger.warning(_msg.format(cinfo['client_id'],
                                        scope))
@@ -100,26 +287,49 @@ class Authorization(Endpoint):
 
     def __init__(self, endpoint_context, **kwargs):
         Endpoint.__init__(self, endpoint_context, **kwargs)
-        # self.pre_construct.append(self._pre_construct)
         self.post_parse_request.append(self._do_request_uri)
         self.post_parse_request.append(self._post_parse_request)
         self.allowed_request_algorithms = AllowedAlgorithms(ALG_PARAMS)
-        # Has to be done elsewhere. To make sure things happen in order.
-        # self.scopes_supported = available_scopes(endpoint_context)
 
     def filter_request(self, endpoint_context, req):
         return req
+
+    def extra_response_args(self, aresp):
+        return aresp
 
     def verify_response_type(self, request, cinfo):
         # Checking response types
         _registered = [set(rt.split(" ")) for rt in cinfo.get("response_types", [])]
         if not _registered:
             # If no response_type is registered by the client then we'll
-            # code which it the default according to the OIDC spec.
+            # use code.
             _registered = [{"code"}]
 
         # Is the asked for response_type among those that are permitted
         return set(request["response_type"]) in _registered
+
+    def mint_token(self, token_type, grant, session_id, based_on=None):
+        _mngr = self.endpoint_context.session_manager
+        usage_rules = grant.usage_rules.get(token_type, {})
+
+        token = grant.mint_token(
+            session_id=session_id,
+            endpoint_context=self.endpoint_context,
+            token_type=token_type,
+            based_on=based_on,
+            usage_rules=usage_rules
+        )
+
+        _exp_in = usage_rules.get("expires_in")
+        if isinstance(_exp_in, str):
+            _exp_in = int(_exp_in)
+        if _exp_in:
+            token.expires_at = utc_time_sans_frac() + _exp_in
+
+        self.endpoint_context.session_manager.set(unpack_session_key(session_id),
+                                                  grant)
+
+        return token
 
     def _do_request_uri(self, request, client_id, endpoint_context, **kwargs):
         _request_uri = request.get("request_uri")
@@ -144,35 +354,41 @@ class Authorization(Endpoint):
             if _registered:
                 # Before matching remove a possible fragment
                 _p = _request_uri.split("#")
-                if _p[0] not in _registered:
+                # ignore registered fragments for now.
+                if _p[0] not in [l[0] for l in _registered]:
                     raise ValueError("A request_uri outside the registered")
+
             # Fetch the request
             _resp = endpoint_context.httpc.get(
                 _request_uri, **endpoint_context.httpc_params
             )
             if _resp.status_code == 200:
-                args = {"keyjar": endpoint_context.keyjar}
-                request = self.request_cls().from_jwt(_resp.text, **args)
+                args = {"keyjar": endpoint_context.keyjar, "issuer": client_id}
+                _ver_request = self.request_cls().from_jwt(_resp.text, **args)
                 self.allowed_request_algorithms(
                     client_id,
                     endpoint_context,
-                    request.jws_header.get("alg", "RS256"),
+                    _ver_request.jws_header.get("alg", "RS256"),
                     "sign",
                 )
-                if request.jwe_header is not None:
+                if _ver_request.jwe_header is not None:
                     self.allowed_request_algorithms(
                         client_id,
                         endpoint_context,
-                        request.jws_header.get("alg"),
+                        _ver_request.jws_header.get("alg"),
                         "enc_alg",
                     )
                     self.allowed_request_algorithms(
                         client_id,
                         endpoint_context,
-                        request.jws_header.get("enc"),
+                        _ver_request.jws_header.get("enc"),
                         "enc_enc",
                     )
-                request[verified_claim_name("request")] = request
+                # The protected info overwrites the non-protected
+                for k, v in _ver_request.items():
+                    request[k] = v
+
+                request[verified_claim_name("request")] = _ver_request
             else:
                 raise ServiceError("Got a %s response", _resp.status)
 
@@ -218,7 +434,7 @@ class Authorization(Endpoint):
         except (RedirectURIError, ParameterError, UnknownClient) as err:
             return self.error_cls(
                 error="invalid_request",
-                error_description="{}: {}".format(err.__class__.__name__, err),
+                error_description="{}:{}".format(err.__class__.__name__, err),
             )
         else:
             request["redirect_uri"] = redirect_uri
@@ -292,15 +508,25 @@ class Authorization(Endpoint):
                 else:
                     identity = json.loads(as_unicode(_id))
 
-                    session = self.endpoint_context.sdb[identity.get("sid")]
-                    if not session or "revoked" in session:
+                    try:
+                        _csi = self.endpoint_context.session_manager[identity.get("sid")]
+                    except Revoked:
                         identity = None
+                    else:
+                        if _csi.is_active() is False:
+                            identity = None
 
         authn_args = authn_args_gather(request, authn_class_ref, cinfo, **kwargs)
+        _mngr = self.endpoint_context.session_manager
+        _session_id = ""
 
         # To authenticate or Not
         if identity is None:  # No!
             logger.info("No active authentication")
+            logger.debug(
+                "Known clients: {}".format(list(self.endpoint_context.cdb.keys()))
+            )
+
             if "prompt" in request and "none" in request["prompt"]:
                 # Need to authenticate but not allowed
                 return {
@@ -319,14 +545,7 @@ class Authorization(Endpoint):
                 # I get back a dictionary
                 user = identity["uid"]
                 if "req_user" in kwargs:
-                    sids = self.endpoint_context.sdb.get_sids_by_sub(kwargs["req_user"])
-                    if (
-                        sids
-                        and user
-                        != self.endpoint_context.sdb.get_authentication_event(
-                            sids[-1]
-                        ).uid
-                    ):
+                    if user != kwargs["req_user"]:
                         logger.debug("Wanted to be someone else!")
                         if "prompt" in request and "none" in request["prompt"]:
                             # Need to authenticate but not allowed
@@ -337,74 +556,49 @@ class Authorization(Endpoint):
                         else:
                             return {"function": authn, "args": authn_args}
 
-        authn_event = create_authn_event(
-            identity["uid"],
-            identity.get("salt", ""),
-            authn_info=authn_class_ref,
-            time_stamp=_ts,
-        )
-        if "valid_until" in authn_event:
-            vu = time.time() + authn.kwargs.get("expires_in", 0.0)
-            authn_event["valid_until"] = vu
+                if "sid" in identity:
+                    _session_id = identity["sid"]
 
-        return {"authn_event": authn_event, "identity": identity, "user": user}
+                    # make sure the client is the same
+                    _uid, _cid, _gid = unpack_session_key(_session_id)
+                    if request["client_id"] != _cid:
+                        return {"function": authn, "args": authn_args}
 
-    def create_authn_response(self, request, sid):
-        """
+                    grant = _mngr[_session_id]
+                    if grant.is_active() is False:
+                        return {"function": authn, "args": authn_args}
+                    elif request != grant.authorization_request:
+                        authn_event = _mngr.get_authentication_event(session_id=_session_id)
+                        if authn_event.is_valid() is False:  # if not valid, do new login
+                            return {"function": authn, "args": authn_args}
 
-        :param self:
-        :param request:
-        :param sid:
-        :return:
-        """
-        # create the response
-        aresp = AuthorizationResponse()
-        if request.get("state"):
-            aresp["state"] = request["state"]
+                        # create new grant
+                        _session_id = _mngr.create_grant(authn_event=authn_event,
+                                                         auth_req=request,
+                                                         user_id=user,
+                                                         client_id=request["client_id"])
 
-        if "response_type" in request and request["response_type"] == ["none"]:
-            fragment_enc = False
+        if _session_id:
+            authn_event = _mngr.get_authentication_event(session_id=_session_id)
+            if authn_event.is_valid() is False:  # if not valid, do new login
+                return {"function": authn, "args": authn_args}
         else:
-            _context = self.endpoint_context
-            _sinfo = _context.sdb[sid]
+            authn_event = create_authn_event(
+                identity["uid"],
+                authn_info=authn_class_ref,
+                time_stamp=_ts,
+            )
+            _exp_in = authn.kwargs.get("expires_in")
+            if _exp_in and "valid_until" in authn_event:
+                authn_event["valid_until"] = utc_time_sans_frac() + _exp_in
 
-            if request.get("scope"):
-                aresp["scope"] = request["scope"]
+            _token_usage_rules = self.endpoint_context.authz.usage_rules(
+                request["client_id"])
+            _session_id = _mngr.create_session(authn_event=authn_event, auth_req=request,
+                                               user_id=user, client_id=request["client_id"],
+                                               token_usage_rules=_token_usage_rules)
 
-            rtype = set(request["response_type"][:])
-            handled_response_type = []
-
-            fragment_enc = True
-            if len(rtype) == 1 and "code" in rtype:
-                fragment_enc = False
-
-            if "code" in request["response_type"]:
-                _code = aresp["code"] = _context.sdb[sid]["code"]
-                handled_response_type.append("code")
-            else:
-                _context.sdb.update(sid, code=None)
-                _code = None
-
-            if "token" in rtype:
-                _dic = _context.sdb.upgrade_to_token(issue_refresh=False, key=sid)
-
-                logger.debug("_dic: %s" % sanitize(_dic))
-                for key, val in _dic.items():
-                    if key in aresp.parameters() and val is not None:
-                        aresp[key] = val
-
-                handled_response_type.append("token")
-
-            _access_token = aresp.get("access_token", None)
-
-            not_handled = rtype.difference(handled_response_type)
-            if not_handled:
-                resp = self.error_cls(
-                    error="invalid_request", error_description="unsupported_response_type"
-                )
-                return {"response_args": resp, "fragment_enc": fragment_enc}
-
-        return {"response_args": aresp, "fragment_enc": fragment_enc}
+        return {"session_id": _session_id, "identity": identity, "user": user}
 
     def aresp_check(self, aresp, request):
         return ""
@@ -441,29 +635,122 @@ class Authorization(Endpoint):
 
     def error_response(self, response_info, error, error_description):
         resp = self.error_cls(
-            error=error, error_description=error_description
+            error=error, error_description=str(error_description)
         )
         response_info["response_args"] = resp
         return response_info
 
-    def post_authentication(self, user, request, sid, **kwargs):
+    def create_authn_response(self, request: Union[dict, Message], sid: str) -> dict:
+        """
+
+        :param request:
+        :param sid:
+        :return:
+        """
+        # create the response
+        aresp = self.response_cls()
+        if request.get("state"):
+            aresp["state"] = request["state"]
+
+        if "response_type" in request and request["response_type"] == ["none"]:
+            fragment_enc = False
+        else:
+            _context = self.endpoint_context
+            _mngr = self.endpoint_context.session_manager
+            _sinfo = _mngr.get_session_info(sid, grant=True)
+
+            if request.get("scope"):
+                aresp["scope"] = request["scope"]
+
+            rtype = set(request["response_type"][:])
+            handled_response_type = []
+
+            fragment_enc = True
+            if len(rtype) == 1 and "code" in rtype:
+                fragment_enc = False
+
+            grant = _sinfo["grant"]
+
+            if "code" in request["response_type"]:
+                _code = self.mint_token(
+                    token_type='authorization_code',
+                    grant=grant,
+                    session_id= _sinfo["session_id"])
+                aresp["code"] = _code.value
+                handled_response_type.append("code")
+            else:
+                _code = None
+
+            if "token" in rtype:
+                if _code:
+                    based_on = _code
+                else:
+                    based_on = None
+
+                _access_token = self.mint_token(token_type="access_token",
+                                                grant=grant,
+                                                session_id=_sinfo["session_id"],
+                                                based_on=based_on)
+                aresp['access_token'] = _access_token.value
+                aresp['token_type'] = "Bearer"
+                if _access_token.expires_at:
+                    aresp["expires_in"] = _access_token.expires_at - utc_time_sans_frac()
+                handled_response_type.append("token")
+            else:
+                _access_token = None
+
+            if "id_token" in request["response_type"]:
+                kwargs = {}
+                if {"code", "id_token", "token"}.issubset(rtype):
+                    kwargs = {"code": _code.value, "access_token": _access_token.value}
+                elif {"code", "id_token"}.issubset(rtype):
+                    kwargs = {"code": _code.value}
+                elif {"id_token", "token"}.issubset(rtype):
+                    kwargs = {"access_token": _access_token.value}
+
+                try:
+                    id_token = _context.idtoken.make(sid, **kwargs)
+                except (JWEException, NoSuitableSigningKeys) as err:
+                    logger.warning(str(err))
+                    resp = self.error_cls(
+                        error="invalid_request",
+                        error_description="Could not sign/encrypt id_token",
+                    )
+                    return {"response_args": resp, "fragment_enc": fragment_enc}
+
+                aresp["id_token"] = id_token
+                _mngr.update([_sinfo["user_id"], _sinfo["client_id"]],
+                             {"id_token": id_token})
+                handled_response_type.append("id_token")
+
+            not_handled = rtype.difference(handled_response_type)
+            if not_handled:
+                resp = self.error_cls(
+                    error="invalid_request", error_description="unsupported_response_type"
+                )
+                return {"response_args": resp, "fragment_enc": fragment_enc}
+
+        aresp = self.extra_response_args(aresp)
+
+        return {"response_args": aresp, "fragment_enc": fragment_enc}
+
+    def post_authentication(self, request: Union[dict, Message],
+                            session_id: str, **kwargs) -> dict:
         """
         Things that are done after a successful authentication.
 
-        :param user:
-        :param request:
-        :param sid:
+        :param request: The authorization request
+        :param session_id: Session identifier
         :param kwargs:
         :return: A dictionary with 'response_args'
         """
 
         response_info = {}
+        _mngr = self.endpoint_context.session_manager
 
         # Do the authorization
         try:
-            permission = self.endpoint_context.authz(
-                user, client_id=request["client_id"]
-            )
+            grant = self.endpoint_context.authz(session_id, request=request)
         except ToOld as err:
             return self.error_response(
                 response_info,
@@ -475,8 +762,9 @@ class Authorization(Endpoint):
                 response_info, "access_denied", "{}".format(err.args)
             )
         else:
+            user_id, client_id, grant_id = unpack_session_key(session_id)
             try:
-                self.endpoint_context.sdb.update(sid, permission=permission)
+                _mngr.set([user_id, client_id, grant_id], grant)
             except Exception as err:
                 return self.error_response(
                     response_info, "server_error", "{}".format(err.args)
@@ -484,12 +772,10 @@ class Authorization(Endpoint):
 
         logger.debug("response type: %s" % request["response_type"])
 
-        if self.endpoint_context.sdb.is_session_revoked(sid):
-            return self.error_response(
-                response_info, "access_denied", "Session is revoked"
-            )
+        response_info = self.create_authn_response(request, session_id)
+        response_info["session_id"] = session_id
 
-        response_info = self.create_authn_response(request, sid)
+        logger.debug("Known clients: {}".format(list(self.endpoint_context.cdb.keys())))
 
         try:
             redirect_uri = get_uri(self.endpoint_context, request, "redirect_uri")
@@ -507,10 +793,8 @@ class Authorization(Endpoint):
 
         _cookie = new_cookie(
             self.endpoint_context,
-            sub=user,
-            sid=sid,
-            state=request["state"],
-            client_id=request["client_id"],
+            sid=session_id,
+            state=request.get("state"),
             cookie_name=self.endpoint_context.cookie_name["session"],
         )
 
@@ -530,56 +814,79 @@ class Authorization(Endpoint):
 
         return response_info
 
-    def authz_part2(self, user, authn_event, request, **kwargs):
+    # def setup_client_session(self, user_id: str, request: dict) -> str:
+    #     _mngr = self.endpoint_context.session_manager
+    #     client_id = request['client_id']
+    #
+    #     client_info = ClientSessionInfo(
+    #         authorization_request=request,
+    #         sub=_mngr.sub_func['public'](user_id, salt=_mngr.salt)
+    #     )
+    #
+    #     _mngr.set([user_id, client_id], client_info)
+    #     return session_key(user_id, client_id)
+
+    def authz_part2(self, request, session_id, **kwargs):
         """
         After the authentication this is where you should end up
 
         :param user:
         :param request: The Authorization Request
-        :param sid: Session key
+        :param session_id: Session identifier
         :param kwargs: possible other parameters
         :return: A redirect to the redirect_uri of the client
         """
-        sid = setup_session(
-            self.endpoint_context, request, user, authn_event=authn_event
-        )
 
         try:
-            resp_info = self.post_authentication(user, request, sid, **kwargs)
+            resp_info = self.post_authentication(request, session_id, **kwargs)
         except Exception as err:
             return self.error_response({}, "server_error", err)
 
         if "check_session_iframe" in self.endpoint_context.provider_info:
             ec = self.endpoint_context
             salt = rndstr()
-            if not ec.sdb.is_session_revoked(sid):
-                authn_event = ec.sdb.get_authentication_event(
-                    sid
-                )  # use the last session
-                _state = b64e(
-                    as_bytes(json.dumps({"authn_time": authn_event["authn_time"]}))
-                )
+            try:
+                authn_event = ec.session_manager.get_authentication_event(session_id)
+            except KeyError:
+                return self.error_response({}, "server_error", "No such session")
+            else:
+                if authn_event.is_valid() is False:
+                    return self.error_response({}, "server_error", "Authentication has timed out")
 
+            _state = b64e(
+                as_bytes(json.dumps({"authn_time": authn_event["authn_time"]}))
+            )
+
+            opbs_value = ''
+            if hasattr(ec.cookie_dealer, 'create_cookie'):
                 session_cookie = ec.cookie_dealer.create_cookie(
                     as_unicode(_state),
                     typ="session",
                     cookie_name=ec.cookie_name["session_management"],
+                    same_site="None",
+                    http_only=False,
                 )
 
                 opbs = session_cookie[ec.cookie_name["session_management"]]
-
+                opbs_value = opbs.value
+            else:
+                session_cookie = None
                 logger.debug(
-                    "compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
-                    request["client_id"],
-                    resp_info["return_uri"],
-                    opbs.value,
-                    salt,
-                )
+                    "Failed to set Cookie, that's not configured in main configuration.")
 
-                _session_state = compute_session_state(
-                    opbs.value, salt, request["client_id"], resp_info["return_uri"]
-                )
+            logger.debug(
+                "compute_session_state: client_id=%s, origin=%s, opbs=%s, salt=%s",
+                request["client_id"],
+                resp_info["return_uri"],
+                opbs_value,
+                salt,
+            )
 
+            _session_state = compute_session_state(
+                opbs_value, salt, request["client_id"], resp_info["return_uri"]
+            )
+
+            if opbs_value and session_cookie:
                 if "cookie" in resp_info:
                     if isinstance(resp_info["cookie"], list):
                         resp_info["cookie"].append(session_cookie)
@@ -588,7 +895,7 @@ class Authorization(Endpoint):
                 else:
                     resp_info["cookie"] = session_cookie
 
-                resp_info["response_args"]["session_state"] = _session_state
+            resp_info["response_args"]["session_state"] = _session_state
 
         # Mix-Up mitigation
         resp_info["response_args"]["iss"] = self.endpoint_context.issuer
@@ -596,30 +903,35 @@ class Authorization(Endpoint):
 
         return resp_info
 
-    def process_request(self, request_info=None, **kwargs):
+    def do_request_user(self, request_info, **kwargs):
+        return kwargs
+
+    def process_request(self, request: Union[Message, dict], **kwargs):
         """ The AuthorizationRequest endpoint
 
-        :param request_info: The authorization request as a dictionary
+        :param request: The authorization request as a Message instance
         :return: dictionary
         """
 
-        if isinstance(request_info, self.error_cls):
-            return request_info
+        if isinstance(request, self.error_cls):
+            return request
 
-        _cid = request_info["client_id"]
+        _cid = request["client_id"]
         cinfo = self.endpoint_context.cdb[_cid]
-
         logger.debug("client {}: {}".format(_cid, cinfo))
 
         # this apply the default optionally deny_unknown_scopes policy
-        check_unknown_scopes_policy(request_info, cinfo, self.endpoint_context)
+        if cinfo:
+            check_unknown_scopes_policy(request, cinfo, self.endpoint_context)
 
         cookie = kwargs.get("cookie", "")
         if cookie:
             del kwargs["cookie"]
 
+        kwargs = self.do_request_user(request_info=request, **kwargs)
+
         info = self.setup_auth(
-            request_info, request_info["redirect_uri"], cinfo, cookie, **kwargs
+            request, request["redirect_uri"], cinfo, cookie, **kwargs
         )
 
         if "error" in info:
@@ -628,18 +940,81 @@ class Authorization(Endpoint):
         _function = info.get("function")
         if not _function:
             logger.debug("- authenticated -")
-            logger.debug("AREQ keys: %s" % request_info.keys())
-            res = self.authz_part2(
-                info["user"], info["authn_event"], request_info, cookie=cookie
-            )
-            return res
+            logger.debug("AREQ keys: %s" % request.keys())
+            return self.authz_part2(request=request, cookie=cookie, **info)
 
         try:
             # Run the authentication function
             return {
                 "http_response": _function(**info["args"]),
-                "return_uri": request_info["redirect_uri"],
+                "return_uri": request["redirect_uri"],
             }
         except Exception as err:
             logger.exception(err)
             return {"http_response": "Internal error: {}".format(err)}
+
+
+class AllowedAlgorithms:
+    def __init__(self, algorithm_parameters):
+        self.algorithm_parameters = algorithm_parameters
+
+    def __call__(self, client_id, endpoint_context, alg, alg_type):
+        _cinfo = endpoint_context.cdb[client_id]
+        _pinfo = endpoint_context.provider_info
+
+        _reg, _sup = self.algorithm_parameters[alg_type]
+        _allowed = _cinfo.get(_reg)
+        if _allowed is None:
+            _allowed = _pinfo.get(_sup)
+
+        if alg not in _allowed:
+            logger.error(
+                "Signing alg user: {} not among allowed: {}".format(alg, _allowed)
+            )
+            raise ValueError("Not allowed '%s' algorithm used", alg)
+
+
+def re_authenticate(request, authn):
+    return False
+
+# class Authorization(authorization.Authorization):
+#     request_cls = oauth2.AuthorizationRequest
+#     response_cls = oauth2.AuthorizationResponse
+#     error_cls = oauth2.AuthorizationErrorResponse
+#     request_format = "urlencoded"
+#     response_format = "urlencoded"
+#     response_placement = "url"
+#     endpoint_name = "authorization_endpoint"
+#     name = "authorization"
+#     default_capabilities = {
+#         "claims_parameter_supported": True,
+#         "request_parameter_supported": True,
+#         "request_uri_parameter_supported": True,
+#         "response_types_supported": ["code", "token", "code token"],
+#         "response_modes_supported": ["query", "fragment", "form_post"],
+#         "request_object_signing_alg_values_supported": None,
+#         "request_object_encryption_alg_values_supported": None,
+#         "request_object_encryption_enc_values_supported": None,
+#         "grant_types_supported": ["authorization_code", "implicit"],
+#         "scopes_supported": [],
+#     }
+#
+#     def __init__(self, endpoint_context, **kwargs):
+#         authorization.Authorization.__init__(self, endpoint_context, **kwargs)
+#         # self.pre_construct.append(self._pre_construct)
+#         self.post_parse_request.append(self._do_request_uri)
+#         self.post_parse_request.append(self._post_parse_request)
+#         # Has to be done elsewhere. To make sure things happen in order.
+#         # self.scopes_supported = available_scopes(endpoint_context)
+#
+#     def setup_client_session(self, user_id: str, request: dict) -> str:
+#         _mngr = self.endpoint_context.session_manager
+#         client_id = request['client_id']
+#
+#         client_info = ClientSessionInfo(
+#             authorization_request=request,
+#             sub=_mngr.sub_func['public'](user_id, salt=_mngr.salt)
+#         )
+#
+#         _mngr.set([user_id, client_id], client_info)
+#         return session_key(user_id, client_id)

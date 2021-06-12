@@ -1,16 +1,19 @@
 import json
 import logging
+from typing import Optional
+from typing import Union
 
 from cryptojwt.exception import MissingValue
 from cryptojwt.jwt import JWT
 from cryptojwt.jwt import utc_time_sans_frac
-from oidcendpoint.token_handler import UnknownToken
 from oidcmsg import oidc
 from oidcmsg.message import Message
 from oidcmsg.oauth2 import ResponseMessage
 
 from oidcendpoint.endpoint import Endpoint
-from oidcendpoint.userinfo import collect_user_info
+from oidcendpoint.endpoint_context import EndpointContext
+from oidcendpoint.session.token import AccessToken
+from oidcendpoint.token.exception import UnknownToken
 from oidcendpoint.util import OAUTH2_NOCACHE_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -32,17 +35,25 @@ class UserInfo(Endpoint):
         "client_authn_method": ["bearer_header"],
     }
 
-    def __init__(self, endpoint_context, **kwargs):
-        Endpoint.__init__(self, endpoint_context, **kwargs)
-        self.scope_to_claims = None
+    def __init__(self, endpoint_context: EndpointContext,
+                 add_claims_by_scope: Optional[bool] = True,
+                 **kwargs):
+        Endpoint.__init__(
+            self,
+            endpoint_context,
+            add_claims_by_scope=add_claims_by_scope,
+            **kwargs,
+        )
         # Add the issuer ID as an allowed JWT target
         self.allowed_targets.append("")
 
     def get_client_id_from_token(self, endpoint_context, token, request=None):
-        sinfo = self.endpoint_context.sdb[token]
-        return sinfo["authn_req"]["client_id"]
+        _info = endpoint_context.session_manager.get_session_info_by_token(token)
+        return _info["client_id"]
 
-    def do_response(self, response_args=None, request=None, client_id="", **kwargs):
+    def do_response(self, response_args: Optional[Union[Message, dict]] = None,
+                    request: Optional[Union[Message, dict]] = None,
+                    client_id: Optional[str] = "", **kwargs) -> dict:
 
         if "error" in kwargs and kwargs["error"]:
             return Endpoint.do_response(self, response_args, request, **kwargs)
@@ -96,26 +107,32 @@ class UserInfo(Endpoint):
         return {"response": resp, "http_headers": http_headers}
 
     def process_request(self, request=None, **kwargs):
-        _sdb = self.endpoint_context.sdb
-
+        _mngr = self.endpoint_context.session_manager
+        _session_info = _mngr.get_session_info_by_token(request["access_token"],
+                                                        grant=True)
+        _grant = _session_info["grant"]
+        token = _grant.get_token(request["access_token"])
         # should be an access token
-        if not _sdb.is_token_valid(request["access_token"]):
+        if not isinstance(token, AccessToken):
+            return self.error_cls(
+                error="invalid_token", error_description="Wrong type of token"
+            )
+
+        # And it should be valid
+        if token.is_active() is False:
             return self.error_cls(
                 error="invalid_token", error_description="Invalid Token"
             )
 
-        session = _sdb.read(request["access_token"])
-
         allowed = True
+        _auth_event = _grant.authentication_event
         # if the authenticate is still active or offline_access is granted.
-        if session["authn_event"]["valid_until"] > utc_time_sans_frac():
+        if _auth_event["valid_until"] > utc_time_sans_frac():
             pass
         else:
-            logger.debug(
-                "authentication not valid: {} > {}".format(
-                    session["authn_event"]["valid_until"], utc_time_sans_frac()
-                )
-            )
+            logger.debug("authentication not valid: {} > {}".format(
+                _auth_event["valid_until"], utc_time_sans_frac()
+            ))
             allowed = False
 
             # This has to be made more fine grained.
@@ -123,15 +140,18 @@ class UserInfo(Endpoint):
             #     pass
 
         if allowed:
-            # Scope can translate to userinfo_claims
-            info = collect_user_info(self.endpoint_context, session)
+            _claims = _grant.claims.get("userinfo")
+            info = self.endpoint_context.claims_interface.get_user_claims(
+                user_id=_session_info["user_id"],
+                claims_restriction=_claims)
+            info["sub"] = _grant.sub
         else:
             info = {
                 "error": "invalid_request",
                 "error_description": "Access not granted",
             }
 
-        return {"response_args": info, "client_id": session["authn_req"]["client_id"]}
+        return {"response_args": info, "client_id": _session_info["client_id"]}
 
     def parse_request(self, request, auth=None, **kwargs):
         """

@@ -9,20 +9,18 @@ from cryptojwt.key_jar import build_keyjar
 from cryptojwt.utils import as_bytes
 from oidcmsg.oauth2 import TokenIntrospectionRequest
 from oidcmsg.oidc import AccessTokenRequest
-from oidcmsg.oidc import AccessTokenResponse
 from oidcmsg.oidc import AuthorizationRequest
+from oidcmsg.time_util import time_sans_frac
 from oidcmsg.time_util import utc_time_sans_frac
 
-from oidcendpoint.client_authn import ClientSecretPost
-from oidcendpoint.client_authn import UnknownOrNoAuthnMethod
-from oidcendpoint.client_authn import WrongAuthnMethod
+from oidcendpoint.authn_event import create_authn_event
+from oidcendpoint.authz import AuthzHandling
 from oidcendpoint.client_authn import verify_client
 from oidcendpoint.endpoint_context import EndpointContext
 from oidcendpoint.exception import UnAuthorizedClient
 from oidcendpoint.oauth2.authorization import Authorization
 from oidcendpoint.oauth2.introspection import Introspection
-from oidcendpoint.oidc.token_coop import TokenCoop
-from oidcendpoint.session import setup_session
+from oidcendpoint.oidc.token import Token
 from oidcendpoint.user_authn.authn_context import INTERNETPROTOCOLPASSWORD
 from oidcendpoint.user_info import UserInfo
 
@@ -51,7 +49,7 @@ CAPABILITIES = {
         "private_key_jwt",
     ],
     "response_modes_supported": ["query", "fragment", "form_post"],
-    "subject_types_supported": ["public", "pairwise"],
+    "subject_types_supported": ["public", "pairwise", "ephemeral"],
     "grant_types_supported": [
         "authorization_code",
         "implicit",
@@ -84,6 +82,12 @@ TOKEN_REQ_DICT = TOKEN_REQ.to_dict()
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
+MAP = {
+    "authorization_code": "code",
+    "access_token": "access_token",
+    "refresh_token": "refresh_token"
+}
+
 
 def full_path(local_file):
     return os.path.join(BASEDIR, local_file)
@@ -96,9 +100,6 @@ class TestEndpoint:
         conf = {
             "issuer": "https://example.com/",
             "password": "mycket hemligt",
-            "token_expires_in": 600,
-            "grant_expires_in": 300,
-            "refresh_token_expires_in": 86400,
             "verify_ssl": False,
             "capabilities": CAPABILITIES,
             "keys": {"uri_path": "jwks.json", "key_defs": KEYDEFS},
@@ -129,14 +130,13 @@ class TestEndpoint:
                     "path": "{}/intro",
                     "class": Introspection,
                     "kwargs": {
-                        "release": ["username"],
                         "client_authn_method": ["client_secret_post"],
                         "enable_claims_per_client": False,
                     },
                 },
                 "token": {
                     "path": "token",
-                    "class": TokenCoop,
+                    "class": Token,
                     "kwargs": {
                         "client_authn_method": [
                             "client_secret_basic",
@@ -161,10 +161,28 @@ class TestEndpoint:
             },
             "client_authn": verify_client,
             "template_dir": "template",
+            "authz": {
+                "class": AuthzHandling,
+                "kwargs": {
+                    "grant_config": {
+                        "usage_rules": {
+                            "authorization_code": {
+                                'supports_minting': ["access_token", "refresh_token", "id_token"],
+                                "max_usage": 1
+                            },
+                            "access_token": {},
+                            "refresh_token": {
+                                'supports_minting': ["access_token", "refresh_token"],
+                            }
+                        },
+                        "expires_in": 43200
+                    }
+                }
+            }
         }
         if jwt_token:
             conf["token_handler_args"]["token"] = {
-                "class": "oidcendpoint.jwt_token.JWTToken",
+                "class": "oidcendpoint.token.jwt_token.JWTToken",
                 "kwargs": {},
             }
         endpoint_context = EndpointContext(conf)
@@ -174,7 +192,10 @@ class TestEndpoint:
             "client_salt": "salted",
             "token_endpoint_auth_method": "client_secret_post",
             "response_types": ["code", "token", "code id_token", "id_token"],
-            "introspection_claims": ["nickname", "eduperson_scoped_affiliation"],
+            "introspection_claims": {
+                "nickname": None,
+                "eduperson_scoped_affiliation": None
+            },
         }
         endpoint_context.keyjar.import_jwks_as_json(
             endpoint_context.keyjar.export_jwks_as_json(private=True),
@@ -182,33 +203,54 @@ class TestEndpoint:
         )
         self.introspection_endpoint = endpoint_context.endpoint["introspection"]
         self.token_endpoint = endpoint_context.endpoint["token"]
+        self.session_manager = endpoint_context.session_manager
+        self.user_id = "diana"
 
-    def _create_at(self, uid, lifetime=0, with_jti=False):
-        _context = self.introspection_endpoint.endpoint_context
+    def _create_session(self, auth_req, sub_type="public", sector_identifier=''):
+        if sector_identifier:
+            authz_req = auth_req.copy()
+            authz_req["sector_identifier_uri"] = sector_identifier
+        else:
+            authz_req = auth_req
+        client_id = authz_req['client_id']
+        ae = create_authn_event(self.user_id)
+        return self.session_manager.create_session(ae, authz_req, self.user_id,
+                                                   client_id=client_id,
+                                                   sub_type=sub_type)
 
-        session_id = setup_session(
-            _context, AUTH_REQ, uid=uid, acr=INTERNETPROTOCOLPASSWORD,
+    def _mint_token(self, type, grant, session_id, based_on=None, **kwargs):
+        # Constructing an authorization code is now done
+        return grant.mint_token(
+            session_id=session_id,
+            endpoint_context=self.token_endpoint.endpoint_context,
+            token_type=type,
+            token_handler=self.session_manager.token_handler.handler[MAP[type]],
+            expires_at=time_sans_frac() + 300,  # 5 minutes from now
+            based_on=based_on,
+            **kwargs
         )
-        _token_request = TOKEN_REQ_DICT.copy()
-        _token_request["code"] = _context.sdb[session_id]["code"]
-        _context.sdb.update(session_id, user=uid)
 
-        _req = self.token_endpoint.parse_request(_token_request)
-        _resp = self.token_endpoint.process_request(request=_req)
-        _resp = AccessTokenResponse(**_resp["response_args"])
-        return _resp["access_token"]
+    def _get_access_token(self, areq):
+        session_id = self._create_session(areq)
+        # Consent handling
+        grant = self.token_endpoint.endpoint_context.authz(session_id, areq)
+        self.session_manager[session_id] = grant
+        # grant = self.session_manager[session_id]
+        code = self._mint_token("authorization_code", grant, session_id)
+        return self._mint_token("access_token", grant, session_id, code)
 
     def test_parse_no_authn(self):
-        _token = self._create_at("diana")
+        access_token = self._get_access_token(AUTH_REQ)
         with pytest.raises(UnAuthorizedClient):
-            self.introspection_endpoint.parse_request({"token": _token})
+            self.introspection_endpoint.parse_request({"token": access_token.value})
 
     def test_parse_with_client_auth_in_req(self):
+        access_token = self._get_access_token(AUTH_REQ)
+
         _context = self.introspection_endpoint.endpoint_context
-        _token = self._create_at("diana")
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": _token,
+                "token": access_token.value,
                 "client_id": "client_1",
                 "client_secret": _context.cdb["client_1"]["client_secret"],
             }
@@ -218,25 +260,27 @@ class TestEndpoint:
         assert set(_req.keys()) == {"token", "client_id", "client_secret"}
 
     def test_parse_with_wrong_client_authn(self):
-        _context = self.introspection_endpoint.endpoint_context
-        _token = self._create_at("diana")
+        access_token = self._get_access_token(AUTH_REQ)
+
         _basic_token = "{}:{}".format(
-            "client_1", _context.cdb["client_1"]["client_secret"]
+            "client_1",
+            self.introspection_endpoint.endpoint_context.cdb["client_1"]["client_secret"]
         )
         _basic_token = as_unicode(base64.b64encode(as_bytes(_basic_token)))
         _basic_authz = "Basic {}".format(_basic_token)
 
         with pytest.raises(UnAuthorizedClient):
-            self.introspection_endpoint.parse_request({"token": _token}, _basic_authz)
+            self.introspection_endpoint.parse_request({"token": access_token.value}, _basic_authz)
 
     def test_process_request(self):
-        _context = self.introspection_endpoint.endpoint_context
-        _token = self._create_at("diana", lifetime=6000)
+        access_token = self._get_access_token(AUTH_REQ)
+
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": _token,
+                "token": access_token.value,
                 "client_id": "client_1",
-                "client_secret": _context.cdb["client_1"]["client_secret"],
+                "client_secret": self.introspection_endpoint.endpoint_context.cdb[
+                    "client_1"]["client_secret"],
             }
         )
         _resp = self.introspection_endpoint.process_request(_req)
@@ -245,13 +289,14 @@ class TestEndpoint:
         assert set(_resp.keys()) == {"response_args"}
 
     def test_do_response(self):
-        _context = self.introspection_endpoint.endpoint_context
-        _token = self._create_at("diana", lifetime=6000, with_jti=True)
+        access_token = self._get_access_token(AUTH_REQ)
+
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": _token,
+                "token": access_token.value,
                 "client_id": "client_1",
-                "client_secret": _context.cdb["client_1"]["client_secret"],
+                "client_secret": self.introspection_endpoint.endpoint_context.cdb[
+                    "client_1"]["client_secret"],
             }
         )
         _resp = self.introspection_endpoint.process_request(_req)
@@ -267,16 +312,19 @@ class TestEndpoint:
         assert set(_payload.keys()) == {
             "active",
             "iss",
-            "scope",
             "token_type",
             "sub",
             "client_id",
+            "exp",
+            "iat",
+            "scope",
+            "aud"
         }
         assert _payload["active"] is True
 
     def test_do_response_no_token(self):
+        # access_token = self._get_access_token(AUTH_REQ)
         _context = self.introspection_endpoint.endpoint_context
-        self._create_at("diana", lifetime=6000, with_jti=True)
         _req = self.introspection_endpoint.parse_request(
             {
                 "client_id": "client_1",
@@ -287,11 +335,11 @@ class TestEndpoint:
         assert "error" in _resp
 
     def test_access_token(self):
+        access_token = self._get_access_token(AUTH_REQ)
         _context = self.introspection_endpoint.endpoint_context
-        _token = self._create_at("diana", lifetime=6000, with_jti=True)
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": _token,
+                "token": access_token.value,
                 "client_id": "client_1",
                 "client_secret": _context.cdb["client_1"]["client_secret"],
             }
@@ -303,16 +351,19 @@ class TestEndpoint:
         assert _resp_args["scope"] == "openid"
 
     def test_code(self):
-        _context = self.introspection_endpoint.endpoint_context
+        session_id = self._create_session(AUTH_REQ)
 
-        session_id = setup_session(
-            _context, AUTH_REQ, uid="A", acr=INTERNETPROTOCOLPASSWORD,
-        )
-        code = _context.sdb[session_id]["code"]
+        # Apply consent
+        grant = self.token_endpoint.endpoint_context.authz(session_id, AUTH_REQ)
+        self.session_manager[session_id] = grant
+
+        code = self._mint_token("authorization_code", grant, session_id)
+
+        _context = self.introspection_endpoint.endpoint_context
 
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": code,
+                "token": code.value,
                 "client_id": "client_1",
                 "client_secret": _context.cdb["client_1"]["client_secret"],
             }
@@ -322,12 +373,27 @@ class TestEndpoint:
         assert _resp_args["active"] is False
 
     def test_introspection_claims(self):
-        self.introspection_endpoint.enable_claims_per_client = True
+        session_id = self._create_session(AUTH_REQ)
+        # Apply consent
+        grant = self.token_endpoint.endpoint_context.authz(session_id, AUTH_REQ)
+        self.session_manager[session_id] = grant
+
+        code = self._mint_token("authorization_code", grant, session_id)
+        access_token = self._mint_token("access_token", grant, session_id, code)
+
+        self.introspection_endpoint.kwargs["enable_claims_per_client"] = True
+
+        _c_interface = self.introspection_endpoint.endpoint_context.claims_interface
+        grant.claims = {
+            "introspection": _c_interface.get_claims(session_id,
+                                                     scopes=AUTH_REQ["scope"],
+                                                     usage="introspection")
+        }
+
         _context = self.introspection_endpoint.endpoint_context
-        _token = self._create_at("diana", lifetime=6000, with_jti=True)
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": _token,
+                "token": access_token.value,
                 "client_id": "client_1",
                 "client_secret": _context.cdb["client_1"]["client_secret"],
             }
@@ -368,15 +434,14 @@ class TestEndpoint:
         assert _resp["response_args"]["active"] is False
 
     def test_expired_access_token(self):
+        access_token = self._get_access_token(AUTH_REQ)
+        access_token.expires_at = utc_time_sans_frac() - 1000
+
         _context = self.introspection_endpoint.endpoint_context
-        _token = self._create_at("diana", lifetime=6000, with_jti=True)
-        _info = self.token_endpoint.endpoint_context.sdb[_token]
-        _info["expires_at"] = utc_time_sans_frac() - 1000
-        self.token_endpoint.endpoint_context.sdb[_token] = _info
 
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": _token,
+                "token": access_token.value,
                 "client_id": "client_1",
                 "client_secret": _context.cdb["client_1"]["client_secret"],
             }
@@ -385,14 +450,14 @@ class TestEndpoint:
         assert _resp["response_args"]["active"] is False
 
     def test_revoked_access_token(self):
-        _token = self._create_at("diana", lifetime=6000, with_jti=True)
-        _context = self.introspection_endpoint.endpoint_context
+        access_token = self._get_access_token(AUTH_REQ)
+        access_token.revoked = True
 
-        self.token_endpoint.endpoint_context.sdb.revoke_session(token=_token)
+        _context = self.introspection_endpoint.endpoint_context
 
         _req = self.introspection_endpoint.parse_request(
             {
-                "token": _token,
+                "token": access_token.value,
                 "client_id": "client_1",
                 "client_secret": _context.cdb["client_1"]["client_secret"],
             }
